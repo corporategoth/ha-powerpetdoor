@@ -5,6 +5,7 @@ import async_timeout
 import logging
 import json
 import time
+from datetime import datetime, timezone
 import copy
 
 from asyncio import ensure_future
@@ -99,6 +100,7 @@ class PetDoor(SwitchEntity):
     msgId = 1
     replyMsgId = None
     status = None
+    last_change = None
     settings = {}
 
     _shutdown = False
@@ -251,6 +253,8 @@ class PetDoor(SwitchEntity):
             self.replyMsgId = msg["msgID"]
 
         if "door_status" in msg:
+            if not self.status is None and self.status != msg["door_status"]
+                last_change = datetime.now(timezone.utc)
             self.status = msg["door_status"]
             _LOGGER.debug(f"DOOR STATUS - {self.status}")
             self.schedule_update_ha_state()
@@ -288,14 +292,17 @@ class PetDoor(SwitchEntity):
     @property
     def extra_state_attributes(self) -> dict | None:
         data = copy.deepcopy(self.settings)
-        data["status"] = self.status
+        if self.status:
+            data["status"] = self.status
+        if self.last_change:
+            data["last_change"] = self.last_change.isoformat()
         return data
 
     async def turn_on(self, hold: bool = True, **kwargs: Any) -> None:
         return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
     async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
-        if hold == None:
+        if hold is None:
             hold = self.config.get(CONF_HOLD)
         if hold:
             await self.cmd_open_and_hold()
