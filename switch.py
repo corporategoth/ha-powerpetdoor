@@ -253,7 +253,7 @@ class PetDoor(SwitchEntity):
             self.replyMsgId = msg["msgID"]
 
         if "door_status" in msg:
-            if not self.status is None and self.status != msg["door_status"]
+            if not self.status is None and self.status != msg["door_status"]:
                 last_change = datetime.now(timezone.utc)
             self.status = msg["door_status"]
             _LOGGER.debug(f"DOOR STATUS - {self.status}")
