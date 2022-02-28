@@ -32,6 +32,7 @@ switch powerpetdoor:
 | timeout | No | 5.0 | Time out on attempting to connect to your Power Pet Door (seconds) |
 | reconnect | No | 30.0 | How long to wait between retrying to connect to your Power Pet Door if disconnected (seconds) |
 | keep_alive | No | 30.0 | How often will we send a PING keep alive message to the Power Pet Door (seconds) |
+| refresh | No | 300.0 | How often we pull the configuration settings from the Power Pet Door (seconds) |
 
 ## Service functions
 
