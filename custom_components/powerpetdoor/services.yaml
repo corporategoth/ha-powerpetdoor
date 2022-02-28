@@ -58,6 +58,42 @@ toggle_sensor:
           - inside
           - outside
 
+enable_auto:
+  name: Enable Auto
+  description: Enable automatic (scheduled) mode
+  fields:
+    entity_id:
+      name: Entity
+      description: Name of the Power Pet Door to enable auto on.
+      required: true
+      selector:
+        entity:
+          domain: powerpetdoor
+
+disable_auto:
+  name: Disable Auto
+  description: Disable automatic (scheduled) mode
+  fields:
+    entity_id:
+      name: Entity
+      description: Name of the Power Pet Door to disable auto on.
+      required: true
+      selector:
+        entity:
+          domain: powerpetdoor
+
+toggle_auto:
+  name: Toggle Auto
+  description: Toggle automatic (scheduled) mode
+  fields:
+    entity_id:
+      name: Entity
+      description: Name of the Power Pet Door to toggle auto on.
+      required: true
+      selector:
+        entity:
+          domain: powerpetdoor
+
 power_on:
   name: Power On
   description: Power on the pet door

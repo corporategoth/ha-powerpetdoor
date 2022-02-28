@@ -70,6 +70,10 @@ SENSOR_SCHEMA = vol.Schema({
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SENSOR_INSIDE, SENSOR_OUTSIDE))
 })
 
+AUTO_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id
+})
+
 POWER_SCHEMA = vol.Schema({
     vol.Required(ATTR_ENTITY_ID): cv.entity_id
 })
@@ -80,6 +84,9 @@ SIGNAL_INSIDE_TOGGLE = "POWERPET_TOGGLE_INSIDE_{}"
 SIGNAL_OUTSIDE_ENABLE = "POWERPET_ENABLE_OUTSIDE_{}"
 SIGNAL_OUTSIDE_DISABLE = "POWERPET_DISABLE_OUTSIDE_{}"
 SIGNAL_OUTSIDE_TOGGLE = "POWERPET_TOGGLE_OUTSIDE_{}"
+SIGNAL_AUTO_ENABLE = "POWERPET_ENABLE_AUTO_{}"
+SIGNAL_AUTO_DISABLE = "POWERPET_DISABLE_AUTO_{}"
+SIGNAL_AUTO_TOGGLE = "POWERPET_TOGGLE_AUTO_{}"
 SIGNAL_POWER_ON = "POWERPET_POWER_ON_{}"
 SIGNAL_POWER_OFF = "POWERPET_POWER_OFF{}"
 SIGNAL_POWER_TOGGLE = "POWERPET_POWER_TOGGLE_{}"
@@ -97,7 +104,7 @@ def find_end(s) -> int | None:
             parens += 1
         elif c == '}':
             parens -= 1
- 
+
         if parens == 0:
             return i+1
 
@@ -134,6 +141,9 @@ class PetDoor(SwitchEntity):
         async_dispatcher_connect(self.hass, SIGNAL_OUTSIDE_ENABLE.format(self.entity_id), self.config_enable_outside)
         async_dispatcher_connect(self.hass, SIGNAL_OUTSIDE_DISABLE.format(self.entity_id), self.config_disable_outside)
         async_dispatcher_connect(self.hass, SIGNAL_OUTSIDE_TOGGLE.format(self.entity_id), self.config_toggle_outside)
+        async_dispatcher_connect(self.hass, SIGNAL_AUTO_ENABLE.format(self.entity_id), self.config_enable_auto)
+        async_dispatcher_connect(self.hass, SIGNAL_AUTO_DISABLE.format(self.entity_id), self.config_disable_auto)
+        async_dispatcher_connect(self.hass, SIGNAL_AUTO_TOGGLE.format(self.entity_id), self.config_toggle_auto)
         async_dispatcher_connect(self.hass, SIGNAL_POWER_ON.format(self.entity_id), self.config_power_on)
         async_dispatcher_connect(self.hass, SIGNAL_POWER_OFF.format(self.entity_id), self.config_power_off)
         async_dispatcher_connect(self.hass, SIGNAL_POWER_TOGGLE.format(self.entity_id), self.config_power_toggle)
@@ -301,9 +311,14 @@ class PetDoor(SwitchEntity):
                     self.settings["outside"] = "true" if msg["outside"] else "false"
                 self.schedule_update_ha_state()
 
-            if msg["CMD"] in ("POWER_ON", "POWER_OFF"):
+            if msg["CMD"] in ("GET_POWER", "POWER_ON", "POWER_OFF"):
                 if "power_state" in msg:
-                    self.settings["power_state"] = "true" if msg["power_state"] else "false"
+                    self.settings["power_state"] = msg["power_state"]
+                self.schedule_update_ha_state()
+
+            if msg["CMD"] in ("GET_TIMERS_ENABLED", "ENABLE_TIMERS", "DISABLE_TIMERS"):
+                if "timersEnabled" in msg:
+                    self.settings["timersEnabled"] = msg["timersEnabled"]
                 self.schedule_update_ha_state()
         else:
             _LOGGER.warn("Error reported: {}".format(json.dumps(msg)))
@@ -394,6 +409,19 @@ class PetDoor(SwitchEntity):
             elif self.settings["outside"] == "false":
                 await self.config_enable_outside()
 
+    async def config_disable_auto(self):
+        self.send_message(CONFIG, "DISABLE_TIMERS")
+
+    async def config_enable_auto(self):
+        self.send_message(CONFIG, "ENABLE_TIMERS")
+
+    async def config_toggle_auto(self):
+        if self.settings:
+            if self.settings["timersEnabled"] == "true":
+                await self.config_disable_auto()
+            elif self.settings["timersEnabled"] == "false":
+                await self.config_enable_auto()
+
     async def config_power_on(self):
         self.send_message(CONFIG, "POWER_ON")
 
@@ -446,6 +474,21 @@ async def async_setup_platform(hass: HomeAssistant,
             async_dispatcher_send(hass, SIGNAL_OUTSIDE_TOGGLE.format(entity_id))
 
     @callback
+    async def async_auto_enable(service: ServiceCall):
+        entity_id = service.data["entity_id"]
+        async_dispatcher_send(hass, SIGNAL_AUTO_ENABLE.format(entity_id))
+
+    @callback
+    async def async_auto_disable(service: ServiceCall):
+        entity_id = service.data["entity_id"]
+        async_dispatcher_send(hass, SIGNAL_AUTO_DISABLE.format(entity_id))
+
+    @callback
+    async def async_auto_toggle(service: ServiceCall):
+        entity_id = service.data["entity_id"]
+        async_dispatcher_send(hass, SIGNAL_AUTO_TOGGLE.format(entity_id))
+
+    @callback
     async def async_power_on(service: ServiceCall):
         entity_id = service.data["entity_id"]
         async_dispatcher_send(hass, SIGNAL_POWER_ON.format(entity_id))
@@ -463,6 +506,9 @@ async def async_setup_platform(hass: HomeAssistant,
     hass.services.async_register(DOMAIN, "enable_sensor", async_sensor_enable, SENSOR_SCHEMA)
     hass.services.async_register(DOMAIN, "disable_sensor", async_sensor_disable, SENSOR_SCHEMA)
     hass.services.async_register(DOMAIN, "toggle_sensor", async_sensor_toggle, SENSOR_SCHEMA)
+    hass.services.async_register(DOMAIN, "enable_auto", async_auto_enable, AUTO_SCHEMA)
+    hass.services.async_register(DOMAIN, "disable_auto", async_auto_disable, AUTO_SCHEMA)
+    hass.services.async_register(DOMAIN, "toggle_auto", async_auto_toggle, AUTO_SCHEMA)
     hass.services.async_register(DOMAIN, "power_on", async_power_on, POWER_SCHEMA)
     hass.services.async_register(DOMAIN, "power_off", async_power_off, POWER_SCHEMA)
     hass.services.async_register(DOMAIN, "power_toggle", async_power_toggle, POWER_SCHEMA)

@@ -52,6 +52,14 @@ However, additional commands have been added to change the various behavior of t
 | powerpetdoor.toggle_sensor  | entity_id | The entity of the power pet door you wish to toggle a sensor on |
 |                | sensor    | The sensor to toggle (one of 'inside' or 'outside') |
 
+### Automatic (scheduled) Mode Commands
+
+| Function | Arguments | Description |
+| :--- | :--- | :--- |
+| powerpetdoor.enable_auto  | entity_id | The entity of the power pet door you wish to enable auto on |
+| powerpetdoor.disable_auto | entity_id | The entity of the power pet door you wish to disable auto on |
+| powerpetdoor.toggle_auto  | entity_id | The entity of the power pet door you wish to toggle auto on |
+
 ### Power Commands
 
 | Function | Arguments | Description |
