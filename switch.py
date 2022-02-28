@@ -90,7 +90,7 @@ def find_end(s) -> int | None:
 class PetDoor(SwitchEntity):
     msgId = 1
     replyMsgId = None
-    state = None
+    status = None
     settings = {}
 
     _shutdown = False
