@@ -220,13 +220,15 @@ class PetDoor(SwitchEntity):
 
     async def keepalive(self):
         await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE).total_seconds())
-        self.send_message(PING, str(round(time.time()*1000)))
-        self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
+        if not self._keepalive.cancelled():
+            self.send_message(PING, str(round(time.time()*1000)))
+            self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
 
     async def refresh(self):
         await asyncio.sleep(self.config.get(CONF_REFRESH).total_seconds())
-        self.send_message(CONFIG, "GET_SETTINGS")
-        self._refresh = asyncio.ensure_future(self.refresh(), loop=self._eventLoop)
+        if not self._refresh.cancelled():
+            self.send_message(CONFIG, "GET_SETTINGS")
+            self._refresh = asyncio.ensure_future(self.refresh(), loop=self._eventLoop)
 
     def send_data(self, data):
         """Raw data send- just make sure it's encoded properly and logged."""
@@ -276,21 +278,35 @@ class PetDoor(SwitchEntity):
         if "msgID" in msg:
             self.replyMsgId = msg["msgID"]
 
-        if "door_status" in msg:
-            if self.status != None and self.status != msg["door_status"]:
-                last_change = datetime.now(timezone.utc)
-            self.status = msg["door_status"]
-            _LOGGER.debug(f"DOOR STATUS - {self.status}")
-            self.schedule_update_ha_state()
+        if msg["success"] == "true":
+            if msg["CMD"] == "GET_DOOR_STATUS":
+                if self.status != None and self.status != msg["door_status"]:
+                    last_change = datetime.now(timezone.utc)
+                self.status = msg["door_status"]
+                self.schedule_update_ha_state()
 
-        elif "settings" in msg:
-            if self._refresh:
-                self._refresh.cancel()
+            if msg["CMD"] == "GET_SETTINGS":
+                if self._refresh:
+                    self._refresh.cancel()
 
-            self.settings = msg["settings"]
-            _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
-            self.schedule_update_ha_state()
-            self._refresh = asyncio.ensure_future(self.refresh(), loop=self._eventLoop)
+                self.settings = msg["settings"]
+                _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
+                self.schedule_update_ha_state()
+                self._refresh = asyncio.ensure_future(self.refresh(), loop=self._eventLoop)
+
+            if msg["CMD"] in ("GET_SENSORS", "ENABLE_INSIDE", "DISABLE_INSIDE", "ENABLE_OUTSIDE", "DISABLE_OUTSIDE"):
+                if "inside" in msg:
+                    self.settings["inside"] = "true" if msg["inside"] else "false"
+                if "outside" in msg:
+                    self.settings["outside"] = "true" if msg["outside"] else "false"
+                self.schedule_update_ha_state()
+
+            if msg["CMD"] in ("POWER_ON", "POWER_OFF"):
+                if "power_state" in msg:
+                    self.settings["power_state"] = "true" if msg["power_state"] else "false"
+                self.schedule_update_ha_state()
+        else:
+            _LOGGER.warn("Error reported: {}".format(json.dumps(msg)))
 
     def send_message(self, type, arg) -> int:
         msgId = self.msgId
@@ -357,7 +373,6 @@ class PetDoor(SwitchEntity):
 
     async def config_enable_inside(self):
         self.send_message(CONFIG, "ENABLE_INSIDE")
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_toggle_inside(self):
         if self.settings:
@@ -365,15 +380,12 @@ class PetDoor(SwitchEntity):
                 await self.config_disable_inside()
             elif self.settings["inside"] == "false":
                 await self.config_enable_inside()
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_disable_outside(self):
         self.send_message(CONFIG, "DISABLE_OUTSIDE")
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_enable_outside(self):
         self.send_message(CONFIG, "ENABLE_OUTSIDE")
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_toggle_outside(self):
         if self.settings:
@@ -381,15 +393,12 @@ class PetDoor(SwitchEntity):
                 await self.config_disable_outside()
             elif self.settings["outside"] == "false":
                 await self.config_enable_outside()
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_power_on(self):
         self.send_message(CONFIG, "POWER_ON")
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_power_off(self):
         self.send_message(CONFIG, "POWER_OFF")
-        self.send_message(CONFIG, "GET_SETTINGS")
 
     async def config_power_toggle(self):
         if self.settings:
@@ -397,7 +406,6 @@ class PetDoor(SwitchEntity):
                 await self.config_power_off()
             elif self.settings["power_state"] == "false":
                 await self.config_power_on()
-        self.send_message(CONFIG, "GET_SETTINGS")
 
 
 async def async_setup_platform(hass: HomeAssistant,
