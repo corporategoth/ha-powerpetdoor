@@ -160,7 +160,7 @@ class PetDoor(SwitchEntity):
         """Internal method for making the physical connection."""
         _LOGGER.info(str.format("Started to connect to Power Pet Door... at {0}:{1}", self.config.get(CONF_HOST), self.config.get(CONF_PORT)))
         try:
-            async with async_timeout.timeout(self.config.get(CONF_TIMEOUT)):
+            async with async_timeout.timeout(self.config.get(CONF_TIMEOUT).total_seconds()):
                 coro = self._eventLoop.create_connection(lambda: self, self.config.get(CONF_HOST), self.config.get(CONF_PORT))
                 await coro
         except:
@@ -177,7 +177,7 @@ class PetDoor(SwitchEntity):
         """asyncio callback for connection lost."""
         if not self._shutdown:
             _LOGGER.error('The server closed the connection. Reconnecting...')
-            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT).total_seconds()), loop=self._eventLoop)
 
     async def reconnect(self, delay):
         """Internal method for reconnecting."""
@@ -195,10 +195,10 @@ class PetDoor(SwitchEntity):
         """Handler for if we fail to connect to the power pet door."""
         if not self._shutdown:
             _LOGGER.error('Unable to connect to power pet door. Reconnecting...')
-            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT).total_seconds()), loop=self._eventLoop)
 
     async def keepalive(self):
-        await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE))
+        await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE).total_seconds())
         self.send_message(PING, str(round(time.time()*1000)))
         self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
 
@@ -217,7 +217,7 @@ class PetDoor(SwitchEntity):
         except RuntimeError as err:
             _LOGGER.error(str.format('Failed to write to the stream. Reconnecting. ({0}) ', err))
             if not self._shutdown:
-                ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
+                ensure_future(self.reconnect(self.config.get(CONF_RECONNECT).total_seconds()), loop=self._eventLoop)
 
     def data_received(self, rawdata):
         """asyncio callback for any data recieved from the power pet door."""
