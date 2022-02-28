@@ -1,0 +1,6 @@
+{
+    "name": "Power Pet Door",
+    "content_in_root": false,
+    "iot_class": "Local Push",
+    "render_readme": true
+}
