@@ -32,19 +32,27 @@ DOMAIN = "powerpetdoor"
 
 DEFAULT_NAME = "Power Pet Door"
 DEFAULT_PORT = 3000
-DEFAULT_PING_TIMEOUT = 30.0
+DEFAULT_KEEP_ALIVE_TIMEOUT = 30.0
 DEFAULT_CONNECT_TIMEOUT = 5.0
-DEFAULT_CONFIG_TIMEOUT = 2.0
+DEFAULT_RECONNECT_TIME = 30.0
+DEFAULT_HOLD = True
 
 COMMAND = "cmd"
 CONFIG = "config"
 PING = "PING"
 
+CONF_KEEP_ALIVE = "keep_alive"
+CONF_RECONNECT = "reconnect"
+CONF_HOLD = "hold"
+
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-    vol.Optional(CONF_TIMEOUT, default=DEFAULT_PING_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIME): cv.time_period_seconds,
+    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIME): cv.time_period_seconds,
+    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): cv.time_period_seconds,
+    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
 })
 
 ATTR_SENSOR = "sensor"
@@ -152,7 +160,7 @@ class PetDoor(SwitchEntity):
         """Internal method for making the physical connection."""
         _LOGGER.info(str.format("Started to connect to Power Pet Door... at {0}:{1}", self.config.get(CONF_HOST), self.config.get(CONF_PORT)))
         try:
-            async with async_timeout.timeout(DEFAULT_CONNECT_TIMEOUT):
+            async with async_timeout.timeout(self.config.get(CONF_TIMEOUT)):
                 coro = self._eventLoop.create_connection(lambda: self, self.config.get(CONF_HOST), self.config.get(CONF_PORT))
                 await coro
         except:
@@ -169,7 +177,7 @@ class PetDoor(SwitchEntity):
         """asyncio callback for connection lost."""
         if not self._shutdown:
             _LOGGER.error('The server closed the connection. Reconnecting...')
-            ensure_future(self.reconnect(30), loop=self._eventLoop)
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     async def reconnect(self, delay):
         """Internal method for reconnecting."""
@@ -187,10 +195,10 @@ class PetDoor(SwitchEntity):
         """Handler for if we fail to connect to the power pet door."""
         if not self._shutdown:
             _LOGGER.error('Unable to connect to power pet door. Reconnecting...')
-            ensure_future(self.reconnect(30), loop=self._eventLoop)
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     async def keepalive(self):
-        await asyncio.sleep(self.config.get(CONF_TIMEOUT))
+        await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE))
         self.send_message(PING, str(round(time.time()*1000)))
         self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
 
@@ -209,7 +217,7 @@ class PetDoor(SwitchEntity):
         except RuntimeError as err:
             _LOGGER.error(str.format('Failed to write to the stream. Reconnecting. ({0}) ', err))
             if not self._shutdown:
-                ensure_future(self.reconnect(30), loop=self._eventLoop)
+                ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     def data_received(self, rawdata):
         """asyncio callback for any data recieved from the power pet door."""
@@ -271,6 +279,13 @@ class PetDoor(SwitchEntity):
         return (self.status not in ("DOOR_IDLE", "DOOR_CLOSED"))
 
     @property
+    def icon(self) -> str | None:
+        if self.is_on:
+            return "mdi:dog-side"
+        else:
+            return "mdi:dog-side-off"
+
+    @property
     def extra_state_attributes(self) -> dict | None:
         data = copy.deepcopy(self.settings)
         data["status"] = self.status
@@ -279,7 +294,9 @@ class PetDoor(SwitchEntity):
     async def turn_on(self, hold: bool = True, **kwargs: Any) -> None:
         return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
-    async def async_turn_on(self, hold: bool = True, **kwargs: Any) -> None:
+    async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
+        if hold == None:
+            hold = self.config.get(CONF_HOLD)
         if hold:
             await self.cmd_open_and_hold()
         else:
