@@ -193,7 +193,6 @@ class PetDoor(SwitchEntity):
         _LOGGER.info("Connection Successful!")
         self._transport = transport
         self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
-        self.send_message(CONFIG, "GET_DOOR_STATUS")
         self.send_message(CONFIG, "GET_SETTINGS")
 
     def connection_lost(self, exc):
@@ -301,7 +300,7 @@ class PetDoor(SwitchEntity):
 
                 self.settings = msg["settings"]
                 _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
-                self.schedule_update_ha_state()
+                self.schedule_update_ha_state(self.status is None)
                 self._refresh = asyncio.ensure_future(self.refresh(), loop=self._eventLoop)
 
             if msg["CMD"] in ("GET_SENSORS", "ENABLE_INSIDE", "DISABLE_INSIDE", "ENABLE_OUTSIDE", "DISABLE_OUTSIDE"):
