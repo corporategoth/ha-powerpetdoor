@@ -21,7 +21,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.reload import async_setup_reload_service
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.components.binary_sensor import DEVICE_CLASS_DOOR
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
@@ -100,7 +100,7 @@ class PetDoor(SwitchEntity):
     _keepalive = None
     _buffer = ''
 
-    _attr_device_class = DEVICE_CLASS_DOOR
+    _attr_device_class = BinarySensorDeviceClass.DOOR
     _attr_should_poll = False
 
     def __init__(self, config: ConfigType) -> None:
@@ -245,12 +245,12 @@ class PetDoor(SwitchEntity):
         if "door_status" in msg:
             self.status = msg["door_status"]
             _LOGGER.debug(f"DOOR STATUS - {self.status}")
-            self.async_update_ha_state()
+            self.schedule_update_ha_state()
 
         elif "settings" in msg:
             self.settings = msg["settings"]
             _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
-            self.async_update_ha_state(True)
+            self.schedule_update_ha_state(True)
 
     def send_message(self, type, arg) -> int:
         msgId = self.msgId
@@ -259,6 +259,7 @@ class PetDoor(SwitchEntity):
         return msgId
 
     async def async_update(self):
+        _LOGGER.debug("Requesting update of door status")
         self.send_message(CONFIG, "GET_DOOR_STATUS")
 
     @property
