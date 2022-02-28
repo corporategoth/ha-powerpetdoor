@@ -63,7 +63,7 @@ SENSOR_INSIDE = "inside"
 SENSOR_OUTSIDE = "outside"
 
 SENSOR_SCHEMA = vol.Schema({
-    vol.Required(ATTR_ENTITY_ID): cv.entity_id
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id,
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SENSOR_INSIDE, SENSOR_OUTSIDE))
 })
 
