@@ -17,6 +17,7 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PORT,
     CONF_TIMEOUT,
+    ATTR_ENTITY_ID,
 )
 
 from homeassistant.core import HomeAssistant, ServiceCall, callback
@@ -62,7 +63,12 @@ SENSOR_INSIDE = "inside"
 SENSOR_OUTSIDE = "outside"
 
 SENSOR_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SENSOR_INSIDE, SENSOR_OUTSIDE))
+})
+
+POWER_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id
 })
 
 SIGNAL_INSIDE_ENABLE = "POWERPET_ENABLE_INSIDE_{}"
@@ -419,6 +425,6 @@ async def async_setup_platform(hass: HomeAssistant,
     hass.services.async_register(DOMAIN, "enable_sensor", async_sensor_enable, SENSOR_SCHEMA)
     hass.services.async_register(DOMAIN, "disable_sensor", async_sensor_disable, SENSOR_SCHEMA)
     hass.services.async_register(DOMAIN, "toggle_sensor", async_sensor_toggle, SENSOR_SCHEMA)
-    hass.services.async_register(DOMAIN, "power_on", async_power_on)
-    hass.services.async_register(DOMAIN, "power_off", async_power_off)
-    hass.services.async_register(DOMAIN, "power_toggle", async_power_toggle)
+    hass.services.async_register(DOMAIN, "power_on", async_power_on, POWER_SCHEMA)
+    hass.services.async_register(DOMAIN, "power_off", async_power_off, POWER_SCHEMA)
+    hass.services.async_register(DOMAIN, "power_toggle", async_power_toggle, POWER_SCHEMA)
