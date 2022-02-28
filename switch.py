@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import asyncio
+import async_timeout
 import logging
 import json
 import time
 import copy
+
+from asyncio import ensure_future
 
 import voluptuous as vol
 
@@ -13,31 +18,33 @@ from homeassistant.const import (
     CONF_TIMEOUT,
 )
 
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers.entity import ToggleEntity
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers.reload import async_setup_reload_service
+from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.binary_sensor import DEVICE_CLASS_DOOR
 import homeassistant.helpers.config_validation as cv
-import homeassistant.helpers.dispatcher
-
-from typing import TypeDict
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "powerpetdoor"
 
+DEFAULT_NAME = "Power Pet Door"
 DEFAULT_PORT = 3000
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_PING_TIMEOUT = 30.0
+DEFAULT_CONNECT_TIMEOUT = 5.0
+DEFAULT_CONFIG_TIMEOUT = 2.0
 
 COMMAND = "cmd"
 CONFIG = "config"
 PING = "PING"
 
-CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_HOST): cv.string,
-        vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-        vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
-    })
+PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
+    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+    vol.Required(CONF_HOST): cv.string,
+    vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
+    vol.Optional(CONF_TIMEOUT, default=DEFAULT_PING_TIMEOUT): vol.Coerce(float),
 })
 
 ATTR_SENSOR = "sensor"
@@ -45,158 +52,229 @@ ATTR_SENSOR = "sensor"
 SENSOR_INSIDE = "inside"
 SENSOR_OUTSIDE = "outside"
 
-SENSOR_SCHEMA = vol.Schema{
+SENSOR_SCHEMA = vol.Schema({
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SENSOR_INSIDE, SENSOR_OUTSIDE))
 })
 
 SIGNAL_INSIDE_ENABLE = "POWERPET_ENABLE_INSIDE_{}"
-SIGNAL_INSIDE_DISABLE = "POWERPET_ENABLE_INSIDE_{}"
-SIGNAL_INSIDE_TOGGLE = "POWERPET_ENABLE_INSIDE_{}"
+SIGNAL_INSIDE_DISABLE = "POWERPET_DISABLE_INSIDE_{}"
+SIGNAL_INSIDE_TOGGLE = "POWERPET_TOGGLE_INSIDE_{}"
 SIGNAL_OUTSIDE_ENABLE = "POWERPET_ENABLE_OUTSIDE_{}"
-SIGNAL_OUTSIDE_DISABLE = "POWERPET_ENABLE_OUTSIDE_{}"
-SIGNAL_OUTSIDE_TOGGLE = "POWERPET_ENABLE_OUTSIDE_{}"
-SIGNAL_POWER_ON = "POWERPET_ENABLE_POWER_{}"
-SIGNAL_POWER_OFF = "POWERPET_ENABLE_POWER_{}"
-SIGNAL_POWER_TOGGLE = "POWERPET_ENABLE_POWER_{}"
+SIGNAL_OUTSIDE_DISABLE = "POWERPET_DISABLE_OUTSIDE_{}"
+SIGNAL_OUTSIDE_TOGGLE = "POWERPET_TOGGLE_OUTSIDE_{}"
+SIGNAL_POWER_ON = "POWERPET_POWER_ON_{}"
+SIGNAL_POWER_OFF = "POWERPET_POWER_OFF{}"
+SIGNAL_POWER_TOGGLE = "POWERPET_POWER_TOGGLE_{}"
 
-class PetDoor(ToggleEntity):
+def find_end(s) -> int | None:
+    if not len(s):
+        return None
+
+    if s[0] != '{':
+        raise IndexError("Block does not start with '{'")
+
+    parens = 0
+    for i, c in enumerate(s):
+        if c == '{':
+            parens += 1
+        elif c == '}':
+            parens -= 1
+ 
+        if parens == 0:
+            return i+1
+
+    return None
+
+
+
+class PetDoor(SwitchEntity):
     msgId = 1
     replyMsgId = None
-    reader = None
-    writer = None
     state = None
     settings = {}
+
+    _shutdown = False
+    _ownLoop = False
+    _eventLoop = None
+    _transport = None
+    _keepalive = None
+    _buffer = ''
 
     _attr_device_class = DEVICE_CLASS_DOOR
     _attr_should_poll = False
 
     def __init__(self, config: ConfigType) -> None:
         self.config = config
+        self._attr_name = config.get(CONF_NAME)
 
-    async def async_added_to_hass(self) -> None;
-        await self.start()
-
+    async def async_added_to_hass(self) -> None:
         async_dispatcher_connect(self.hass, SIGNAL_INSIDE_ENABLE.format(self.entity_id), self.config_enable_inside)
         async_dispatcher_connect(self.hass, SIGNAL_INSIDE_DISABLE.format(self.entity_id), self.config_disable_inside)
         async_dispatcher_connect(self.hass, SIGNAL_INSIDE_TOGGLE.format(self.entity_id), self.config_toggle_inside)
         async_dispatcher_connect(self.hass, SIGNAL_OUTSIDE_ENABLE.format(self.entity_id), self.config_enable_outside)
         async_dispatcher_connect(self.hass, SIGNAL_OUTSIDE_DISABLE.format(self.entity_id), self.config_disable_outside)
         async_dispatcher_connect(self.hass, SIGNAL_OUTSIDE_TOGGLE.format(self.entity_id), self.config_toggle_outside)
-        async_dispatcher_connect(self.hass, SIGNAL_POWER_ENABLE.format(self.entity_id), self.config_powerr_on)
-        async_dispatcher_connect(self.hass, SIGNAL_POWER_DISABLE.format(self.entity_id), self.config_power_off)
+        async_dispatcher_connect(self.hass, SIGNAL_POWER_ON.format(self.entity_id), self.config_power_on)
+        async_dispatcher_connect(self.hass, SIGNAL_POWER_OFF.format(self.entity_id), self.config_power_off)
         async_dispatcher_connect(self.hass, SIGNAL_POWER_TOGGLE.format(self.entity_id), self.config_power_toggle)
 
-    async def async_will_remove_from_hass(self) -> None:
-        await self.stop()
+        _LOGGER.info("Latching onto an existing event loop.")
+        self._ownLoop = False
+        self._eventLoop = self.hass.loop
 
-    async def start(self);
-        if not self.available():
+        self.start()
+
+    async def async_will_remove_from_hass(self) -> None:
+        self.stop()
+
+    def start(self):
+        """Public method for initiating connectivity with the power pet door."""
+        self._shutdown = False
+        ensure_future(self.connect(), loop=self._eventLoop)
+
+        if self._ownLoop:
+            _LOGGER.info("Starting up our own event loop.")
+            self._eventLoop.run_forever()
+            self._eventLoop.close()
+            _LOGGER.info("Connection shut down.")
+
+    def stop(self):
+        """Public method for shutting down connectivity with the power pet door."""
+        self._shutdown = True
+
+        if self._ownLoop:
+            _LOGGER.info("Shutting down Power Pet Door client connection...")
+            self._eventLoop.call_soon_threadsafe(self._eventLoop.stop)
+        else:
+            _LOGGER.info("An event loop was given to us- we will shutdown when that event loop shuts down.")
+
+    async def connect(self):
+        """Internal method for making the physical connection."""
+        _LOGGER.info(str.format("Started to connect to Power Pet Door... at {0}:{1}", self.config.get(CONF_HOST), self.config.get(CONF_PORT)))
+        try:
+            async with async_timeout.timeout(DEFAULT_CONNECT_TIMEOUT):
+                coro = self._eventLoop.create_connection(lambda: self, self.config.get(CONF_HOST), self.config.get(CONF_PORT))
+                await coro
+        except:
+            self.handle_connect_failure()
+
+    def connection_made(self, transport):
+        """asyncio callback for a successful connection."""
+        _LOGGER.info("Connection Successful!")
+        self._transport = transport
+        self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
+        self.send_message(CONFIG, "GET_DOOR_STATUS")
+        self.send_message(CONFIG, "GET_SETTINGS")
+
+    def connection_lost(self, exc):
+        """asyncio callback for connection lost."""
+        if not self._shutdown:
+            _LOGGER.error('The server closed the connection. Reconnecting...')
+            ensure_future(self.reconnect(30), loop=self._eventLoop)
+
+    async def reconnect(self, delay):
+        """Internal method for reconnecting."""
+        self.disconnect()
+        await asyncio.sleep(delay)
+        await self.connect()
+
+    def disconnect(self):
+        """Internal method for forcing connection closure if hung."""
+        _LOGGER.debug('Closing connection with server...')
+        if self._transport:
+            self._transport.close()
+
+    def handle_connect_failure(self):
+        """Handler for if we fail to connect to the power pet door."""
+        if not self._shutdown:
+            _LOGGER.error('Unable to connect to power pet door. Reconnecting...')
+            ensure_future(self.reconnect(30), loop=self._eventLoop)
+
+    async def keepalive(self):
+        await asyncio.sleep(self.config.get(CONF_TIMEOUT))
+        self.send_message(PING, str(round(time.time()*1000)))
+        self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
+
+    def send_data(self, data):
+        """Raw data send- just make sure it's encoded properly and logged."""
+        if not self._transport:
+            _LOGGER.warning('Attempted to write to the stream without a connection active')
+            return
+        if self._keepalive:
+            self._keepalive.cancel()
+        rawdata = json.dumps(data).encode("ascii")
+        _LOGGER.debug(str.format('TX > {0}', rawdata))
+        try:
+            self._transport.write(rawdata)
+            self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
+        except RuntimeError as err:
+            _LOGGER.error(str.format('Failed to write to the stream. Reconnecting. ({0}) ', err))
+            if not self._shutdown:
+                ensure_future(self.reconnect(30), loop=self._eventLoop)
+
+    def data_received(self, rawdata):
+        """asyncio callback for any data recieved from the power pet door."""
+        if rawdata != '':
             try:
-                self.reader, self.writer = await asyncio.open_connection(self.config[CONF_HOST], self.config[CONF_PORT])
-            except OSError as err:
-                _LOGGER.error("Could not connect to %s on port %s: %s", self.config[CONF_HOST, self.config[CONF_PORT], err)
+                data = rawdata.decode('ascii')
+                _LOGGER.debug('----------------------------------------')
+                _LOGGER.debug(str.format('RX < {0}', data))
+
+                self._buffer += data
+            except:
+                _LOGGER.error('Received invalid message. Skipping.')
                 return
 
-        id = await self.handle_output(CONFIG, "GET_DOOR_STATUS")
-        try:
-            await asyncio.wait_for(self.wait_for_msg(id), 5.0)
-        except asyncio.TimeoutError:
-            _LOGGER.error("Could not determine initial pet door state within 5 seconds")
-            await self.stop()
-            return
+            end = find_end(self._buffer)
+            while end:
+                block = self._buffer[:end]
+                self._buffer = self._buffer[end:]
 
-        id = await self.handle_output(CONFIG, "GET_SETTINGS")
-        try:
-            await asyncio.wait_for(self.wait_for_msg(id), 5.0)
-        except asyncio.TimeoutError:
-            _LOGGER.error("Could not determine pet door settings state within 5 seconds")
-            await self.stop()
-            return
+                try:
+                    _LOGGER.debug(f"Parsing: {block}")
+                    self.process_message(json.loads(block))
 
-        self.hass.async_create_task(self.loop())
+                except json.JSONDecodeError as err:
+                    _LOGGER.error(str.format('Failed to decode JSON block ({0}) ', err))
+                
+                end = find_end(self._buffer)
 
-    async def loop(self) -> None:
-        while self.available():
-            try:
-                await asyncio.wait_for(handle_input(), self.config[CONF_TIMEOUT])
-            except asyncio.TimeoutError:
-                await self.handle_output(PING, str(round(time.time()*1000)))
+    def process_message(self, msg):
+        if "msgID" in msg:
+            self.replyMsgId = msg["msgID"]
 
-    async def stop(self) -> None:
-        if self.writer:
-            self.writer.close()
-            await self.writer.wait_closed()
-        self.reader = None
-        self.writer = None
-        self.state = None
-        self.settings = {}
-
-    async def handle_input(self) -> int | None:
-        if not self.reader:
-            return
-
-        try:
-            rawdata = (await self.reader.readuntil(b'}')).decode('utf-8')
-            while rawdata.count('{') != rawdata.count('}'):
-                rawdata += (await self.reader.readuntil(b'}')).decode('utf-8')
-        except asyncio.IncompleteReadError:
-            return await self.stop()
-
-        _LOGGER.debug(f"Received: {rawdata}")
-        rsp = json.loads(rawdata)
-
-        replyMsgId = None
-        if "msgID" in rsp:
-            replyMsgId = rsp["msgID"]
-            self.replyMsgId = replyMsgId
-
-        if "door_status" in rsp:
-            self.status = rsp["door_status"]
+        if "door_status" in msg:
+            self.status = msg["door_status"]
             _LOGGER.debug(f"DOOR STATUS - {self.status}")
             self.async_write_ha_state()
-        elif "settings" in rsp:
-            self.settings = rsp["settings"]
+
+        elif "settings" in msg:
+            self.settings = msg["settings"]
             _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
-            self.async_write_ha_state))
+            self.async_write_ha_state()
 
-        return replyMsgId
-
-    async def handle_output(self, type, arg) -> int:
-        if not self.writer:
-            return
-
+    def send_message(self, type, arg) -> int:
         msgId = self.msgId
         self.msgId += 1
-        self.writer.write(json.dumps({
-            type: arg,
-            "msgID": msgId,
-            "dir": "p2d",
-        }).encode("utf-8"))
-        await self.writer.drain()
+        self.send_data({ type: arg, "msgId": msgId, "dir": "p2d" })
         return msgId
 
-    async def wait_for_msg(self, id: int):
-        msg = await self.handle_input()
-        while msg != id:
-            msg = await self.handle_input()
-
     async def async_update(self):
-        await self.handle_output(CONFIG, "GET_DOOR_STATUS")
+        self.send_message(CONFIG, "GET_DOOR_STATUS")
 
     @property
     def available(self) -> bool:
-        return (self.reader and self.writer)
+        return (self._transport and not self._transport.is_closing())
 
     @property
-    def is_on(self) -> bool:
-        return self.status not in ("DOOR_IDLE", "DOOR_CLOSED")
+    def is_on(self) -> bool | None:
+        return (self.status not in ("DOOR_IDLE", "DOOR_CLOSED"))
 
     @property
     def extra_state_attributes(self) -> dict | None:
         data = copy.deepcopy(self.settings)
         data["status"] = self.status
         return data
-
 
     async def turn_on(self, hold: bool = True, **kwargs: Any) -> None:
         return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
@@ -214,19 +292,19 @@ class PetDoor(ToggleEntity):
         await self.cmd_close()
 
     async def cmd_open(self):
-        await handle_output(COMMAND, "OPEN")
+        self.send_message(COMMAND, "OPEN")
 
     async def cmd_open_and_hold(self):
-        await handle_output(COMMAND, "OPEN_AND_HOLD")
+        self.send_message(COMMAND, "OPEN_AND_HOLD")
 
-    async def cmd_open(self):
-        await handle_output(COMMAND, "CLOSE")
+    async def cmd_close(self):
+        self.send_message(COMMAND, "CLOSE")
 
     async def config_disable_inside(self):
-        await handle_output(CONFIG, "DISABLE_INSIDE")
+        self.send_message(CONFIG, "DISABLE_INSIDE")
 
     async def config_enable_inside(self):
-        await handle_output(CONFIG, "ENABLE_INSIDE")
+        self.send_message(CONFIG, "ENABLE_INSIDE")
 
     async def config_toggle_inside(self):
         if self.settings:
@@ -236,10 +314,10 @@ class PetDoor(ToggleEntity):
                 await self.config_enable_inside()
 
     async def config_disable_outside(self):
-        await handle_output(CONFIG, "DISABLE_OUTSIDE")
+        self.send_message(CONFIG, "DISABLE_OUTSIDE")
 
     async def config_enable_outside(self):
-        await handle_output(CONFIG, "ENABLE_OUTSIDE")
+        self.send_message(CONFIG, "ENABLE_OUTSIDE")
 
     async def config_toggle_outside(self):
         if self.settings:
@@ -249,10 +327,10 @@ class PetDoor(ToggleEntity):
                 await self.config_enable_outside()
 
     async def config_power_on(self):
-        await handle_output(CONFIG, "POWER_ON")
+        self.send_message(CONFIG, "POWER_ON")
 
     async def config_power_off(self):
-        await handle_output(CONFIG, "POWER_OFF")
+        self.send_message(CONFIG, "POWER_OFF")
 
     async def config_power_toggle(self):
         if self.settings:
@@ -266,10 +344,13 @@ async def async_setup_platform(hass: HomeAssistant,
                                config: ConfigType,
                                async_add_entities: AddEntitiesCallback,
                                discovery_info: DiscoveryInfoType | None = None) -> None:
+    #if not discovery_info:
+    #    return
 
-    await async_setup_reload_service(hass, DOMAIN, ["binary_sensor"])
+    # await async_setup_reload_service(hass, DOMAIN, ["switch"])
     async_add_entities([ PetDoor(config) ])
 
+    @callback
     async def async_sensor_enable(service: ServiceCall):
         sensor = service.data.get(ATTR_SENSOR)
         entity_id = service.data["entity_id"]
@@ -278,6 +359,7 @@ async def async_setup_platform(hass: HomeAssistant,
         elif sensor == SENSOR_OUTSIDE:
             async_dispatcher_send(hass, SIGNAL_OUTSIDE_ENABLE.format(entity_id))
 
+    @callback
     async def async_sensor_disable(service: ServiceCall):
         sensor = service.data.get(ATTR_SENSOR)
         entity_id = service.data["entity_id"]
@@ -286,6 +368,7 @@ async def async_setup_platform(hass: HomeAssistant,
         elif sensor == SENSOR_OUTSIDE:
             async_dispatcher_send(hass, SIGNAL_OUTSIDE_DISABLE.format(entity_id))
 
+    @callback
     async def async_sensor_toggle(service: ServiceCall):
         sensor = service.data.get(ATTR_SENSOR)
         entity_id = service.data["entity_id"]
@@ -294,14 +377,17 @@ async def async_setup_platform(hass: HomeAssistant,
         elif sensor == SENSOR_OUTSIDE:
             async_dispatcher_send(hass, SIGNAL_OUTSIDE_TOGGLE.format(entity_id))
 
+    @callback
     async def async_power_on(service: ServiceCall):
         entity_id = service.data["entity_id"]
         async_dispatcher_send(hass, SIGNAL_POWER_ON.format(entity_id))
 
+    @callback
     async def async_power_off(service: ServiceCall):
         entity_id = service.data["entity_id"]
         async_dispatcher_send(hass, SIGNAL_POWER_OFF.format(entity_id))
 
+    @callback
     async def async_power_toggle(service: ServiceCall):
         entity_id = service.data["entity_id"]
         async_dispatcher_send(hass, SIGNAL_POWER_TOGGLE.format(entity_id))
