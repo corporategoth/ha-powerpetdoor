@@ -163,7 +163,6 @@ class PetDoor(SwitchEntity):
         _LOGGER.info("Connection Successful!")
         self._transport = transport
         self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
-        self.send_message(CONFIG, "GET_DOOR_STATUS")
         self.send_message(CONFIG, "GET_SETTINGS")
 
     def connection_lost(self, exc):
@@ -236,7 +235,7 @@ class PetDoor(SwitchEntity):
 
                 except json.JSONDecodeError as err:
                     _LOGGER.error(str.format('Failed to decode JSON block ({0}) ', err))
-                
+
                 end = find_end(self._buffer)
 
     def process_message(self, msg):
@@ -246,12 +245,12 @@ class PetDoor(SwitchEntity):
         if "door_status" in msg:
             self.status = msg["door_status"]
             _LOGGER.debug(f"DOOR STATUS - {self.status}")
-            self.async_write_ha_state()
+            self.async_update_ha_state()
 
         elif "settings" in msg:
             self.settings = msg["settings"]
             _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
-            self.async_write_ha_state()
+            self.async_update_ha_state(True)
 
     def send_message(self, type, arg) -> int:
         msgId = self.msgId
