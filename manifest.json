@@ -3,5 +3,6 @@
   "name": "Power Pet Door",
   "documentation": "https://github.com/corporategoth/ha-powerpetdoor",
   "codeowners": [ "@corporategoth" ],
-  "iot_class": "local_push"
+  "iot_class": "local_push",
+  "version": "0.0.1"
 }
