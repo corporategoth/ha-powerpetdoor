@@ -32,9 +32,9 @@ DOMAIN = "powerpetdoor"
 
 DEFAULT_NAME = "Power Pet Door"
 DEFAULT_PORT = 3000
-DEFAULT_KEEP_ALIVE_TIMEOUT = 30.0
 DEFAULT_CONNECT_TIMEOUT = 5.0
-DEFAULT_RECONNECT_TIME = 30.0
+DEFAULT_RECONNECT_TIMEOUT = 30.0
+DEFAULT_KEEP_ALIVE_TIMEOUT = 30.0
 DEFAULT_HOLD = True
 
 COMMAND = "cmd"
@@ -49,8 +49,8 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIME): cv.time_period_seconds,
-    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIME): cv.time_period_seconds,
+    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): cv.time_period_seconds,
+    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): cv.time_period_seconds,
     vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): cv.time_period_seconds,
     vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
 })
