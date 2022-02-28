@@ -291,7 +291,7 @@ class PetDoor(SwitchEntity):
         if msg["success"] == "true":
             if msg["CMD"] == "GET_DOOR_STATUS":
                 if self.status != None and self.status != msg["door_status"]:
-                    last_change = datetime.now(timezone.utc)
+                    self.last_change = datetime.now(timezone.utc)
                 self.status = msg["door_status"]
                 self.schedule_update_ha_state()
 
