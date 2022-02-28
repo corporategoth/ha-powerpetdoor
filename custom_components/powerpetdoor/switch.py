@@ -289,7 +289,7 @@ class PetDoor(SwitchEntity):
             self.replyMsgId = msg["msgID"]
 
         if msg["success"] == "true":
-            if msg["CMD"] == "GET_DOOR_STATUS":
+            if msg["CMD"] in ("GET_DOOR_STATUS", "DOOR_STATUS"):
                 if self.status is not None and self.status != msg["door_status"]:
                     self.last_change = datetime.now(timezone.utc)
                 self.status = msg["door_status"]
