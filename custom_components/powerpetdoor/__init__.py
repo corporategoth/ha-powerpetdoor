@@ -440,11 +440,9 @@ async def async_setup(hass: HomeAssistant,
 
     platform = entity_platform.async_get_current_platform()
 
-    platform.async_register_entity_service(SERVICE_TURN_OFF, {}, "async_turn_off")
-    platform.async_register_entity_service(SERVICE_TURN_ON, {}, "async_turn_on")
-    platform.async_register_entity_service(SERVICE_TOGGLE, {}, "async_toggle")
     platform.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
     platform.async_register_entity_service(SERVICE_OPEN, {}, "async_turn_on")
+    platform.async_register_entity_service(SERVICE_TOGGLE, {}, "async_toggle")
     platform.async_register_entity_service(SERVICE_ENABLE_SENSOR, SENSOR_SCHEMA, "config_enable_sensor")
     platform.async_register_entity_service(SERVICE_DISABLE_SENSOR, SENSOR_SCHEMA, "config_disable_sensor")
     platform.async_register_entity_service(SERVICE_TOGGLE_SENSOR, SENSOR_SCHEMA, "config_toggle_sensor")
