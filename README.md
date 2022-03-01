@@ -34,12 +34,23 @@ switch powerpetdoor:
 | keep_alive | No | 30.0 | How often will we send a PING keep alive message to the Power Pet Door (seconds) |
 | refresh | No | 300.0 | How often we pull the configuration settings from the Power Pet Door (seconds) |
 
-## Service functions
+## Service calls
 
 The Power Pet Door presents as a switch, which means it has a simple 'on' and 'off' state (on being opened, off being closed).
 The standard turn_on, turn_off and toggle commands all work as expected also.
 
 However, additional commands have been added to change the various behavior of the Power Pet Door
+
+Many service calls require an entity ID - the default one would be `switch.power_pet_door`, however this is based on the name you give your device.
+
+### Door Commands
+
+| Function | Arguments | Description |
+| :--- | :--- | :--- |
+| switch.turn_on | entity_id | The entity of the power pet door you want to open. |
+|  | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
+| switch.turn_off | entity_id | The entity of the power pet door you want to close. |
+| switch.toggle | entity_id | The entity of the power pet door you want to open. |
 
 ### Sensor Commands
 
