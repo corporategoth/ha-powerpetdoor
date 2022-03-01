@@ -1,131 +1,113 @@
+turn_on:
+  name: Open Door
+  description: Open the power pet door
+  target:
+  fields:
+    hold:
+      name: Hold
+      description: Hold the door open (don't auto-close)
+      required: false
+      selector:
+        boolean:
+
+turn_off:
+  name: Close Door
+  description: Close the power pet door
+  target:
+
+toggle:
+  name: Open or Close Door
+  description: Open or Close the power pet door
+  target:
+
+open:
+  name: Open Door
+  description: Open the power pet door
+  target:
+  fields:
+    hold:
+      name: Hold
+      description: Hold the door open (don't auto-close)
+      required: false
+      selector:
+        boolean:
+
+close:
+  name: Close Door
+  description: Close the power pet door
+  target:
+
 enable_sensor:
   name: Enable Sensor
   description: Enable the indoor or outdoor proximity sensors
+  target:
   fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to enable sensors on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
     sensor:
       name: Sensor
       description: The sensor to enable (inside or outside)
       required: true
       selctor:
-        text:
-          - inside
-          - outside
+        select:
+          options:
+            - inside
+            - outside
 
 disable_sensor:
   name: Disable Sensor
   description: Disable the indoor or outdoor proximity sensors
+  target:
   fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to disable sensors on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
     sensor:
       name: Sensor
       description: The sensor to disable (inside or outside)
       required: true
       selctor:
-        text:
-          - inside
-          - outside
+        select:
+          options:
+            - inside
+            - outside
 
 toggle_sensor:
   name: Toggle Sensor
   description: Toggle the indoor or outdoor proximity sensors
+  target:
   fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to toggle sensors on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
     sensor:
       name: Sensor
       description: The sensor to toggle (inside or outside)
       required: true
       selctor:
-        text:
-          - inside
-          - outside
+        select:
+          options:
+            - inside
+            - outside
 
 enable_auto:
   name: Enable Auto
   description: Enable automatic (scheduled) mode
-  fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to enable auto on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
+  target:
 
 disable_auto:
   name: Disable Auto
   description: Disable automatic (scheduled) mode
-  fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to disable auto on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
+  target:
 
 toggle_auto:
   name: Toggle Auto
   description: Toggle automatic (scheduled) mode
-  fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to toggle auto on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
+  target:
 
 power_on:
   name: Power On
   description: Power on the pet door
-  fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to power on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
+  target:
 
 power_off:
   name: Power Off
   description: Power of the pet door
-  fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to power off.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
+  target:
 
 power_toggle:
   name: Toggle Power
   description: Toggle the pet door power
-  fields:
-    entity_id:
-      name: Entity
-      description: Name of the Power Pet Door to toggle power on.
-      required: true
-      selector:
-        entity:
-          domain: powerpetdoor
+  target:
