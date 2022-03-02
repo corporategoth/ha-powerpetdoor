@@ -332,7 +332,7 @@ class PetDoor(Entity):
         return (self._transport and not self._transport.is_closing())
 
     @property
-    def state(self) -> Literal["on", "off"] | None:
+    def state(self) -> Literal[STATE_CLOSED, STATE_OPEN, STATE_OPENING, STATE_CLOSING] | None:
         """Return the state."""
         if self.status is None:
             return None
