@@ -84,11 +84,17 @@ class SensorTypeClass(StrEnum):
     INSIDE = "inside"
     OUTSIDE = "outside"
 
+ENTITY_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id
+})
+
 DOOR_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id
     vol.Optional(ATTR_HOLD): cv.boolean
 })
 
 SENSOR_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.entity_id
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SensorTypeClass.INSIDE, SensorTypeClass.OUTSIDE))
 })
 
@@ -439,15 +445,15 @@ async def async_setup_platform(hass: HomeAssistant,
     async_add_entities([ PetDoor(config) ])
 
     platform = entity_platform.async_get_current_platform()
-    platform.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
+    platform.async_register_entity_service(SERVICE_CLOSE, ENTITY_SCHEMA, "async_turn_off")
     platform.async_register_entity_service(SERVICE_OPEN, DOOR_SCHEMA, "async_turn_on")
     platform.async_register_entity_service(SERVICE_TOGGLE, DOOR_SCHEMA, "async_toggle")
     platform.async_register_entity_service(SERVICE_ENABLE_SENSOR, SENSOR_SCHEMA, "config_enable_sensor")
     platform.async_register_entity_service(SERVICE_DISABLE_SENSOR, SENSOR_SCHEMA, "config_disable_sensor")
     platform.async_register_entity_service(SERVICE_TOGGLE_SENSOR, SENSOR_SCHEMA, "config_toggle_sensor")
-    platform.async_register_entity_service(SERVICE_ENABLE_AUTO, {}, "config_enable_auto")
-    platform.async_register_entity_service(SERVICE_DISABLE_AUTO, {}, "config_disable_auto")
-    platform.async_register_entity_service(SERVICE_TOGGLE_AUTO, {}, "config_toggle_auto")
-    platform.async_register_entity_service(SERVICE_POWER_ON, {}, "config_power_on")
-    platform.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
-    platform.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
+    platform.async_register_entity_service(SERVICE_ENABLE_AUTO, ENTITY_SCHEMA, "config_enable_auto")
+    platform.async_register_entity_service(SERVICE_DISABLE_AUTO, ENTITY_SCHEMA, "config_disable_auto")
+    platform.async_register_entity_service(SERVICE_TOGGLE_AUTO, ENTITY_SCHEMA, "config_toggle_auto")
+    platform.async_register_entity_service(SERVICE_POWER_ON, ENTITY_SCHEMA, "config_power_on")
+    platform.async_register_entity_service(SERVICE_POWER_OFF, ENTITY_SCHEMA, "config_power_off")
+    platform.async_register_entity_service(SERVICE_POWER_TOGGLE, ENTITY_SCHEMA, "config_power_toggle")
