@@ -143,7 +143,7 @@ class PetDoor(SwitchEntity):
         self._shutdown = False
         ensure_future(self.connect(), loop=self._eventLoop)
 
-        if self.eventLoop is None:
+        if self._eventLoop is None:
             _LOGGER.info("Starting up our own event loop.")
             self._ownLoop = True
             self._ownLoop = asyncio.new_event_loop()
