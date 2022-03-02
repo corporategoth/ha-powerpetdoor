@@ -37,14 +37,14 @@ from .const import (
 DATA_SCHEMA = vol.Schema({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
-    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
+    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): bool,
 })
 DATA_SCHEMA_ADV = DATA_SCHEMA.extend({
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): cv.time_period_seconds,
-    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): cv.time_period_seconds,
-    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): cv.time_period_seconds,
-    vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): cv.time_period_seconds,
+    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): vol.Coerce(float),
 })
 
 class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

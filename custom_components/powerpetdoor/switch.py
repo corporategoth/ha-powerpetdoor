@@ -79,10 +79,10 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): cv.time_period_seconds,
-    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): cv.time_period_seconds,
-    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): cv.time_period_seconds,
-    vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): cv.time_period_seconds,
+    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): vol.Coerce(float),
+    vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): vol.Coerce(float),
     vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
 })
 
@@ -183,7 +183,7 @@ class PetDoor(Entity):
         """Internal method for making the physical connection."""
         _LOGGER.info(str.format("Started to connect to Power Pet Door... at {0}:{1}", self.config.get(CONF_HOST), self.config.get(CONF_PORT)))
         try:
-            async with async_timeout.timeout(self.config.get(CONF_TIMEOUT).total_seconds()):
+            async with async_timeout.timeout(self.config.get(CONF_TIMEOUT)):
                 coro = self._eventLoop.create_connection(lambda: self, self.config.get(CONF_HOST), self.config.get(CONF_PORT))
                 await coro
         except:
@@ -200,7 +200,7 @@ class PetDoor(Entity):
         """asyncio callback for connection lost."""
         if not self._shutdown:
             _LOGGER.error('The server closed the connection. Reconnecting...')
-            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT).total_seconds()), loop=self._eventLoop)
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     async def reconnect(self, delay):
         """Internal method for reconnecting."""
@@ -226,16 +226,16 @@ class PetDoor(Entity):
         """Handler for if we fail to connect to the power pet door."""
         if not self._shutdown:
             _LOGGER.error('Unable to connect to power pet door. Reconnecting...')
-            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT).total_seconds()), loop=self._eventLoop)
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     async def keepalive(self):
-        await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE).total_seconds())
+        await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE))
         if not self._keepalive.cancelled():
             self.send_message(PING, str(round(time.time()*1000)))
             self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
 
     async def refresh(self):
-        await asyncio.sleep(self.config.get(CONF_REFRESH).total_seconds())
+        await asyncio.sleep(self.config.get(CONF_REFRESH))
         if not self._refresh.cancelled():
             self.send_message(CONFIG, "GET_SETTINGS")
             self._refresh = asyncio.ensure_future(self.refresh(), loop=self._eventLoop)
@@ -255,7 +255,7 @@ class PetDoor(Entity):
         except RuntimeError as err:
             _LOGGER.error(str.format('Failed to write to the stream. Reconnecting. ({0}) ', err))
             if not self._shutdown:
-                ensure_future(self.reconnect(self.config.get(CONF_RECONNECT).total_seconds()), loop=self._eventLoop)
+                ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     def data_received(self, rawdata):
         """asyncio callback for any data recieved from the power pet door."""
@@ -499,4 +499,4 @@ async def async_setup_entry(hass: HomeAssistant,
                             entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
 
-    async_add_entities([ PetDoor(config.data) ])
+    async_add_entities([ PetDoor(entry.data) ])
