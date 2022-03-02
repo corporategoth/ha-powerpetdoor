@@ -39,16 +39,13 @@ DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_HOST): cv.string,
     vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
 })
-DATA_SCHEMA_ADV = vol.Schema({
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    vol.Required(CONF_HOST): cv.string,
-    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
+DATA_SCHEMA_ADV = DATA_SCHEMA.extend({
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
     vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): cv.time_period_seconds,
     vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): cv.time_period_seconds,
     vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): cv.time_period_seconds,
     vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): cv.time_period_seconds,
-    })
+})
 
 class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for power pet door integration."""
@@ -79,9 +76,9 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title=name, data=user_input)
 
         if self.show_advanced_options is True:
-            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA_ADV, errors)
+            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA_ADV, errors=errors)
 
-        return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors)
+        return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)
 
 class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
     """Handle a option config for power pet door integration."""
@@ -100,6 +97,6 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title=name, data=user_input)
 
         if self.show_advanced_options is True:
-            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA_ADV, errors)
+            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA_ADV, errors=errors)
 
-        return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors)
+        return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)
