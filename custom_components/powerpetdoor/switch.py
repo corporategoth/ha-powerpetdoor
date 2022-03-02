@@ -416,7 +416,7 @@ class PetDoor(Entity):
             self.send_message(CONFIG, "DISABLE_OUTSIDE")
 
     @callback
-    async def config_enable_inside(self, sensor: SensorTypeClass | str, **kwargs: Any):
+    async def config_enable_sensor(self, sensor: SensorTypeClass | str, **kwargs: Any):
         if sensor == SensorTypeClass.INSIDE:
             self.send_message(CONFIG, "ENABLE_INSIDE")
         elif sensor == SensorTypeClass.OUTSIDE:
