@@ -125,9 +125,9 @@ class PetDoor(SwitchEntity):
     _attr_device_class = BinarySensorDeviceClass.DOOR
     _attr_should_poll = False
 
-    def __init__(self, config: ConfigType) -> None:
-        self.config = config
-        self._attr_name = config.get(CONF_NAME)
+    def __init__(self, config: ConfigEntry) -> None:
+        self.config = config.data
+        self._attr_name = self.config.get(CONF_NAME)
 
     async def async_added_to_hass(self) -> None:
         _LOGGER.info("Latching onto an existing event loop.")
@@ -452,3 +452,9 @@ async def async_setup(hass: HomeAssistant,
     platform.async_register_entity_service(SERVICE_POWER_ON, {}, "config_power_on")
     platform.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
     platform.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
+
+async def async_setup_entry(hass: HomeAssistant,
+                            entry: ConfigEntry,
+                            async_add_entries: AddEntitiesCallback):
+    entry = PetDoor(hass, entry)
+    async_add_entries([ entry ])
