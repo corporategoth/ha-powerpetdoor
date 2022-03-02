@@ -93,7 +93,7 @@ DOOR_SCHEMA = {
 }
 
 SENSOR_SCHEMA = {
-    vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SensorTypeClass.INSIDE, SensorTypeClass.OUTSIDE))
+    vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In([ SensorTypeClass.INSIDE, SensorTypeClass.OUTSIDE ]))
 }
 
 def find_end(s) -> int | None:
