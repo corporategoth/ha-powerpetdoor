@@ -77,11 +77,16 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
 })
 
+ATTR_HOLD = "hold"
 ATTR_SENSOR = "sensor"
 
 class SensorTypeClass(StrEnum):
     INSIDE = "inside"
     OUTSIDE = "outside"
+
+DOOR_SCHEMA = vol.Schema({
+    vol.Optional(ATTR_HOLD): cv.boolean
+})
 
 SENSOR_SCHEMA = vol.Schema({
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SensorTypeClass.INSIDE, SensorTypeClass.OUTSIDE))
@@ -343,14 +348,12 @@ class PetDoor(SwitchEntity):
         return data
 
     @callback
-    async def turn_on(self, call: ServiceCall) -> None:
+    async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
     @callback
-    async def async_turn_on(self, call: ServiceCall) -> None:
-        if "hold" in call.data:
-            hold = call.data["hold"]
-        else:
+    async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
+        if not hold:
             hold = self.config.get(CONF_HOLD)
         if hold:
             self.send_message(COMMAND, "OPEN_AND_HOLD")
@@ -358,15 +361,15 @@ class PetDoor(SwitchEntity):
             self.send_message(COMMAND, "OPEN")
 
     @callback
-    async def turn_off(self, call: ServiceCall) -> None:
+    async def turn_off(self, **kwargs: Any) -> None:
         return asyncio.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
 
     @callback
-    async def async_turn_off(self, call: ServiceCall) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         self.send_message(COMMAND, "CLOSE")
 
     @callback
-    async def config_disable_sensor(self, call: ServiceCall):
+    async def config_disable_sensor(self, sensor: SensorTypeClass | str, **kwargs: Any):
         sensor = call.data["sensor"]
         if sensor == SensorTypeClass.INSIDE:
             self.send_message(CONFIG, "DISABLE_INSIDE")
@@ -374,7 +377,7 @@ class PetDoor(SwitchEntity):
             self.send_message(CONFIG, "DISABLE_OUTSIDE")
 
     @callback
-    async def config_enable_inside(self, call: ServiceCall):
+    async def config_enable_inside(self, sensor: SensorTypeClass | str, **kwargs: Any):
         sensor = call.data["sensor"]
         if sensor == SensorTypeClass.INSIDE:
             self.send_message(CONFIG, "ENABLE_INSIDE")
@@ -382,9 +385,8 @@ class PetDoor(SwitchEntity):
             self.send_message(CONFIG, "ENABLE_OUTSIDE")
 
     @callback
-    async def config_toggle_sensor(self, call: ServiceCall):
+    async def config_toggle_sensor(self, sensor: SensorTypeClass | str, **kwargs: Any):
         if self.settings:
-            sensor = call.data["sensor"]
             if sensor == SensorTypeClass.INSIDE:
                 if self.settings["inside"] == "true":
                     self.send_message(CONFIG, "DISABLE_INSIDE")
@@ -397,15 +399,15 @@ class PetDoor(SwitchEntity):
                     self.send_message(CONFIG, "ENABLE_OUTSIDE")
 
     @callback
-    async def config_disable_auto(self, call: ServiceCall):
+    async def config_disable_auto(self, **kwargs: Any):
         self.send_message(CONFIG, "DISABLE_TIMERS")
 
     @callback
-    async def config_enable_auto(self, call: ServiceCall):
+    async def config_enable_auto(self, **kwargs: Any):
         self.send_message(CONFIG, "ENABLE_TIMERS")
 
     @callback
-    async def config_toggle_auto(self, call: ServiceCall):
+    async def config_toggle_auto(self, **kwargs: Any):
         if self.settings:
             if self.settings["timersEnabled"] == "true":
                 await self.config_disable_auto()
@@ -413,15 +415,15 @@ class PetDoor(SwitchEntity):
                 await self.config_enable_auto()
 
     @callback
-    async def config_power_on(self, call: ServiceCall):
+    async def config_power_on(self, **kwargs: Any):
         self.send_message(CONFIG, "POWER_ON")
 
     @callback
-    async def config_power_off(self, call: ServiceCall):
+    async def config_power_off(self, **kwargs: Any):
         self.send_message(CONFIG, "POWER_OFF")
 
     @callback
-    async def config_power_toggle(self, call: ServiceCall):
+    async def config_power_toggle(self, **kwargs: Any):
         if self.settings:
             if self.settings["power_state"] == "true":
                 await self.config_power_off()
@@ -438,8 +440,8 @@ async def async_setup_platform(hass: HomeAssistant,
 
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
-    platform.async_register_entity_service(SERVICE_OPEN, {}, "async_turn_on")
-    platform.async_register_entity_service(SERVICE_TOGGLE, {}, "async_toggle")
+    platform.async_register_entity_service(SERVICE_OPEN, DOOR_SCHEMA, "async_turn_on")
+    platform.async_register_entity_service(SERVICE_TOGGLE, DOOR_SCHEMA, "async_toggle")
     platform.async_register_entity_service(SERVICE_ENABLE_SENSOR, SENSOR_SCHEMA, "config_enable_sensor")
     platform.async_register_entity_service(SERVICE_DISABLE_SENSOR, SENSOR_SCHEMA, "config_disable_sensor")
     platform.async_register_entity_service(SERVICE_TOGGLE_SENSOR, SENSOR_SCHEMA, "config_toggle_sensor")
