@@ -499,4 +499,4 @@ async def async_setup_entry(hass: HomeAssistant,
                             entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
 
-    async_add_entities([ PetDoor(entry.data) ])
+    async_setup_platform(hass, entry.data, async_add_entities)
