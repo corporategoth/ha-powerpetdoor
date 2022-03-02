@@ -23,6 +23,10 @@ from homeassistant.const import (
     SERVICE_TURN_OFF,
     SERVICE_OPEN,
     SERVICE_CLOSE,
+    STATE_OPEN,
+    STATE_OPENING,
+    STATE_CLOSED,
+    STRTE_CLOSING
 )
 
 from homeassistant.backports.enum import StrEnum
@@ -84,17 +88,11 @@ class SensorTypeClass(StrEnum):
     INSIDE = "inside"
     OUTSIDE = "outside"
 
-ENTITY_SCHEMA = vol.Schema({
-    vol.Required(ATTR_ENTITY_ID): cv.entity_id
-})
-
 DOOR_SCHEMA = vol.Schema({
-    vol.Required(ATTR_ENTITY_ID): cv.entity_id
     vol.Optional(ATTR_HOLD): cv.boolean
 })
 
 SENSOR_SCHEMA = vol.Schema({
-    vol.Required(ATTR_ENTITY_ID): cv.entity_id
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SensorTypeClass.INSIDE, SensorTypeClass.OUTSIDE))
 })
 
@@ -117,7 +115,7 @@ def find_end(s) -> int | None:
 
     return None
 
-class PetDoor(SwitchEntity):
+class PetDoor(Entity):
     msgId = 1
     replyMsgId = None
     status = None
@@ -334,7 +332,22 @@ class PetDoor(SwitchEntity):
         return (self._transport and not self._transport.is_closing())
 
     @property
+    def state(self) -> Literal["on", "off"] | None:
+        """Return the state."""
+        if self.status is None:
+            return None
+        elif self.status in ("DOOR_IDLE", "DOOR_CLOSED"):
+            return STATE_CLOSED
+        elif self.status == "DOOR_HOLDING":
+            return STATE_OPEN
+        elif self.status in ("DOOR_RISING", "DOOR_SLOWING"):
+            return STATE_OPENING
+        else
+            return STATE_CLOSING
+
+    @property
     def is_on(self) -> bool | None:
+        """Return True if entity is on."""
         return (self.status not in ("DOOR_IDLE", "DOOR_CLOSED"))
 
     @property
@@ -351,14 +364,19 @@ class PetDoor(SwitchEntity):
             data["status"] = self.status
         if self.last_change:
             data["last_change"] = self.last_change.isoformat()
+        data["host"] = self.config.get(CONF_HOST)
+        data["port"] = self.config.get(CONF_PORT)
+        data["hold"] = self.config.get(CONF_HOLD)
         return data
 
     @callback
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
+        """Turn the entity on."""
         return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
     @callback
     async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
+        """Turn the entity on."""
         if not hold:
             hold = self.config.get(CONF_HOLD)
         if hold:
@@ -368,11 +386,27 @@ class PetDoor(SwitchEntity):
 
     @callback
     async def turn_off(self, **kwargs: Any) -> None:
+        """Turn the entity off."""
         return asyncio.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
 
     @callback
     async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the entity off."""
         self.send_message(COMMAND, "CLOSE")
+
+    def toggle(self, **kwargs: Any) -> None:
+        """Toggle the entity."""
+        if self.is_on:
+            self.turn_off(**kwargs)
+        else:
+            self.turn_on(**kwargs)
+
+    async def async_toggle(self, **kwargs: Any) -> None:
+        """Toggle the entity."""
+        if self.is_on:
+            await self.async_turn_off(**kwargs)
+        else:
+            await self.async_turn_on(**kwargs)
 
     @callback
     async def config_disable_sensor(self, sensor: SensorTypeClass | str, **kwargs: Any):
@@ -445,15 +479,15 @@ async def async_setup_platform(hass: HomeAssistant,
     async_add_entities([ PetDoor(config) ])
 
     platform = entity_platform.async_get_current_platform()
-    platform.async_register_entity_service(SERVICE_CLOSE, ENTITY_SCHEMA, "async_turn_off")
+    platform.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
     platform.async_register_entity_service(SERVICE_OPEN, DOOR_SCHEMA, "async_turn_on")
     platform.async_register_entity_service(SERVICE_TOGGLE, DOOR_SCHEMA, "async_toggle")
     platform.async_register_entity_service(SERVICE_ENABLE_SENSOR, SENSOR_SCHEMA, "config_enable_sensor")
     platform.async_register_entity_service(SERVICE_DISABLE_SENSOR, SENSOR_SCHEMA, "config_disable_sensor")
     platform.async_register_entity_service(SERVICE_TOGGLE_SENSOR, SENSOR_SCHEMA, "config_toggle_sensor")
-    platform.async_register_entity_service(SERVICE_ENABLE_AUTO, ENTITY_SCHEMA, "config_enable_auto")
-    platform.async_register_entity_service(SERVICE_DISABLE_AUTO, ENTITY_SCHEMA, "config_disable_auto")
-    platform.async_register_entity_service(SERVICE_TOGGLE_AUTO, ENTITY_SCHEMA, "config_toggle_auto")
-    platform.async_register_entity_service(SERVICE_POWER_ON, ENTITY_SCHEMA, "config_power_on")
-    platform.async_register_entity_service(SERVICE_POWER_OFF, ENTITY_SCHEMA, "config_power_off")
-    platform.async_register_entity_service(SERVICE_POWER_TOGGLE, ENTITY_SCHEMA, "config_power_toggle")
+    platform.async_register_entity_service(SERVICE_ENABLE_AUTO, {}, "config_enable_auto")
+    platform.async_register_entity_service(SERVICE_DISABLE_AUTO, {}, "config_disable_auto")
+    platform.async_register_entity_service(SERVICE_TOGGLE_AUTO, {}, "config_toggle_auto")
+    platform.async_register_entity_service(SERVICE_POWER_ON, {}, "config_power_on")
+    platform.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
+    platform.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
