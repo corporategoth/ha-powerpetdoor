@@ -26,13 +26,13 @@ from homeassistant.const import (
     STATE_OPEN,
     STATE_OPENING,
     STATE_CLOSED,
-    STRTE_CLOSING
+    STATE_CLOSING
 )
 
 from homeassistant.backports.enum import StrEnum
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.reload import async_setup_reload_service
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.helpers.entity import Entity
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -88,13 +88,13 @@ class SensorTypeClass(StrEnum):
     INSIDE = "inside"
     OUTSIDE = "outside"
 
-DOOR_SCHEMA = vol.Schema({
+DOOR_SCHEMA = {
     vol.Optional(ATTR_HOLD): cv.boolean
-})
+}
 
-SENSOR_SCHEMA = vol.Schema({
+SENSOR_SCHEMA = {
     vol.Required(ATTR_SENSOR): vol.All(cv.string, vol.In(SensorTypeClass.INSIDE, SensorTypeClass.OUTSIDE))
-})
+}
 
 def find_end(s) -> int | None:
     if not len(s):
@@ -342,7 +342,7 @@ class PetDoor(Entity):
             return STATE_OPEN
         elif self.status in ("DOOR_RISING", "DOOR_SLOWING"):
             return STATE_OPENING
-        else
+        else:
             return STATE_CLOSING
 
     @property
@@ -377,7 +377,7 @@ class PetDoor(Entity):
     @callback
     async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
-        if not hold:
+        if hold is None:
             hold = self.config.get(CONF_HOLD)
         if hold:
             self.send_message(COMMAND, "OPEN_AND_HOLD")
@@ -410,7 +410,6 @@ class PetDoor(Entity):
 
     @callback
     async def config_disable_sensor(self, sensor: SensorTypeClass | str, **kwargs: Any):
-        sensor = call.data["sensor"]
         if sensor == SensorTypeClass.INSIDE:
             self.send_message(CONFIG, "DISABLE_INSIDE")
         elif sensor == SensorTypeClass.OUTSIDE:
@@ -418,7 +417,6 @@ class PetDoor(Entity):
 
     @callback
     async def config_enable_inside(self, sensor: SensorTypeClass | str, **kwargs: Any):
-        sensor = call.data["sensor"]
         if sensor == SensorTypeClass.INSIDE:
             self.send_message(CONFIG, "ENABLE_INSIDE")
         elif sensor == SensorTypeClass.OUTSIDE:

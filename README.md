@@ -37,49 +37,62 @@ switch powerpetdoor:
 ## Service calls
 
 The Power Pet Door presents as a switch, which means it has a simple 'on' and 'off' state (on being opened, off being closed).
-The standard turn_on, turn_off and toggle commands all work as expected also.
+The standard homeassistant.turn_on, homeassistant.turn_off and homeassistant.toggle calls all work as expected also.
 
 However, additional commands have been added to change the various behavior of the Power Pet Door
 
-Many service calls require an entity ID - the default one would be `switch.power_pet_door`, however this is based on the name you give your device.
+All service calls require an entity ID, so a sample call would look like:
+
+```
+service: powerpetdoor.open
+entity_id: switch.power_pet_door
+data:
+    hold: false
+```
 
 ### Door Commands
 
+For actuating the door itself.
+
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
-| switch.turn_on | entity_id | The entity of the power pet door you want to open. |
-|  | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
-| switch.turn_off | entity_id | The entity of the power pet door you want to close. |
-| switch.toggle | entity_id | The entity of the power pet door you want to open. |
+| powerpetdoor.open | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
+| powerpetdoor.close | |  |
+| powerpetdoor.toggle | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
 
 ### Sensor Commands
 
+For controlling the door sensors (ie. if the pet is detected inside or outside of the door for automatic opening)
+
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
-| powerpetdoor.enable_sensor  | entity_id | The entity of the power pet door you wish to enable a sensor on |
-|                | sensor    | The sensor to enable (one of 'inside' or 'outside') |
-| powerpetdoor.disable_sensor | entity_id | The entity of the power pet door you wish to disable a sensor on |
-|                | sensor    | The sensor to disable (one of 'inside' or 'outside') |
-| powerpetdoor.toggle_sensor  | entity_id | The entity of the power pet door you wish to toggle a sensor on |
-|                | sensor    | The sensor to toggle (one of 'inside' or 'outside') |
+| powerpetdoor.enable_sensor  | sensor    | The sensor to enable (one of 'inside' or 'outside') |
+| powerpetdoor.disable_sensor | sensor    | The sensor to disable (one of 'inside' or 'outside') |
+| powerpetdoor.toggle_sensor  | sensor    | The sensor to toggle (one of 'inside' or 'outside') |
 
 ### Automatic (scheduled) Mode Commands
 
+For controlling automatic (scheduled) mode - which automatically enables the indoor and outdoor sensors on a schedule.
+Adjusting the schedule for these sensors must be done via. the app, and cannot be changed in Home Assistant.
+
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
-| powerpetdoor.enable_auto  | entity_id | The entity of the power pet door you wish to enable auto on |
-| powerpetdoor.disable_auto | entity_id | The entity of the power pet door you wish to disable auto on |
-| powerpetdoor.toggle_auto  | entity_id | The entity of the power pet door you wish to toggle auto on |
+| powerpetdoor.enable_auto  | | |
+| powerpetdoor.disable_auto | | |
+| powerpetdoor.toggle_auto  | | |
 
 ### Power Commands
 
+For controlling the power on/off state of the door.  Note that even when 'powered off', WiFi is still enabled on the door
+(otherwise you would be unable to power it back on remotely).
+
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
-| powerpetdoor.power_on     | entity_id | The entity of the power pet door you wish to power on |
-| powerpetdoor.power_off    | entity_id | The entity of the power pet door you wish to power off |
-| powerpetdoor.power_toggle | entity_id | The entity of the power pet door whose power state you wish to toggle |
+| powerpetdoor.power_on     | | |
+| powerpetdoor.power_off    | | |
+| powerpetdoor.power_toggle | | |
 
 ## Credits
 
-Big thanks to the authors of the [Envisalink component](https://github.com/home-assistant/core/tree/dev/homeassistant/components/envisalink), which I based a lot of the async networking code off of.
+Big thanks to the authors of the [Envisalink component](https://home-assistant.io/integrations/envisalink), which I based a lot of the async networking code off of.
 
