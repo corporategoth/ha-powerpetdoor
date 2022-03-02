@@ -15,11 +15,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Power Pet Door from a config entry."""
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(update_listener))
+    entry.async_on_unload(entry.add_update_listener(async_update_listener))
     return True
 
 
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
 
     await hass.config_entries.async_reload(entry.entry_id)
