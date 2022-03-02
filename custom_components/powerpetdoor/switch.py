@@ -495,8 +495,9 @@ async def async_setup_platform(hass: HomeAssistant,
     platform.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
     platform.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
 
+# Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
                             entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
 
-    async_setup_platform(hass, entry.data, async_add_entities)
+    await async_setup_platform(hass, entry.data, async_add_entities)
