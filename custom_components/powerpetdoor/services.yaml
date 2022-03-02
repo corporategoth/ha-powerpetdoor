@@ -2,6 +2,8 @@ open:
   name: Open Door
   description: Open the power pet door
   target:
+    entity:
+      domain: powerpetdoor
   fields:
     hold:
       name: Hold
@@ -14,11 +16,15 @@ close:
   name: Close Door
   description: Close the power pet door
   target:
+    entity:
+      domain: powerpetdoor
 
 toggle:
   name: Open or Close Door
   description: Open or Close the power pet door
   target:
+    entity:
+      domain: powerpetdoor
   fields:
     hold:
       name: Hold
@@ -31,6 +37,8 @@ enable_sensor:
   name: Enable Sensor
   description: Enable the indoor or outdoor proximity sensors
   target:
+    entity:
+      domain: powerpetdoor
   fields:
     sensor:
       name: Sensor
@@ -46,6 +54,8 @@ disable_sensor:
   name: Disable Sensor
   description: Disable the indoor or outdoor proximity sensors
   target:
+    entity:
+      domain: powerpetdoor
   fields:
     sensor:
       name: Sensor
@@ -61,6 +71,8 @@ toggle_sensor:
   name: Toggle Sensor
   description: Toggle the indoor or outdoor proximity sensors
   target:
+    entity:
+      domain: powerpetdoor
   fields:
     sensor:
       name: Sensor
@@ -76,28 +88,40 @@ enable_auto:
   name: Enable Auto
   description: Enable automatic (scheduled) mode
   target:
+    entity:
+      domain: powerpetdoor
 
 disable_auto:
   name: Disable Auto
   description: Disable automatic (scheduled) mode
   target:
+    entity:
+      domain: powerpetdoor
 
 toggle_auto:
   name: Toggle Auto
   description: Toggle automatic (scheduled) mode
   target:
+    entity:
+      domain: powerpetdoor
 
 power_on:
   name: Power On
   description: Power on the pet door
   target:
+    entity:
+      domain: powerpetdoor
 
 power_off:
   name: Power Off
   description: Power of the pet door
   target:
+    entity:
+      domain: powerpetdoor
 
 power_toggle:
   name: Toggle Power
   description: Toggle the pet door power
   target:
+    entity:
+      domain: powerpetdoor
