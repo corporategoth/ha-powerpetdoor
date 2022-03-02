@@ -55,14 +55,6 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> DnsIPOptionsFlowHandler:
-        """Return Option handler."""
-        return DnsIPOptionsFlowHandler(config_entry)
-
     async def async_step_import(self, config: dict[str, Any]) -> FlowResult:
         """Import a configuration from config.yaml."""
 
@@ -76,27 +68,16 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
 
-        errors = {}
-
-        if user_input:
-            host = user_input[CONF_HOST]
+        if user_input is not None:
+            host = user_input.get(CONF_HOST)
+            name = user_input.get(CONF_NAME)
 
             await self.async_set_unique_id(host)
             self._abort_if_unique_id_configured()
 
-            return self.async_create_entry(
-                title=name,
-                data=user_input,
-            )
+            return self.async_create_entry(title=name, data=user_input)
 
         if self.show_advanced_options is True:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=DATA_SCHEMA_ADV,
-                errors=errors,
-            )
-        return self.async_show_form(
-            step_id="user",
-            data_schema=DATA_SCHEMA,
-            errors=errors,
-        )
+            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA_ADV)
+
+        return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA)
