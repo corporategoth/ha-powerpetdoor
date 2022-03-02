@@ -3,7 +3,8 @@ open:
   description: Open the power pet door
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
   fields:
     hold:
       name: Hold
@@ -17,14 +18,16 @@ close:
   description: Close the power pet door
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
 
 toggle:
   name: Open or Close Door
   description: Open or Close the power pet door
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
   fields:
     hold:
       name: Hold
@@ -38,7 +41,8 @@ enable_sensor:
   description: Enable the indoor or outdoor proximity sensors
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
   fields:
     sensor:
       name: Sensor
@@ -55,7 +59,8 @@ disable_sensor:
   description: Disable the indoor or outdoor proximity sensors
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
   fields:
     sensor:
       name: Sensor
@@ -72,7 +77,8 @@ toggle_sensor:
   description: Toggle the indoor or outdoor proximity sensors
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
   fields:
     sensor:
       name: Sensor
@@ -89,39 +95,45 @@ enable_auto:
   description: Enable automatic (scheduled) mode
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
 
 disable_auto:
   name: Disable Auto
   description: Disable automatic (scheduled) mode
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
 
 toggle_auto:
   name: Toggle Auto
   description: Toggle automatic (scheduled) mode
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
 
 power_on:
   name: Power On
   description: Power on the pet door
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
 
 power_off:
   name: Power Off
   description: Power of the pet door
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
 
 power_toggle:
   name: Toggle Power
   description: Toggle the pet door power
   target:
     entity:
-      domain: powerpetdoor
+      domain: switch
+      integration: powerpetdoor
