@@ -434,7 +434,7 @@ async def async_setup_platform(hass: HomeAssistant,
                                async_add_entities: AddEntitiesCallabck,
                                discovery_info: DiscoveryInfoType | None = None) -> None:
 
-    async_add_entities([ PetDoor(hass, config) ])
+    async_add_entities([ PetDoor(config) ])
 
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
