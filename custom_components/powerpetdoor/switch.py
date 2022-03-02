@@ -23,7 +23,6 @@ from homeassistant.const import (
     SERVICE_TURN_OFF,
     SERVICE_OPEN,
     SERVICE_CLOSE,
-    Platform,
 )
 
 from homeassistant.backports.enum import StrEnum
@@ -34,12 +33,11 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
+from homeassistant.helpers import entity_platform
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "powerpetdoor"
-PLATFORMS = [ Platform.SWITCH ]
-SCAN_INTERVAL = timedelta(seconds=30)
 
 DEFAULT_NAME = "Power Pet Door"
 DEFAULT_PORT = 3000
@@ -126,8 +124,8 @@ class PetDoor(SwitchEntity):
     _attr_device_class = BinarySensorDeviceClass.DOOR
     _attr_should_poll = False
 
-    def __init__(self, config: ConfigEntry) -> None:
-        self.config = config.data
+    def __init__(self, config: ConfigType) -> None:
+        self.config = config
         self._attr_name = self.config.get(CONF_NAME)
 
     async def async_added_to_hass(self) -> None:
@@ -431,39 +429,23 @@ class PetDoor(SwitchEntity):
                 await self.config_power_on()
 
 
-async def async_setup(hass: HomeAssistant,
-                      config: ConfigType) -> bool:
-    component = hass.data[DOMAIN] = EntityComponent(
-        _LOGGER, DOMAIN, hass, SCAN_INTERVAL
-    )
+async def async_setup_platform(hass: HomeAssistant,
+                               config: ConfigType,
+                               async_add_entities: AddEntitiesCallabck,
+                               discovery_info: DiscoveryInfoType | None = None) -> None:
 
-    await component.async_setup(config)
+    async_add_entities([ PetDoor(hass, config) ])
 
-    component.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
-    component.async_register_entity_service(SERVICE_OPEN, {}, "async_turn_on")
-    component.async_register_entity_service(SERVICE_TOGGLE, {}, "async_toggle")
-    component.async_register_entity_service(SERVICE_ENABLE_SENSOR, SENSOR_SCHEMA, "config_enable_sensor")
-    component.async_register_entity_service(SERVICE_DISABLE_SENSOR, SENSOR_SCHEMA, "config_disable_sensor")
-    component.async_register_entity_service(SERVICE_TOGGLE_SENSOR, SENSOR_SCHEMA, "config_toggle_sensor")
-    component.async_register_entity_service(SERVICE_ENABLE_AUTO, {}, "config_enable_auto")
-    component.async_register_entity_service(SERVICE_DISABLE_AUTO, {}, "config_disable_auto")
-    component.async_register_entity_service(SERVICE_TOGGLE_AUTO, {}, "config_toggle_auto")
-    component.async_register_entity_service(SERVICE_POWER_ON, {}, "config_power_on")
-    component.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
-    component.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
-
-    return True
-
-async def async_setup_entry(hass: HomeAssistant,
-                            entry: ConfigEntry) -> bool:
-    hass.data[DOMAIN][entry.entry_id] = PetDoor(hass, entry)
-    hass.config_entries.async_setup_platforms(entry, PLATFORMS)
-
-    return True
-
-async def async_unload_entry(hass: HomeAssistant,
-                             entry: ConfigEntry) -> bool:
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok
-        del hass.data[DOMAIN][entry.entry_id]
-    return unload_ok
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(SERVICE_CLOSE, {}, "async_turn_off")
+    platform.async_register_entity_service(SERVICE_OPEN, {}, "async_turn_on")
+    platform.async_register_entity_service(SERVICE_TOGGLE, {}, "async_toggle")
+    platform.async_register_entity_service(SERVICE_ENABLE_SENSOR, SENSOR_SCHEMA, "config_enable_sensor")
+    platform.async_register_entity_service(SERVICE_DISABLE_SENSOR, SENSOR_SCHEMA, "config_disable_sensor")
+    platform.async_register_entity_service(SERVICE_TOGGLE_SENSOR, SENSOR_SCHEMA, "config_toggle_sensor")
+    platform.async_register_entity_service(SERVICE_ENABLE_AUTO, {}, "config_enable_auto")
+    platform.async_register_entity_service(SERVICE_DISABLE_AUTO, {}, "config_disable_auto")
+    platform.async_register_entity_service(SERVICE_TOGGLE_AUTO, {}, "config_toggle_auto")
+    platform.async_register_entity_service(SERVICE_POWER_ON, {}, "config_power_on")
+    platform.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
+    platform.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
