@@ -31,6 +31,7 @@ from homeassistant.const import (
 
 from homeassistant.backports.enum import StrEnum
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.reload import async_setup_reload_service
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -41,15 +42,19 @@ from homeassistant.helpers import entity_platform
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "powerpetdoor"
-
-DEFAULT_NAME = "Power Pet Door"
-DEFAULT_PORT = 3000
-DEFAULT_CONNECT_TIMEOUT = 5.0
-DEFAULT_RECONNECT_TIMEOUT = 30.0
-DEFAULT_KEEP_ALIVE_TIMEOUT = 30.0
-DEFAULT_REFRESH_TIMEOUT = 300.0
-DEFAULT_HOLD = True
+from .const import (
+    CONF_REFRESH,
+    CONF_KEEP_ALIVE,
+    CONF_RECONNECT,
+    CONF_HOLD,
+    DEFAULT_NAME,
+    DEFAULT_PORT,
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_RECONNECT_TIMEOUT,
+    DEFAULT_KEEP_ALIVE_TIMEOUT,
+    DEFAULT_REFRESH_TIMEOUT,
+    DEFAULT_HOLD,
+)
 
 COMMAND = "cmd"
 CONFIG = "config"
@@ -489,3 +494,9 @@ async def async_setup_platform(hass: HomeAssistant,
     platform.async_register_entity_service(SERVICE_POWER_ON, {}, "config_power_on")
     platform.async_register_entity_service(SERVICE_POWER_OFF, {}, "config_power_off")
     platform.async_register_entity_service(SERVICE_POWER_TOGGLE, {}, "config_power_toggle")
+
+async def async_setup_entry(hass: HomeAssistant,
+                            entry: ConfigEntry,
+                            async_add_entities: AddEntitiesCallback) -> None:
+
+    async_add_entities([ PetDoor(config.data) ])
