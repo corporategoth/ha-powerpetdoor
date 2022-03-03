@@ -7,7 +7,7 @@
                     "host": "The host of the Power Pet Door",
                     "port": "The port for the Power Pet Door (default: 3000)",
                     "hold": "Hold then door open by default when open command is run",
-                    "timeout": "How long to wait for a connection to the Power Pet Door (seconds)",
+                    "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
                     "refresh": "How often to request the current configuration of the Power Pet Door (seconds)"
@@ -15,6 +15,40 @@
             }
         },
         "error": {
+            "connection_timed_out": "Timed out waiting for connection to remote host",
+            "connection_failed": "Could not connect to remote host",
+            "write_error": "Failed to send command to remote host",
+            "read_error": "Failed to receive response from remote host",
+            "protocol_error": "Response from remote host does not match known protocol",
+            "ping_failed": "PING Command failed",
+            "invalid_response": "Invalid response to command received",
+            "bad_ping": "PING returned with different value"
+        }
+    },
+    "options": {
+        "step": {
+            "user": {
+                "data": {
+                    "name": "The friendly name of the Power Pet Door",
+                    "host": "The host of the Power Pet Door",
+                    "port": "The port for the Power Pet Door (default: 3000)",
+                    "hold": "Hold then door open by default when open command is run",
+                    "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
+                    "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
+                    "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
+                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)"
+                }
+            }
+        },
+        "error": {
+            "connection_timed_out": "Timed out waiting for connection to remote host",
+            "connection_failed": "Could not connect to remote host",
+            "write_error": "Failed to send command to remote host",
+            "read_error": "Failed to receive response from remote host",
+            "protocol_error": "Response from remote host does not match known protocol",
+            "ping_failed": "PING Command failed",
+            "invalid_response": "Invalid response to command received",
+            "bad_ping": "PING returned with different value"
         }
     }
 }

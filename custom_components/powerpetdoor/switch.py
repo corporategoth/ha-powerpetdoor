@@ -77,13 +77,14 @@ SERVICE_POWER_TOGGLE = "toggle_power"
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    vol.Required(CONF_HOST): cv.string,
+    vol.Required(CONF_HOST): vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
+                                                        vol.Match(ValidHostnameRegex))),
     vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
     vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): vol.Coerce(float),
     vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): vol.Coerce(float),
     vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): vol.Coerce(float),
     vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): cv.boolean,
+    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): vol.Boolean(),
 })
 
 ATTR_HOLD = "hold"
@@ -133,6 +134,8 @@ class PetDoor(Entity):
     _transport = None
     _keepalive = None
     _refresh = None
+    _check_receipt = None
+    _last_ping = None
     _buffer = ''
 
     _attr_device_class = BinarySensorDeviceClass.DOOR
@@ -173,11 +176,11 @@ class PetDoor(Entity):
         """Public method for shutting down connectivity with the power pet door."""
         self._shutdown = True
 
+        _LOGGER.info("Shutting down Power Pet Door client connection...")
         if self._ownLoop:
-            _LOGGER.info("Shutting down Power Pet Door client connection...")
             self._eventLoop.call_soon_threadsafe(self._eventLoop.stop)
         else:
-            _LOGGER.info("An event loop was given to us- we will shutdown when that event loop shuts down.")
+            asyncio.ensure_future(self.disconnect(), loop=self._eventLoop)
 
     async def connect(self):
         """Internal method for making the physical connection."""
@@ -204,11 +207,11 @@ class PetDoor(Entity):
 
     async def reconnect(self, delay):
         """Internal method for reconnecting."""
-        self.disconnect()
+        await self.disconnect()
         await asyncio.sleep(delay)
         await self.connect()
 
-    def disconnect(self):
+    async def disconnect(self):
         """Internal method for forcing connection closure if hung."""
         _LOGGER.debug('Closing connection with server...')
         if self._keepalive:
@@ -217,10 +220,14 @@ class PetDoor(Entity):
         if self._refresh:
             self._refresh.cancel()
             self._refresh = None
+        if self._check_receipt:
+            self._check_receipt.close()
+            self._check_receipt = None
         if self._transport:
             self._transport.close()
             self._transport = None
-        self_.buffer = ''
+        self_._last_ping = None
+        self_._buffer = ''
 
     def handle_connect_failure(self):
         """Handler for if we fail to connect to the power pet door."""
@@ -229,10 +236,23 @@ class PetDoor(Entity):
             ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
 
     async def keepalive(self):
+        if self._last_ping is not None:
+            _LOGGER.error('Last PING not responded to. Reconnecting...')
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
+            return
+
         await asyncio.sleep(self.config.get(CONF_KEEP_ALIVE))
         if not self._keepalive.cancelled():
-            self.send_message(PING, str(round(time.time()*1000)))
+            self._last_ping = str(round(time.time()*1000))
+            self.send_message(PING, self._last_ping)
             self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
+
+    async def check_receipt(self):
+        await asyncio.sleep(self.config.get(CONF_TIMEOUT))
+        if not self._check_receipt.cancelled():
+            _LOGGER.error('Did not receive a response to a message in more than {} seconds.  Reconnecting...')
+            ensure_future(self.reconnect(self.config.get(CONF_RECONNECT)), loop=self._eventLoop)
+        self._check_receipt = None
 
     async def refresh(self):
         await asyncio.sleep(self.config.get(CONF_REFRESH))
@@ -251,6 +271,8 @@ class PetDoor(Entity):
         _LOGGER.debug(str.format('TX > {0}', rawdata))
         try:
             self._transport.write(rawdata)
+            if not self._check_receipt:
+                self._check_receipt = asyncio.ensure_future(self.check_receipt(), loop=self._eventLoop)
             self._keepalive = asyncio.ensure_future(self.keepalive(), loop=self._eventLoop)
         except RuntimeError as err:
             _LOGGER.error(str.format('Failed to write to the stream. Reconnecting. ({0}) ', err))
@@ -260,6 +282,10 @@ class PetDoor(Entity):
     def data_received(self, rawdata):
         """asyncio callback for any data recieved from the power pet door."""
         if rawdata != '':
+            if self_.check_receipt:
+                self._check_receipt.cancel()
+                self._check_receipt = None
+
             try:
                 data = rawdata.decode('ascii')
                 _LOGGER.debug(str.format('RX < {0}', data))
@@ -319,6 +345,11 @@ class PetDoor(Entity):
                 if "timersEnabled" in msg:
                     self.settings["timersEnabled"] = msg["timersEnabled"]
                 self.schedule_update_ha_state()
+
+            if msg["CMD"] == "PONG":
+                if msg["PONG"] == self._last_ping:
+                    self._last_ping = None
+
         else:
             _LOGGER.warn("Error reported: {}".format(json.dumps(msg)))
 
