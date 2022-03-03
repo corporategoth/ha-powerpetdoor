@@ -33,23 +33,14 @@ from .const import (
     DEFAULT_KEEP_ALIVE_TIMEOUT,
     DEFAULT_REFRESH_TIMEOUT,
     DEFAULT_HOLD,
-    ValidIpAddressRegex,
-    ValidHostnameRegex,
+    SCHEMA,
+    SCHEMA_ADV,
+    PING,
+    PONG,
 )
 
-DATA_SCHEMA = vol.Schema({
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    vol.Required(CONF_HOST): vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
-                                                        vol.Match(ValidHostnameRegex))),
-    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): vol.Boolean(),
-})
-DATA_SCHEMA_ADV = DATA_SCHEMA.extend({
-    vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): vol.Coerce(float),
-})
+DATA_SCHEMA = vol.Schema(CONFIG_SCHEMA)
+DATA_SCHEMA_ADV = DATA_SCHEMA.extend(CONFIG_SCHEMA_ADV)
 
 async def validate_connection(host: str, port: int) -> str | None:
     error = None
@@ -57,28 +48,32 @@ async def validate_connection(host: str, port: int) -> str | None:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5.0)
         last_ping = str(round(time.time()*1000))
         try:
-            writer.write('{{"PING": "{}", "dir": "p2d"}}'.format(last_ping).encode("ascii"))
-            await writer.drain()
+            writer.write('{{"{}": "{}", "dir": "p2d"}}'.format(PING, last_ping).encode("ascii"))
+            await asyncio.wait_for(writer.drain(), timeout=5.0)
 
             try:
-                data = await reader.readuntil(b'}')
+                data = await asyncio.wait_for(reader.readuntil(b'}'), timeout=5.0)
                 pong = json.loads(data.decode('ascii'))
-                if "success" not in pong:
+                if FIELD_SUCCESS not in pong:
                     error = "protocol_error"
-                elif pong["success"] != "true":
+                elif pong[FIELD_SUCCESS] != "true":
                     error = "ping_failed"
                 elif "CMD" not in pong:
                     error = "protocol_error"
-                elif pong["CMD"] != "PONG":
+                elif pong["CMD"] != PONG:
                     error = "invalid_response"
-                elif "PONG" not in pong:
+                elif PONG not in pong:
                     error = "protocol_error"
-                elif pong["PONG"] != last_ping:
+                elif pong[PONG] != last_ping:
                     error = "bad_ping"
             except json.JSONDecodeError:
                 error = "protocol_error"
+            except asyncio.TimeoutError:
+                error = "read_timed_out"
             except:
                 error = "read_error"
+        except asyncio.TimeoutError:
+            error = "write_timed_out"
         except:
             error = "write_error"
         writer.close()
