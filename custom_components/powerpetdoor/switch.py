@@ -10,7 +10,6 @@ from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
 from homeassistant.helpers import entity_platform
-from homeassistant.const import STATE_ON, STATE_OFF
 import homeassistant.helpers.config_validation as cv
 from .client import PowerPetDoorClient
 
@@ -236,10 +235,9 @@ class PetDoorSwitch(ToggleEntity):
         return None
 
     async def handle_state_update(self, state: bool) -> None:
-        state_str = STATE_ON if state else STATE_OFF
-        if self._attr_state is not None and self._attr_state != state_str:
+        if self._attr_is_on is not None and self._attr_is_on != state:
             self.last_change = datetime.now(timezone.utc)
-        self._attr_state = state_str
+        self._attr_is_on = state
         self.schedule_update_ha_state()
 
     @callback
