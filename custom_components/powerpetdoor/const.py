@@ -73,20 +73,6 @@ CMD_ENABLE_AUTO = "ENABLE_TIMERS"
 CMD_POWER_ON = "POWER_ON"
 CMD_POWER_OFF = "POWER_OFF"
 
-SERVICE_ENABLE_SENSOR = "enable_sensor"
-SERVICE_DISABLE_SENSOR = "disable_sensor"
-SERVICE_TOGGLE_SENSOR = "toggle_sensor"
-SERVICE_ENABLE_AUTO = "enable_auto"
-SERVICE_DISABLE_AUTO = "disable_auto"
-SERVICE_TOGGLE_AUTO = "toggle_auto"
-SERVICE_POWER_ON = "power_on"
-SERVICE_POWER_OFF = "power_off"
-SERVICE_POWER_TOGGLE = "toggle_power"
-
-class SensorTypeClass(StrEnum):
-    INSIDE = "inside"
-    OUTSIDE = "outside"
-
 ValidIpAddressRegex = r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
 ValidHostnameRegex = r"^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
 
