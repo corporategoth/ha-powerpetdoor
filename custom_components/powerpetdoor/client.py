@@ -78,15 +78,11 @@ class PowerPetDoorClient:
 
     door_status_listeners: dict[str, Callable[[str], Awaitable[None]]] = {}
     settings_listeners: dict[str, Callable[[dict], Awaitable[None]]] = {}
-    sensor_listeners: {
-        # FIELD_POWER: dict[str, Callable[[bool], Awaitable[None]]]] = {},
-        # FIELD_INSIDE: dict[str, Callable[[bool], Awaitable[None]]]] = {},
-        # FIELD_OUTSIDE: dict[str, Callable[[bool], Awaitable[None]]]] = {},
-        # FIELD_AUTO: dict[str, Callable[[bool], Awaitable[None]]]] = {},
+    sensor_listeners: dict[str, dict[str, Callable[[bool], Awaitable[None]]]] = {
         FIELD_POWER: {},
         FIELD_INSIDE: {},
         FIELD_OUTSIDE: {},
-        FIELD_AUTO: {],}
+        FIELD_AUTO: {},
     }
 
     on_connect: Callable[[], None] | None = None
@@ -125,7 +121,7 @@ class PowerPetDoorClient:
                      door_status_update: Callable[[str], Awaitable[None]] | None = None,
                      settings_update: Callable[[dict], Awaitable[None]] | None = None,
                      sensor_update: dict[str, Callable[[bool], Awaitable[None]]] | None = None) -> None:
-        if self.door_status_update:
+        if door_status_update:
             self.door_status_listeners[name] = door_status_update
         if settings_update:
             self.settings_listeners[name] = settings_update
@@ -235,7 +231,7 @@ class PowerPetDoorClient:
 
     async def keepalive(self) -> None:
         await asyncio.sleep(self.cfg_keepalive)
-        if not self._keepalive.cancelled():
+        if self._keepalive and not self._keepalive.cancelled():
             if self._last_ping is not None:
                 _LOGGER.error('Last PING not responded to. Reconnecting...')
                 self.ensure_future(self.reconnect(self.cfg_reconnect))
@@ -247,7 +243,7 @@ class PowerPetDoorClient:
 
     async def check_receipt(self) -> None:
         await asyncio.sleep(self.cfg_timeout)
-        if not self._check_receipt.cancelled():
+        if self._check_receipt and not self._check_receipt.cancelled():
             _LOGGER.error('Did not receive a response to a message in more than {} seconds.  Reconnecting...')
             self.ensure_future(self.reconnect(self.cfg_reconnect))
         self._check_receipt = None

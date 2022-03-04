@@ -10,7 +10,8 @@
                     "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
-                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)"
+                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
+                    "update": "How often to request the door orientation (seconds)"
                 }
             }
         },
@@ -38,7 +39,8 @@
                     "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
-                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)"
+                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
+                    "update": "How often to request the door orientation (seconds)"
                 }
             }
         },

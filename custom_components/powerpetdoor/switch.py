@@ -64,32 +64,32 @@ SWITCHES = {
         "update": CMD_GET_SENSORS,
         "enable": CMD_ENABLE_INSIDE,
         "disable": CMD_DISABLE_INSIDE,
-        "icon_on": "motion-sensor",
-        "icon_off": "motion-sensor-off"
+        "icon_on": "mdi:motion-sensor",
+        "icon_off": "mdi:motion-sensor-off"
     },
     "outside": {
         "field": FIELD_OUTSIDE,
         "update": CMD_GET_SENSORS,
         "enable": CMD_ENABLE_OUTSIDE,
         "disable": CMD_DISABLE_OUTSIDE,
-        "icon_on": "motion-sensor",
-        "icon_off": "motion-sensor-off"
+        "icon_on": "mdi:motion-sensor",
+        "icon_off": "mdi:motion-sensor-off"
     },
     "power": {
         "field": FIELD_POWER,
         "update": CMD_GET_POWER,
         "enable": CMD_POWER_ON,
         "disable": CMD_POWER_OFF,
-        "icon_on": "power",
-        "icon_off": "power-off"
+        "icon_on": "mdi:power",
+        "icon_off": "mdi:power-off"
     },
     "auto": {
         "field": FIELD_AUTO,
         "update": CMD_GET_AUTO,
         "enable": CMD_ENABLE_AUTO,
         "disable": CMD_DISABLE_AUTO,
-        "icon_on": "autorenew",
-        "icon_off": "autorenew-off"
+        "icon_on": "mdi:autorenew",
+        "icon_off": "mdi:autorenew-off"
     },
 }
 
@@ -142,15 +142,16 @@ class PetDoor(Entity):
 
     @property
     def extra_state_attributes(self) -> dict | None:
-        rv = { hold: self.hold }
+        rv = { "hold": self.hold }
         if self.last_change:
-            data["last_change"] = self.last_change.isoformat()
+            rv["last_change"] = self.last_change.isoformat()
+        return rv
 
-    @property
-    async def handle_state_update(self, state: str):
+    async def handle_state_update(self, state: str) -> None:
         if self._attr_state is not None and self._attr_state != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_state = state
+        self.schedule_update_ha_state()
 
     @callback
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
@@ -230,16 +231,16 @@ class PetDoorSwitch(ToggleEntity):
 
     @property
     def extra_state_attributes(self) -> dict | None:
-        rv = { hold: self.hold }
         if self.last_change:
-            data["last_change"] = self.last_change.isoformat()
+            return { "last_change": self.last_change.isoformat() }
+        return None
 
-    @property
-    async def handle_state_update(self, state: bool):
+    async def handle_state_update(self, state: bool) -> None:
         state = STATE_ON if state else STATE_OFF
         if self._attr_state is not None and self._attr_state != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_state = state
+        self.schedule_update_ha_state()
 
     @callback
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:

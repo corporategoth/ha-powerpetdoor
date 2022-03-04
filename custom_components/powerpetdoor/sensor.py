@@ -19,7 +19,6 @@ from .const import (
     CONF_PORT,
     CONF_NAME,
     CONF_REFRESH,
-    CONF_UPDATE,
     CONFIG,
     CMD_GET_DOOR_STATUS,
     CMD_GET_SETTINGS,
@@ -76,15 +75,13 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict | None:
         rv = copy.deepcopy(self.settings)
-        rv["host"] = self.client.host
-        rv["port"] = self.client.port
         if self.coordinator.data:
             rv["status"] = self.coordinator.data
         return rv
 
     async def update_settings(self) -> None:
         await asyncio.sleep(update_settings_interval)
-        if not self._update_settings.cancelled():
+        if self._update_settings and not self._update_settings.cancelled():
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
             self._update_settings = self.client.ensure_future(self.update_settings())
 
@@ -105,7 +102,7 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
     def on_disconnect(self) -> None:
         if self._update_settings:
             self._update_settings.cancel()
-            self_.update_settings = None
+            self._update_settings = None
 
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
@@ -121,7 +118,7 @@ async def async_setup_entry(hass: HomeAssistant,
 
     async_add_entities([
         PetDoorCoordinator(coordinator=obj["coordinator"],
-                           client=obj["config"],
+                           client=obj["client"],
                            device=obj["device"],
                            update_settings_interval=entry.data.get(CONF_REFRESH))
     ])

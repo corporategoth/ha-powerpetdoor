@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from .client import PowerPetDoorClient
@@ -15,7 +16,10 @@ from .const import (
     CONF_PORT,
     CONF_KEEP_ALIVE,
     CONF_TIMEOUT,
-    CONF_RECONNECT
+    CONF_UPDATE,
+    CONF_RECONNECT,
+    CONFIG,
+    CMD_GET_DOOR_STATUS,
 )
 
 PLATFORMS = [ Platform.SENSOR, Platform.SWITCH ]
@@ -57,7 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DataUpdateCoordinator(
         hass=hass,
         logger=_LOGGER,
-        name=name
+        name=name,
         update_method=async_update_data,
         update_interval=entry.data.get(CONF_UPDATE)
     )
