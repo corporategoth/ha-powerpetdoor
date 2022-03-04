@@ -322,7 +322,7 @@ class PowerPetDoorClient:
         future = None
         if "msgID" in msg:
             self.replyMsgId = msg["msgID"]
-            if self.replyMsgId in self._outstanding and not self._outstanding[replyMsgId].cancelled():
+            if self.replyMsgId in self._outstanding and not self._outstanding[self.replyMsgId].cancelled():
                 future = self._outstanding[self.replyMsgId]
 
         if msg[FIELD_SUCCESS] == "true":
@@ -418,7 +418,7 @@ class PowerPetDoorClient:
             rv = self._eventLoop.create_future()
             self._outstanding[msgId] = rv
 
-            def cleanup(arg: asyncio.Future): -> None:
+            def cleanup(arg: asyncio.Future) -> None:
                 del self._outstanding[msgId]
             rv.add_done_callback(cleanup)
 

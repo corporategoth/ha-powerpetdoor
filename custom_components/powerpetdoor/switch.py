@@ -13,6 +13,13 @@ from homeassistant.helpers import entity_platform
 import homeassistant.helpers.config_validation as cv
 from .client import PowerPetDoorClient
 
+from homeassistant.const import (
+    STATE_OPEN,
+    STATE_OPENING,
+    STATE_CLOSED,
+    STATE_CLOSING
+)
+
 from .const import (
     DOMAIN,
     CONF_HOST,
@@ -27,6 +34,8 @@ from .const import (
     DOOR_STATE_IDLE,
     DOOR_STATE_CLOSED,
     DOOR_STATE_HOLDING,
+    DOOR_STATE_KEEPUP,
+    DOOR_STATE_SLOWING,
     DOOR_STATE_RISING,
     CMD_GET_DOOR_STATUS,
     CMD_GET_SENSORS,
@@ -126,6 +135,20 @@ class PetDoor(Entity):
     @property
     def available(self) -> bool:
         return self.client.available
+
+    @property
+    def state(self) -> Literal[STATE_CLOSED, STATE_OPEN, STATE_OPENING, STATE_CLOSING] | None:
+        """Return the state."""
+        if self._attr_state is None:
+            return None
+        elif self._attr_state in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED):
+            return STATE_CLOSED
+        elif self._attr_state in (DOOR_STATE_HOLDING, DOOR_STATE_KEEPUP):
+            return STATE_OPEN
+        elif self._attr_state in (DOOR_STATE_RISING, DOOR_STATE_SLOWING):
+            return STATE_OPENING
+        else:
+            return STATE_CLOSING
 
     @property
     def is_on(self) -> bool | None:

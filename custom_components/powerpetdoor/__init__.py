@@ -58,7 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if future is not None:
             try:
                 return await client.wait_for(future, timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.error("Timed out waiting for status update!")
                 future.cancel()
                 return None
