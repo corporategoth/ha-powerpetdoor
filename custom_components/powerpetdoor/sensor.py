@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import json
 import copy
-from datetime import timedelta
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
@@ -86,7 +85,7 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
 
     async def update_settings(self) -> None:
         _update_settings = self._update_settings
-        await asyncio.sleep(self.update_settings_interval)
+        await self.client.sleep(self.update_settings_interval)
         if _update_settings and not _update_settings.cancelled():
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
 

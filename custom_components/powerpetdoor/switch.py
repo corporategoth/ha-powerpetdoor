@@ -154,7 +154,7 @@ class PetDoor(Entity):
 
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
-        return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
+        return self.client.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
     async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
@@ -167,7 +167,7 @@ class PetDoor(Entity):
 
     async def turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        return asyncio.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
+        return self.client.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
@@ -236,22 +236,18 @@ class PetDoorSwitch(ToggleEntity):
         self._attr_is_on = state
         self.async_schedule_update_ha_state()
 
-    @callback
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
-        return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
+        return self.client.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
-    @callback
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
         self.client.send_message(CONFIG, self.switch["enable"])
 
-    @callback
     async def turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        return asyncio.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
+        return self.client.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
 
-    @callback
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
         self.client.send_message(CONFIG, self.switch["disable"])

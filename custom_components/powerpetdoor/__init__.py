@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-import asyncio
+from asyncio import TimeoutError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -57,9 +57,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         future = client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
         if future is not None:
             try:
-                return await asyncio.wait_for(future, timeout)
+                return await client.wait_for(future, timeout)
             except asyncio.TimeoutError:
                 _LOGGER.error("Timed out waiting for status update!")
+                future.cancel()
                 return None
         else:
             return None

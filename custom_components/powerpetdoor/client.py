@@ -119,8 +119,18 @@ class PowerPetDoorClient:
             self._ownLoop = True
             self._eventLoop = asyncio.new_event_loop()
 
+    # Theses functions wrap asyncio but ensure the loop is correct!
     def ensure_future(self, *args: Any, **kwargs: Any):
         return asyncio.ensure_future(*args, loop=self._eventLoop, **kwargs)
+
+    def run_coroutine_threadsafe(self, *args: Any, **kwargs: Any):
+        return asyncio.run_coroutine_threadsafe(*args, loop=self._eventLoop, **kwargs)
+
+    async def sleep(self, *args: Any, **kwargs: Any):
+        return await asyncio.sleep(*args, loop=self._eventLoop, **kwargs)
+
+    async def wait_for(self, *args: Any, **kwargs: Any):
+        return await asyncio.wait_for(*args, loop=self._eventLoop, **kwargs)
 
     def add_listener(self, name: str,
                      door_status_update: Callable[[str], None] | None = None,
@@ -202,7 +212,7 @@ class PowerPetDoorClient:
 
     async def reconnect(self, delay) -> None:
         """Internal method for reconnecting."""
-        await asyncio.sleep(delay)
+        await self.sleep(delay)
         await self.connect()
 
     def disconnect(self) -> None:
@@ -236,7 +246,7 @@ class PowerPetDoorClient:
 
     async def keepalive(self) -> None:
         _keepalive = self._keepalive
-        await asyncio.sleep(self.cfg_keepalive)
+        await self.sleep(self.cfg_keepalive)
         if _keepalive and not _keepalive.cancelled():
             if self._last_ping is not None:
                 self._failed_pings += 1
@@ -253,7 +263,7 @@ class PowerPetDoorClient:
 
     async def check_receipt(self) -> None:
         _check_receipt = self._check_receipt
-        await asyncio.sleep(self.cfg_timeout)
+        await self.sleep(self.cfg_timeout)
         if _check_receipt and not _check_receipt.cancelled():
             _LOGGER.error('Did not receive a response to a message in more than {} seconds.'.format(self.cfg_timeout))
             self.disconnect()
@@ -312,9 +322,8 @@ class PowerPetDoorClient:
         future = None
         if "msgID" in msg:
             self.replyMsgId = msg["msgID"]
-            future = self._outstanding.pop(self.replyMsgId, None)
-            if future and future.cancelled():
-                future = None
+            if self.replyMsgId in self._outstanding and not self._outstanding[replyMsgId].cancelled():
+                future = self._outstanding[self.replyMsgId]
 
         if msg[FIELD_SUCCESS] == "true":
             if msg["CMD"] in (CMD_GET_DOOR_STATUS, DOOR_STATUS):
@@ -408,6 +417,11 @@ class PowerPetDoorClient:
         if notify:
             rv = self._eventLoop.create_future()
             self._outstanding[msgId] = rv
+
+            def cleanup(arg: asyncio.Future): -> None:
+                del self._outstanding[msgId]
+            rv.add_done_callback(cleanup)
+
         self.msgId += 1
         self.send_data({ type: arg, "msgId": msgId, "dir": "p2d" })
         return rv
