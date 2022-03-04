@@ -15,13 +15,7 @@ This addon was NOT made by anyone affiliated with High Tech Pet, don't bug them 
 
 ## Configuration
 
-Your `configuration.yaml` should have a section like the following:
-
-```
-switch powerpetdoor:
-  - platform: powerpetdoor
-    host: 192.168.1.58
-```
+You can go to the Integrations page and add a Power Pet Door integration.
 
 | Option | Required | Default | Description |
 | :--- | :---: | :--- | :--- |
@@ -37,28 +31,14 @@ switch powerpetdoor:
 
 ## Service calls
 
-The Power Pet Door presents as a switch, which means it has a simple 'on' and 'off' state (on being opened, off being closed).
-The standard homeassistant.turn_on, homeassistant.turn_off and homeassistant.toggle calls all work as expected also.
-
-However, additional commands have been added to change the various behavior of the Power Pet Door
-
-All service calls require an entity ID, so a sample call would look like:
-
-```
-service: powerpetdoor.open
-entity_id: switch.power_pet_door
-data:
-    hold: false
-```
-
-### Door Commands
-
-For actuating the door itself.
+The door entity (which would be something like switch.power_pet_door) responds to standard turn_on, and turn_off and toggle
+service calls.  However, in order to support the hold option above (ie. override the default), open and close service calls
+have been added that support the extra hold option.
 
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
 | powerpetdoor.open | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
-| powerpetdoor.close | |  |
+| powerpetdoor.close | | |
 | powerpetdoor.toggle | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
 
 ## Credits

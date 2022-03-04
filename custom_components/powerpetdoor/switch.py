@@ -250,7 +250,7 @@ class PetDoorSwitch(ToggleEntity):
     @callback
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
-        self.client.send_message(COMMAND, self.switch["enable"])
+        self.client.send_message(CONFIG, self.switch["enable"])
 
     @callback
     async def turn_off(self, **kwargs: Any) -> None:
@@ -260,7 +260,7 @@ class PetDoorSwitch(ToggleEntity):
     @callback
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        self.client.send_message(COMMAND, self.switch["disable"])
+        self.client.send_message(CONFIG, self.switch["disable"])
 
 async def async_setup_platform(
     hass: HomeAssistant,
