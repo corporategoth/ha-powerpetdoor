@@ -5,6 +5,7 @@ import async_timeout
 import logging
 import json
 import time
+from datetime import datetime, timezone
 
 from collections.abc import Awaitable, Callable
 
@@ -87,6 +88,7 @@ class PowerPetDoorClient:
 
     on_connect: Callable[[], None] | None = None
     on_disconnect: Callable[[], None] | None = None
+    on_ping: Callable[[int], None] | None = None
 
     _shutdown = False
     _ownLoop = False
@@ -373,7 +375,11 @@ class PowerPetDoorClient:
 
             elif msg["CMD"] == PONG:
                 if msg[PONG] == self._last_ping:
+                    if self.on_ping:
+                        diff = round(time.time()*1000) - int(self._last_ping)
+                        self.on_ping(diff)
                     self._last_ping = None
+
 
             if future and not future.done():
                 future.cancel()

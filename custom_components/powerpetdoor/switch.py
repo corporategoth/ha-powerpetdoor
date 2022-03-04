@@ -236,10 +236,10 @@ class PetDoorSwitch(ToggleEntity):
         return None
 
     async def handle_state_update(self, state: bool) -> None:
-        state = STATE_ON if state else STATE_OFF
-        if self._attr_state is not None and self._attr_state != state:
+        state_str = STATE_ON if state else STATE_OFF
+        if self._attr_state is not None and self._attr_state != state_str:
             self.last_change = datetime.now(timezone.utc)
-        self._attr_state = state
+        self._attr_state = state_str
         self.schedule_update_ha_state()
 
     @callback
@@ -268,7 +268,7 @@ async def async_setup_platform(
     async_add_devices: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the DNS IP sensor."""
+    """Set up the Power Pet Door sensor."""
     _LOGGER.warning(
         "Configuration of the Power Pet Door platform in YAML is deprecated and "
         "will be removed in Home Assistant 2022.6; Your existing configuration "

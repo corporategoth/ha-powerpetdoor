@@ -10,8 +10,9 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from .client import PowerPetDoorClient
+from homeassistant.const import TIME_MILLISECONDS
 
 from .const import (
     DOMAIN,
@@ -43,12 +44,14 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         self.update_settings_interval = update_settings_interval
 
         self.client.on_connect = self.on_connect
+        self.client.on_ping = self.on_ping
         self.client.on_disconnect = self.on_disconnect
 
         self._attr_name = coordinator.name
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}"
-        self._attr_native_value = f"{client.host}:{client.port}"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_unit_of_measurement = TIME_MILLISECONDS
 
         self.client.add_listener(name=self.unique_id,
                                  door_status_update=coordinator.async_set_updated_data,
@@ -75,12 +78,14 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict | None:
         rv = copy.deepcopy(self.settings)
+        rv["host"] = self.client.host
+        rv["port"] = self.client.port
         if self.coordinator.data:
             rv["status"] = self.coordinator.data
         return rv
 
     async def update_settings(self) -> None:
-        await asyncio.sleep(update_settings_interval)
+        await asyncio.sleep(self.update_settings_interval)
         if self._update_settings and not self._update_settings.cancelled():
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
             self._update_settings = self.client.ensure_future(self.update_settings())
@@ -103,6 +108,10 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         if self._update_settings:
             self._update_settings.cancel()
             self._update_settings = None
+
+    def on_ping(self, value: int) -> None:
+        self._attr_native_value = value
+        self.schedule_update_ha_state()
 
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
