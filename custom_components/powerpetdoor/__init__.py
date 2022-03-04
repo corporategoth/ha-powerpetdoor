@@ -4,10 +4,19 @@ from __future__ import annotations
 import logging
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from .const import DOMAIN
-from .coordinator import PetDoorCoordinator
+from .client import PowerPetDoorClient
+from .const import (
+    DOMAIN,
+    CONF_NAME,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_KEEP_ALIVE,
+    CONF_TIMEOUT,
+    CONF_RECONNECT
+)
 
 PLATFORMS = [ Platform.SENSOR, Platform.SWITCH ]
 
@@ -17,16 +26,47 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Power Pet Door from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    config = entry.data
+    host = entry.data.get(CONF_HOST)
+    port = entry.data.get(CONF_PORT)
+    name = entry.data.get(CONF_NAME)
+    device_id = f"{host}:{port}"
+
     client = PowerPetDoorClient(
-        host=config.get(CONF_HOST),
-        port=config.get(CONF_PORT),
-        keepalive=config.get(CONF_KEEP_ALIVE),
-        timeout=config.get(CONF_TIMEOUT),
-        reconnect=config.get(CONF_RECONNECT)
+        host=host,
+        port=port,
+        keepalive=entry.data.get(CONF_KEEP_ALIVE),
+        timeout=entry.data.get(CONF_TIMEOUT),
+        reconnect=entry.data.get(CONF_RECONNECT),
+        loop=hass.loop,
     )
 
-    hass.data[DOMAIN][f"{client.host}:{client.port}"] = client
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, device_id)},
+        manufacturer="High Tech Pet",
+        model="WiFi Power Pet Door",
+        name=name
+    )
+
+    async def async_update_data() -> str | None:
+        future = client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
+        if future is not None:
+            return await future
+        else:
+            return None
+
+    coordinator = DataUpdateCoordinator(
+        hass=hass,
+        logger=_LOGGER,
+        name=name
+        update_method=async_update_data,
+        update_interval=entry.data.get(CONF_UPDATE)
+    )
+
+    hass.data[DOMAIN][device_id] = {
+        "client": client,
+        "device": device_info,
+        "coordinator": coordinator
+    }
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_update_listener))

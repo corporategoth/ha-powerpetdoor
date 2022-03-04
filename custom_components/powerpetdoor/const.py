@@ -92,8 +92,9 @@ ValidHostnameRegex = r"^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*(
 
 PP_SCHEMA = {
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    vol.Required(CONF_HOST): vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
-                                                        vol.Match(ValidHostnameRegex))),
+    #vol.Required(CONF_HOST): vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
+    #                                                    vol.Match(ValidHostnameRegex))),
+    vol.Required(CONF_HOST): cv.string,
     vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): bool,
 }
 

@@ -33,6 +33,7 @@ switch powerpetdoor:
 | reconnect | No | 30.0 | How long to wait between retrying to connect to your Power Pet Door if disconnected (seconds) |
 | keep_alive | No | 30.0 | How often will we send a PING keep alive message to the Power Pet Door (seconds) |
 | refresh | No | 300.0 | How often we pull the configuration settings from the Power Pet Door (seconds) |
+| update | No |  | How often we update the current door position (seconds) |
 
 ## Service calls
 
@@ -59,38 +60,6 @@ For actuating the door itself.
 | powerpetdoor.open | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
 | powerpetdoor.close | |  |
 | powerpetdoor.toggle | hold | Whether to hold the door open (ie. do not auto-close).  If not specified, uses the hold setting in configuration.yaml. |
-
-### Sensor Commands
-
-For controlling the door sensors (ie. if the pet is detected inside or outside of the door for automatic opening)
-
-| Function | Arguments | Description |
-| :--- | :--- | :--- |
-| powerpetdoor.enable_sensor  | sensor    | The sensor to enable (one of 'inside' or 'outside') |
-| powerpetdoor.disable_sensor | sensor    | The sensor to disable (one of 'inside' or 'outside') |
-| powerpetdoor.toggle_sensor  | sensor    | The sensor to toggle (one of 'inside' or 'outside') |
-
-### Automatic (scheduled) Mode Commands
-
-For controlling automatic (scheduled) mode - which automatically enables the indoor and outdoor sensors on a schedule.
-Adjusting the schedule for these sensors must be done via. the app, and cannot be changed in Home Assistant.
-
-| Function | Arguments | Description |
-| :--- | :--- | :--- |
-| powerpetdoor.enable_auto  | | |
-| powerpetdoor.disable_auto | | |
-| powerpetdoor.toggle_auto  | | |
-
-### Power Commands
-
-For controlling the power on/off state of the door.  Note that even when 'powered off', WiFi is still enabled on the door
-(otherwise you would be unable to power it back on remotely).
-
-| Function | Arguments | Description |
-| :--- | :--- | :--- |
-| powerpetdoor.power_on     | | |
-| powerpetdoor.power_off    | | |
-| powerpetdoor.power_toggle | | |
 
 ## Credits
 
