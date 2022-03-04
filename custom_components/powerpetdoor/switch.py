@@ -146,18 +146,16 @@ class PetDoor(Entity):
             rv["last_change"] = self.last_change.isoformat()
         return rv
 
-    async def handle_state_update(self, state: str) -> None:
+    def handle_state_update(self, state: str) -> None:
         if self._attr_state is not None and self._attr_state != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_state = state
         self.schedule_update_ha_state()
 
-    @callback
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
         return asyncio.run_coroutine_threadsafe(self.async_turn_on(hold, **kwargs)).result()
 
-    @callback
     async def async_turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
         if hold is None:
@@ -167,12 +165,10 @@ class PetDoor(Entity):
         else:
             self.client.send_message(COMMAND, CMD_OPEN)
 
-    @callback
     async def turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
         return asyncio.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
 
-    @callback
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
         self.client.send_message(COMMAND, CMD_CLOSE)
@@ -234,7 +230,7 @@ class PetDoorSwitch(ToggleEntity):
             return { "last_change": self.last_change.isoformat() }
         return None
 
-    async def handle_state_update(self, state: bool) -> None:
+    def handle_state_update(self, state: bool) -> None:
         if self._attr_is_on is not None and self._attr_is_on != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_is_on = state

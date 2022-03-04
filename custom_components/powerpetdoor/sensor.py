@@ -90,7 +90,7 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
             self._update_settings = self.client.ensure_future(self.update_settings())
 
-    async def handle_settings(self, settings: dict) -> None:
+    def handle_settings(self, settings: dict) -> None:
         if self._update_settings:
             self._update_settings.cancel()
 

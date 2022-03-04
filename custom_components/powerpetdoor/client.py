@@ -7,7 +7,7 @@ import json
 import time
 from datetime import datetime, timezone
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 
 from .const import (
     COMMAND,
@@ -77,9 +77,9 @@ class PowerPetDoorClient:
     msgId = 1
     replyMsgId = None
 
-    door_status_listeners: dict[str, Callable[[str], Awaitable[None]]] = {}
-    settings_listeners: dict[str, Callable[[dict], Awaitable[None]]] = {}
-    sensor_listeners: dict[str, dict[str, Callable[[bool], Awaitable[None]]]] = {
+    door_status_listeners: dict[str, Callable[[str], None]] = {}
+    settings_listeners: dict[str, Callable[[dict], None]] = {}
+    sensor_listeners: dict[str, dict[str, Callable[[bool], None]]] = {
         FIELD_POWER: {},
         FIELD_INSIDE: {},
         FIELD_OUTSIDE: {},
@@ -120,9 +120,9 @@ class PowerPetDoorClient:
         return asyncio.ensure_future(*args, loop=self._eventLoop, **kwargs)
 
     def add_listener(self, name: str,
-                     door_status_update: Callable[[str], Awaitable[None]] | None = None,
-                     settings_update: Callable[[dict], Awaitable[None]] | None = None,
-                     sensor_update: dict[str, Callable[[bool], Awaitable[None]]] | None = None) -> None:
+                     door_status_update: Callable[[str], None] | None = None,
+                     settings_update: Callable[[dict], None] | None = None,
+                     sensor_update: dict[str, Callable[[bool], None]] | None = None) -> None:
         if door_status_update:
             self.door_status_listeners[name] = door_status_update
         if settings_update:
@@ -308,34 +308,36 @@ class PowerPetDoorClient:
                 future = None
 
         if msg[FIELD_SUCCESS] == "true":
-            notify = []
-
             if msg["CMD"] in (CMD_GET_DOOR_STATUS, DOOR_STATUS):
                 for callback in self.door_status_listeners.values():
-                    notify.append(callback(msg[FIELD_DOOR_STATUS]))
+                    callback(msg[FIELD_DOOR_STATUS])
                 if future:
                     future.set_result(msg[FIELD_DOOR_STATUS])
 
             elif msg["CMD"] == CMD_GET_SETTINGS:
                 for callback in self.settings_listeners.values():
-                    notify.append(callback(msg[FIELD_SETTINGS]))
+                    callback(msg[FIELD_SETTINGS])
                 keys = self.settings_listeners.keys()
                 if self.sensor_listeners[FIELD_POWER]:
+                    val = make_bool(msg[FIELD_SETTINGS][FIELD_POWER])
                     for name, callback in self.sensor_listeners[FIELD_POWER].items():
                         if name not in keys:
-                            notify.append(callback(make_bool(msg[FIELD_SETTINGS][FIELD_POWER])))
+                            callback(val)
                 if self.sensor_listeners[FIELD_INSIDE]:
+                    val = make_bool(msg[FIELD_SETTINGS][FIELD_INSIDE])
                     for name, callback in self.sensor_listeners[FIELD_INSIDE].items():
                         if name not in keys:
-                            notify.append(callback(make_bool(msg[FIELD_SETTINGS][FIELD_INSIDE])))
+                            callback(val)
                 if self.sensor_listeners[FIELD_OUTSIDE]:
+                    val = make_bool(msg[FIELD_SETTINGS][FIELD_OUTSIDE])
                     for name, callback in self.sensor_listeners[FIELD_OUTSIDE].items():
                         if name not in keys:
-                            notify.append(callback(make_bool(msg[FIELD_SETTINGS][FIELD_OUTSIDE])))
+                            callback(val)
                 if self.sensor_listeners[FIELD_AUTO]:
+                    val = make_bool(msg[FIELD_SETTINGS][FIELD_AUTO])
                     for name, callback in self.sensor_listeners[FIELD_AUTO].items():
                         if name not in keys:
-                            notify.append(callback(make_bool(msg[FIELD_SETTINGS][FIELD_AUTO])))
+                            callback(val)
                 if future:
                     future.set_result(msg[FIELD_SETTINGS])
 
@@ -346,12 +348,13 @@ class PowerPetDoorClient:
                     fr[FIELD_INSIDE] = val
                     if self.sensor_listeners[FIELD_INSIDE]:
                         for callback in self.sensor_listeners[FIELD_INSIDE].values():
-                            notify.append(callback(val))
+                            callback(val)
                 if FIELD_OUTSIDE in msg:
                     val: bool = make_bool(msg[FIELD_OUTSIDE])
+                    fr[FIELD_OUTSIDE] = val
                     if self.sensor_listeners[FIELD_OUTSIDE]:
                         for callback in self.sensor_listeners[FIELD_OUTSIDE].values():
-                            notify.append(callback(val))
+                            callback(val)
                 if future:
                     future.set_result(fr)
 
@@ -360,7 +363,7 @@ class PowerPetDoorClient:
                     val: bool = make_bool(msg[FIELD_POWER])
                     if self.sensor_listeners[FIELD_POWER]:
                         for callback in self.sensor_listeners[FIELD_POWER].values():
-                            notify.append(callback(val))
+                            callback(val)
                     if future:
                         future.set_result(val)
 
@@ -369,7 +372,7 @@ class PowerPetDoorClient:
                     val: bool = make_bool(msg[FIELD_AUTO])
                     if self.sensor_listeners[FIELD_AUTO]:
                         for callback in self.sensor_listeners[FIELD_AUTO].values():
-                           notify.append(callback(val))
+                           callback(val)
                     if future:
                         future.set_result(val)
 
@@ -383,9 +386,6 @@ class PowerPetDoorClient:
 
             if future and not future.done():
                 future.cancel()
-
-            if len(notify):
-                await asyncio.gather(*notify)
 
         else:
             if future:
