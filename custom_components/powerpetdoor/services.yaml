@@ -5,6 +5,7 @@ open:
     entity:
       domain: switch
       integration: powerpetdoor
+      device_class: door
   fields:
     hold:
       name: Hold
@@ -20,6 +21,7 @@ close:
     entity:
       domain: switch
       integration: powerpetdoor
+      device_class: door
 
 toggle:
   name: Open or Close Door
@@ -28,6 +30,7 @@ toggle:
     entity:
       domain: switch
       integration: powerpetdoor
+      device_class: door
   fields:
     hold:
       name: Hold
@@ -35,105 +38,3 @@ toggle:
       required: false
       selector:
         boolean:
-
-enable_sensor:
-  name: Enable Sensor
-  description: Enable the indoor or outdoor proximity sensors
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-  fields:
-    sensor:
-      name: Sensor
-      description: The sensor to enable (inside or outside)
-      required: true
-      selctor:
-        select:
-          options:
-            - inside
-            - outside
-
-disable_sensor:
-  name: Disable Sensor
-  description: Disable the indoor or outdoor proximity sensors
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-  fields:
-    sensor:
-      name: Sensor
-      description: The sensor to disable (inside or outside)
-      required: true
-      selctor:
-        select:
-          options:
-            - inside
-            - outside
-
-toggle_sensor:
-  name: Toggle Sensor
-  description: Toggle the indoor or outdoor proximity sensors
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-  fields:
-    sensor:
-      name: Sensor
-      description: The sensor to toggle (inside or outside)
-      required: true
-      selctor:
-        select:
-          options:
-            - inside
-            - outside
-
-enable_auto:
-  name: Enable Auto
-  description: Enable automatic (scheduled) mode
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-
-disable_auto:
-  name: Disable Auto
-  description: Disable automatic (scheduled) mode
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-
-toggle_auto:
-  name: Toggle Auto
-  description: Toggle automatic (scheduled) mode
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-
-power_on:
-  name: Power On
-  description: Power on the pet door
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-
-power_off:
-  name: Power Off
-  description: Power of the pet door
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor
-
-power_toggle:
-  name: Toggle Power
-  description: Toggle the pet door power
-  target:
-    entity:
-      domain: switch
-      integration: powerpetdoor

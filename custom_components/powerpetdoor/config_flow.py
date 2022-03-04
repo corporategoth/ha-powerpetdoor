@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -11,43 +12,28 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-import homeassistant.helpers.config_validation as cv
-
-from homeassistant.const import (
-    CONF_NAME,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_TIMEOUT,
-)
 
 from .const import (
     DOMAIN,
-    CONF_REFRESH,
-    CONF_KEEP_ALIVE,
-    CONF_RECONNECT,
-    CONF_HOLD,
-    DEFAULT_NAME,
-    DEFAULT_PORT,
-    DEFAULT_CONNECT_TIMEOUT,
-    DEFAULT_RECONNECT_TIMEOUT,
-    DEFAULT_KEEP_ALIVE_TIMEOUT,
-    DEFAULT_REFRESH_TIMEOUT,
-    DEFAULT_HOLD,
-    SCHEMA,
-    SCHEMA_ADV,
+    CONF_NAME,
+    CONF_HOST,
+    CONF_PORT,
+    PP_SCHEMA,
+    PP_SCHEMA_ADV,
+    FIELD_SUCCESS,
     PING,
     PONG,
 )
 
-DATA_SCHEMA = vol.Schema(CONFIG_SCHEMA)
-DATA_SCHEMA_ADV = DATA_SCHEMA.extend(CONFIG_SCHEMA_ADV)
+DATA_SCHEMA = vol.Schema(PP_SCHEMA)
+DATA_SCHEMA_ADV = DATA_SCHEMA.extend(PP_SCHEMA_ADV)
 
 async def validate_connection(host: str, port: int) -> str | None:
     error = None
     try:
-        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5.0)
-        last_ping = str(round(time.time()*1000))
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host=host, port=port), timeout=5.0)
         try:
+            last_ping = str(round(time.time()*1000))
             writer.write('{{"{}": "{}", "dir": "p2d"}}'.format(PING, last_ping).encode("ascii"))
             await asyncio.wait_for(writer.drain(), timeout=5.0)
 
