@@ -19,23 +19,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     config = entry.data
     client = PowerPetDoorClient(
-        host: config.get(CONF_HOST),
-        port: config.get(CONF_PORT),
-        keepalive = config.get(CONF_KEEP_ALIVE),
-        timeout = config.get(CONF_TIMEOUT),
-        reconnect = config.get(CONF_RECONNECT)
-    )
-
-    async def async_update_data() -> str:
-        future = client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify: True)
-        return await future
-
-    coordinator = DataUpdateCoordinator(
-        hass: hass,
-        logger: _LOGGER,
-        name=config.get(CONF_NAME),
-        update_method=async_update_data
-        update_interval=config.get(CONF_UPDATE)
+        host=config.get(CONF_HOST),
+        port=config.get(CONF_PORT),
+        keepalive=config.get(CONF_KEEP_ALIVE),
+        timeout=config.get(CONF_TIMEOUT),
+        reconnect=config.get(CONF_RECONNECT)
     )
 
     hass.data[DOMAIN][f"{client.host}:{client.port}"] = client
