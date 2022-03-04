@@ -47,8 +47,8 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
 
         self._attr_name = coordinator.name
         self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}_{client.port}"
-        self._attr_native_value = f"{client.host}_{client.port}"
+        self._attr_unique_id = f"{client.host}:{client.port}"
+        self._attr_native_value = f"{client.host}:{client.port}"
 
         self.client.add_listener(name=self.unique_id,
                                  door_status_update=coordinator.async_set_updated_data,
