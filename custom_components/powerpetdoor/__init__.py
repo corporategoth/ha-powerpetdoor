@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -35,11 +36,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     name = entry.data.get(CONF_NAME)
     device_id = f"{host}:{port}"
 
+    timeout = entry.data.get(CONF_TIMEOUT)
     client = PowerPetDoorClient(
         host=host,
         port=port,
         keepalive=entry.data.get(CONF_KEEP_ALIVE),
-        timeout=entry.data.get(CONF_TIMEOUT),
+        timeout=timeout,
         reconnect=entry.data.get(CONF_RECONNECT),
         loop=hass.loop,
     )
@@ -54,7 +56,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def async_update_data() -> str | None:
         future = client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
         if future is not None:
-            return await future
+            try:
+                return await asyncio.wait_for(future, timeout)
+            except asyncio.TimeoutError:
+                _LOGGER.error("Timed out waiting for status update!")
+                return None
         else:
             return None
 

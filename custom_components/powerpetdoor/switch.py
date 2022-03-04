@@ -150,7 +150,7 @@ class PetDoor(Entity):
         if self._attr_state is not None and self._attr_state != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_state = state
-        self.schedule_update_ha_state()
+        self.async_schedule_update_ha_state()
 
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
@@ -234,7 +234,7 @@ class PetDoorSwitch(ToggleEntity):
         if self._attr_is_on is not None and self._attr_is_on != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_is_on = state
-        self.schedule_update_ha_state()
+        self.async_schedule_update_ha_state()
 
     @callback
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:

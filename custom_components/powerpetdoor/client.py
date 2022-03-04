@@ -42,6 +42,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_FAILED_PINGS = 3
+
 def find_end(s) -> int | None:
     if not len(s):
         return None
@@ -97,6 +99,7 @@ class PowerPetDoorClient:
     _keepalive = None
     _check_receipt = None
     _last_ping = None
+    _failed_pings = 0
     _buffer = ''
     _outstanding = {}
 
@@ -199,7 +202,6 @@ class PowerPetDoorClient:
 
     async def reconnect(self, delay) -> None:
         """Internal method for reconnecting."""
-        self.disconnect()
         await asyncio.sleep(delay)
         await self.connect()
 
@@ -210,7 +212,7 @@ class PowerPetDoorClient:
             self._keepalive.cancel()
             self._keepalive = None
         if self._check_receipt:
-            self._check_receipt.close()
+            self._check_receipt.cancel()
             self._check_receipt = None
         if self._transport:
             self._transport.close()
@@ -219,6 +221,7 @@ class PowerPetDoorClient:
             future.cancel("Connection Terminated")
         self._outstanding = {}
         self._last_ping = None
+        self._failed_pings = 0
         self._buffer = ''
 
         # Caller code
@@ -228,26 +231,33 @@ class PowerPetDoorClient:
     def handle_connect_failure(self) -> None:
         """Handler for if we fail to connect to the power pet door."""
         if not self._shutdown:
-            _LOGGER.error('Unable to connect to power pet door. Reconnecting...')
-            self.ensure_future(self.reconnect(self.cfg_reconnect))
+            _LOGGER.error('Unable to connect to power pet door.')
+            self.disconnect()
 
     async def keepalive(self) -> None:
+        _keepalive = self._keepalive
         await asyncio.sleep(self.cfg_keepalive)
-        if self._keepalive and not self._keepalive.cancelled():
+        if _keepalive and not _keepalive.cancelled():
             if self._last_ping is not None:
-                _LOGGER.error('Last PING not responded to. Reconnecting...')
-                self.ensure_future(self.reconnect(self.cfg_reconnect))
-                return
+                self._failed_pings += 1
+                if self._failed_pings < MAX_FAILED_PINGS:
+                    _LOGGER.warning('Last PING not responded to {} of {}...'.format(self._failed_pings,
+                        MAX_FAILED_PINGS))
+                else:
+                    _LOGGER.error('Last PING not responded to {} times.'.format(self._failed_pings))
+                    self.disconnect()
+                    return
 
             self._last_ping = str(round(time.time()*1000))
             self.send_message(PING, self._last_ping)
             self._keepalive = self.ensure_future(self.keepalive())
 
     async def check_receipt(self) -> None:
+        _check_receipt = self._check_receipt
         await asyncio.sleep(self.cfg_timeout)
-        if self._check_receipt and not self._check_receipt.cancelled():
-            _LOGGER.error('Did not receive a response to a message in more than {} seconds.  Reconnecting...')
-            self.ensure_future(self.reconnect(self.cfg_reconnect))
+        if _check_receipt and not _check_receipt.cancelled():
+            _LOGGER.error('Did not receive a response to a message in more than {} seconds.'.format(self.cfg_timeout))
+            self.disconnect()
         self._check_receipt = None
 
     def send_data(self, data) -> None:
@@ -257,6 +267,7 @@ class PowerPetDoorClient:
             return
         if self._keepalive:
             self._keepalive.cancel()
+            self._keepalive = None
         rawdata = json.dumps(data).encode("ascii")
         _LOGGER.debug(str.format('TX > {0}', rawdata))
         try:
@@ -265,9 +276,8 @@ class PowerPetDoorClient:
                 self._check_receipt = self.ensure_future(self.check_receipt())
             self._keepalive = self.ensure_future(self.keepalive())
         except RuntimeError as err:
-            _LOGGER.error(str.format('Failed to write to the stream. Reconnecting. ({0}) ', err))
-            if not self._shutdown:
-                self.ensure_future(self.reconnect(self.cfg_reconnect))
+            _LOGGER.error(str.format('Failed to write to the stream. ({0}) ', err))
+            self.disconnect()
 
     def data_received(self, rawdata) -> None:
         """asyncio callback for any data recieved from the power pet door."""
@@ -381,6 +391,7 @@ class PowerPetDoorClient:
                     if self.on_ping:
                         diff = round(time.time()*1000) - int(self._last_ping)
                         self.on_ping(diff)
+                    self._failed_pings = 0
                     self._last_ping = None
 
 

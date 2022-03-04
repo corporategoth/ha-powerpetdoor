@@ -85,8 +85,9 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         return rv
 
     async def update_settings(self) -> None:
+        _update_settings = self._update_settings
         await asyncio.sleep(self.update_settings_interval)
-        if self._update_settings and not self._update_settings.cancelled():
+        if _update_settings and not _update_settings.cancelled():
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
             self._update_settings = self.client.ensure_future(self.update_settings())
 
@@ -97,7 +98,7 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         self.settings = settings
 
         _LOGGER.info("DOOR SETTINGS - {}".format(json.dumps(self.settings)))
-        self.schedule_update_ha_state(self.coordinator.data is None)
+        self.async_schedule_update_ha_state(self.coordinator.data is None)
         if self.update_settings_interval:
             self._update_settings = self.client.ensure_future(self.update_settings())
 
@@ -111,7 +112,7 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
 
     def on_ping(self, value: int) -> None:
         self._attr_native_value = value
-        self.schedule_update_ha_state()
+        self.async_schedule_update_ha_state()
 
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
