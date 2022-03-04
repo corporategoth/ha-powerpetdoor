@@ -250,7 +250,6 @@ class PowerPetDoorClient:
 
             self._last_ping = str(round(time.time()*1000))
             self.send_message(PING, self._last_ping)
-            self._keepalive = self.ensure_future(self.keepalive())
 
     async def check_receipt(self) -> None:
         _check_receipt = self._check_receipt

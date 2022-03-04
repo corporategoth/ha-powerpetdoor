@@ -89,11 +89,11 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         await asyncio.sleep(self.update_settings_interval)
         if _update_settings and not _update_settings.cancelled():
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
-            self._update_settings = self.client.ensure_future(self.update_settings())
 
     def handle_settings(self, settings: dict) -> None:
         if self._update_settings:
             self._update_settings.cancel()
+            self._update_settings = None
 
         self.settings = settings
 
