@@ -1,9 +1,5 @@
 """ Constant Variables """
 
-import voluptuous as vol
-import homeassistant.helpers.config_validation as cv
-from homeassistant.backports.enum import StrEnum
-
 from homeassistant.const import (
     CONF_NAME,
     CONF_HOST,
@@ -91,20 +87,3 @@ CMD_CHECK_RESET_REASON = "CHECK_RESET_REASON"
 
 ValidIpAddressRegex = r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
 ValidHostnameRegex = r"^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
-
-PP_SCHEMA = {
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    #vol.Required(CONF_HOST): vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
-    #                                                    vol.Match(ValidHostnameRegex))),
-    vol.Required(CONF_HOST): cv.string,
-    vol.Optional(CONF_HOLD, default=DEFAULT_HOLD): bool,
-}
-
-PP_SCHEMA_ADV = {
-    vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-    vol.Optional(CONF_TIMEOUT, default=DEFAULT_CONNECT_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_RECONNECT, default=DEFAULT_RECONNECT_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_REFRESH, default=DEFAULT_REFRESH_TIMEOUT): vol.Coerce(float),
-    vol.Optional(CONF_UPDATE): vol.Coerce(float),
-}

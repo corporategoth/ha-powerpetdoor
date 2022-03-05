@@ -26,8 +26,6 @@ from .const import (
     CONF_PORT,
     CONF_NAME,
     CONF_HOLD,
-    PP_SCHEMA,
-    PP_SCHEMA_ADV,
     COMMAND,
     CONFIG,
     DOOR_STATE_IDLE,
@@ -61,6 +59,7 @@ from .const import (
     SERVICE_TOGGLE,
 )
 
+from .schema import PP_SCHEMA, PP_SCHEMA_ADV, get_validating_schema
 
 import logging
 
@@ -101,7 +100,7 @@ SWITCHES = {
     },
 }
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(PP_SCHEMA).extend(PP_SCHEMA_ADV)
+PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV))
 
 DOOR_SCHEMA = {
     vol.Optional(CONF_HOLD): cv.boolean
