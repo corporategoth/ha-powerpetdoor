@@ -76,6 +76,12 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry): -> PowerPetDoorOptionsFlow:
+        """Return options handler"""
+        return PowerPetDoorOptionsFlow(config_entry)
+
     async def async_step_import(self, config: dict[str, Any]) -> FlowResult:
         """Import a configuration from config.yaml."""
 
