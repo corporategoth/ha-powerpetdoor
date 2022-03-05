@@ -23,7 +23,7 @@ CONF_KEEP_ALIVE = "keep_alive"
 CONF_RECONNECT = "reconnect"
 CONF_HOLD = "hold"
 
-STATE_LAST_CHANGE = "battery_charging"
+STATE_LAST_CHANGE = "last_change"
 STATE_BATTERY_CHARGING = "battery_charging"
 STATE_BATTERY_DISCHARGING = "battery_discharging"
 
