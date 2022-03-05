@@ -78,7 +78,7 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry): -> PowerPetDoorOptionsFlow:
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> PowerPetDoorOptionsFlow:
         """Return options handler"""
         return PowerPetDoorOptionsFlow(config_entry)
 
