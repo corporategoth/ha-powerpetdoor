@@ -26,7 +26,6 @@ from .const import (
     CONF_PORT,
     CONF_NAME,
     CONF_HOLD,
-    ATTR_HOLD,
     PP_SCHEMA,
     PP_SCHEMA_ADV,
     COMMAND,
@@ -104,7 +103,7 @@ SWITCHES = {
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(PP_SCHEMA).extend(PP_SCHEMA_ADV)
 
 DOOR_SCHEMA = {
-    vol.Optional(ATTR_HOLD): cv.boolean
+    vol.Optional(CONF_HOLD): cv.boolean
 }
 
 class PetDoor(Entity):
@@ -164,9 +163,9 @@ class PetDoor(Entity):
 
     @property
     def extra_state_attributes(self) -> dict | None:
-        rv = { "hold": self.hold }
+        rv = { CONF_HOLD: self.hold }
         if self.last_change:
-            rv["last_change"] = self.last_change.isoformat()
+            rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
         return rv
 
     def handle_state_update(self, state: str) -> None:
@@ -250,7 +249,7 @@ class PetDoorSwitch(ToggleEntity):
     @property
     def extra_state_attributes(self) -> dict | None:
         if self.last_change:
-            return { "last_change": self.last_change.isoformat() }
+            return { STATE_LAST_CHANGE: self.last_change.isoformat() }
         return None
 
     def handle_state_update(self, state: bool) -> None:

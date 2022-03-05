@@ -31,6 +31,8 @@ from .const import (
     CMD_ENABLE_AUTO,
     CMD_POWER_ON,
     CMD_POWER_OFF,
+    CMD_GET_HW_INFO,
+    CMD_GET_DOOR_BATTERY,
     FIELD_SUCCESS,
     FIELD_DOOR_STATUS,
     FIELD_SETTINGS,
@@ -38,6 +40,10 @@ from .const import (
     FIELD_INSIDE,
     FIELD_OUTSIDE,
     FIELD_AUTO,
+    FIELD_FWINFO,
+    FIELD_BATTERY_PERCENT,
+    FIELD_BATTERY_PRESENT,
+    FIELD_AC_PRESENT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,6 +93,8 @@ class PowerPetDoorClient:
         FIELD_OUTSIDE: {},
         FIELD_AUTO: {},
     }
+    hw_info_listeners: dict[str, Callable[[dict], None]] = {}
+    battery_listeners: dict[str, Callable[[dict], None]] = {}
 
     on_connect: Callable[[], None] | None = None
     on_disconnect: Callable[[], None] | None = None
@@ -135,7 +143,9 @@ class PowerPetDoorClient:
     def add_listener(self, name: str,
                      door_status_update: Callable[[str], None] | None = None,
                      settings_update: Callable[[dict], None] | None = None,
-                     sensor_update: dict[str, Callable[[bool], None]] | None = None) -> None:
+                     sensor_update: dict[str, Callable[[bool], None]] | None = None,
+                     hw_info_update: Callable[[dict], None] | None = None,
+                     battery_update: Callable[[dict], None] | None = None) -> None:
         if door_status_update:
             self.door_status_listeners[name] = door_status_update
         if settings_update:
@@ -155,6 +165,10 @@ class PowerPetDoorClient:
                     self.sensor_listeners[FIELD_OUTSIDE][name] = sensor_update[FIELD_OUTSIDE]
                 if FIELD_AUTO in sensor_update:
                     self.sensor_listeners[FIELD_AUTO][name] = sensor_update[FIELD_AUTO]
+        if hw_info_update:
+            self.hw_info_listeners[name] = hw_info_update
+        if battery_update:
+            self.battery_listeners[name] = battery_update
 
     def del_listener(self, name: str) -> None:
         del self.door_status_listeners[name]
@@ -163,6 +177,8 @@ class PowerPetDoorClient:
         del self.sensor_listeners[FIELD_INSIDE][name]
         del self.sensor_listeners[FIELD_OUTSIDE][name]
         del self.sensor_listeners[FIELD_AUTO][name]
+        del self.hw_info_listeners[name]
+        del self.battery_listeners[name]
 
     def start(self) -> None:
         """Public method for initiating connectivity with the power pet door."""
@@ -394,6 +410,23 @@ class PowerPetDoorClient:
                     if future:
                         future.set_result(val)
 
+            elif msg["CMD"] == CMD_GET_FW_INFO:
+                for callback in self.hw_info_listeners.values():
+                    callback(msg[FIELD_FWINFO])
+                if future:
+                    future.set_result(msg[FIELD_FWINFO])
+
+            elif msg["CMD"] == CMD_GET_DOOR_BATTERY:
+                data = {
+                    FIELD_BATTERY_PERCENT: msg[FIELD_BATTERY_PERCENT],
+                    FIELD_BATTERY_PRESENT: make_bool(msg[FIELD_BATTERY_PRESENT]),
+                    FIELD_AC_PRESENT: make_bool(msg[FIELD_AC_PRESENT]),
+                }
+                for callback in self.battery_listeners.values():
+                    callback(data)
+                if future:
+                    future.set_result(data)
+
             elif msg["CMD"] == PONG:
                 if msg[PONG] == self._last_ping:
                     if self.on_ping:
@@ -401,7 +434,6 @@ class PowerPetDoorClient:
                         self.on_ping(diff)
                     self._failed_pings = 0
                     self._last_ping = None
-
 
             if future and not future.done():
                 future.cancel()
