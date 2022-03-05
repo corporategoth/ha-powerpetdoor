@@ -51,6 +51,7 @@ from .const import (
     CMD_OPEN,
     CMD_OPEN_AND_HOLD,
     CMD_CLOSE,
+    STATE_LAST_CHANGE,
     FIELD_INSIDE,
     FIELD_OUTSIDE,
     FIELD_POWER,

@@ -6,14 +6,16 @@ import copy
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
 from .client import PowerPetDoorClient
 from homeassistant.const import (
     ATTR_SW_VERSION,
     ATTR_HW_VERSION,
+    ATTR_IDENTIFIERS,
     TIME_MILLISECONDS,
     PERCENTAGE,
 )
@@ -32,6 +34,7 @@ from .const import (
     STATE_LAST_CHANGE,
     STATE_BATTERY_CHARGING,
     STATE_BATTERY_DISCHARGING,
+    FIELD_DOOR_STATUS,
     FIELD_BATTERY_PERCENT,
     FIELD_BATTERY_PRESENT,
     FIELD_AC_PRESENT,
@@ -95,23 +98,33 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         return self.client.available
 
     @property
+    def icon(self) -> str | None:
+        if self.availabe:
+            if self.native_value is None:
+                return "mdi:lan-pending"
+            else:
+                return "mdi:lan-connect"
+        else:
+            return "mdi:lan-disconnect"
+
+    @property
     def extra_state_attributes(self) -> dict | None:
         rv = copy.deepcopy(self.settings)
         rv[CONF_HOST] = self.client.host
         rv[CONF_PORT] = self.client.port
         if self.coordinator.data:
             rv[FIELD_DOOR_STATUS] = self.coordinator.data
-        if self.device_info.hw_version:
-            rv[ATTR_HW_VERSION] = self.device_info.hw_version
-        if self.device_info.sw_version:
-            rv[ATTR_SW_VERSION] = self.device_info.sw_version
+        if ATTR_HW_VERSION in self.device_info:
+            rv[ATTR_HW_VERSION] = self.device_info[ATTR_HW_VERSION]
+        if ATTR_SW_VERSION in self.device_info:
+            rv[ATTR_SW_VERSION] = self.device_info[ATTR_SW_VERSION]
         return rv
 
     async def update_settings(self) -> None:
         _update_settings = self._update_settings
         await self.client.sleep(self.update_settings_interval)
         if _update_settings and not _update_settings.cancelled():
-            self.client.send_message(CONFIG, CMD_HW_INFO)
+            self.client.send_message(CONFIG, CMD_GET_HW_INFO)
 
     def handle_settings(self, settings: dict) -> None:
         if self._update_settings:
@@ -126,14 +139,21 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
             self._update_settings = self.client.ensure_future(self.update_settings())
 
     def handle_hw_info(self, fwinfo: dict) -> None:
-        _attr_device_info.hw_version = "{0} rev {1}".format(fwinfo[FIELD_VER], fwinfo[FIELD_REV])
-        _attr_device_info.sw_version = "{0}.{1}.{2}".format(fwinfo[FIELD_FW_MAJOR], fwinfo[FIELD_FW_MINOR],
-                fwinfo[FIELD_FW_PATCH])
+        hw_version = "{0} rev {1}".format(fwinfo[FIELD_FW_VER], fwinfo[FIELD_FW_REV])
+        sw_version = "{0}.{1}.{2}".format(fwinfo[FIELD_FW_MAJOR], fwinfo[FIELD_FW_MINOR], fwinfo[FIELD_FW_PATCH])
+        self._attr_device_info[ATTR_HW_VERSION] = hw_version
+        self._attr_device_info[ATTR_SW_VERSION] = sw_version
         self.async_schedule_update_ha_state()
+
+        registry = async_get_device_registry(self.hass)
+        if registry:
+            device = registry.async_get_device(identifiers=self.device_info[ATTR_IDENTIFIERS])
+            registry.async_update_device(device.id, hw_version=hw_version, sw_version=sw_version)
+
         self.client.send_message(CONFIG, CMD_GET_SETTINGS)
 
     def on_connect(self) -> None:
-        self.client.send_message(CONFIG, CMD_HW_INFO)
+        self.client.send_message(CONFIG, CMD_GET_HW_INFO)
 
     def on_disconnect(self) -> None:
         if self._update_settings:
@@ -178,55 +198,55 @@ class PetDoorBattery(SensorEntity):
 
     @property
     def icon(self) -> str | None:
-        if self._attr_state is None:
+        if self.native_value is None:
             return "mdi:battery-unknown"
         elif self.battery_present:
-            if self._attr_state < 10.0
+            if self.native_value < 10.0:
                 if self.ac_present:
                     return "mdi:battery-charging"
                 else:
                     return "mdi:battery-outline"
-            if self._attr_state < 20.0
+            if self.native_value < 20.0:
                 if self.ac_present:
                     return "mdi:battery-charging-10"
                 else:
                     return "mdi:battery-10"
-            elif self._attr_state < 30.0
+            elif self.native_value < 30.0:
                 if self.ac_present:
                     return "mdi:battery-charging-20"
                 else:
                     return "mdi:battery-20"
-            elif self._attr_state < 40.0
+            elif self.native_value < 40.0:
                 if self.ac_present:
                     return "mdi:battery-charging-30"
                 else:
                     return "mdi:battery-30"
-            elif self._attr_state < 50.0
+            elif self.native_value < 50.0:
                 if self.ac_present:
                     return "mdi:battery-charging-40"
                 else:
                     return "mdi:battery-40"
-            elif self._attr_state < 60.0
+            elif self.native_value < 60.0:
                 if self.ac_present:
                     return "mdi:battery-charging-50"
                 else:
                     return "mdi:battery-50"
-            elif self._attr_state < 70.0
+            elif self.native_value < 70.0:
                 if self.ac_present:
                     return "mdi:battery-charging-60"
                 else:
                     return "mdi:battery-60"
-            elif self._attr_state < 80.0
+            elif self.native_value < 80.0:
                 if self.ac_present:
                     return "mdi:battery-charging-70"
                 else:
                     return "mdi:battery-70"
-            elif self._attr_state < 90.0
+            elif self.native_value < 90.0:
                 if self.ac_present:
                     return "mdi:battery-charging-80"
                 else:
                     return "mdi:battery-80"
-            elif self._attr_state < 100.0
+            elif self.native_value < 100.0:
                 if self.ac_present:
                     return "mdi:battery-charging-90"
                 else:
@@ -239,21 +259,20 @@ class PetDoorBattery(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict | None:
         rv = {}
-        if self.available and self._attr_state:
-            if self._attr_state < 100.0:
+        if self.available and self.native_value:
+            rv[STATE_BATTERY_DISCHARGING] = not self.ac_present
+            if self.native_value < 100.0:
                 rv[STATE_BATTERY_CHARGING] = self.ac_present
-                rv[STATE_BATTERY_DISCHARGING] = not self.ac_present
             else:
                 rv[STATE_BATTERY_CHARGING] = False
-                rv[STATE_BATTERY_DISCHARGING] = False
         if self.last_change:
-            return rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
+            rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
         return rv
 
     def handle_battery_update(self, battery: dict) -> None:
-        if self._attr_state is not None and self._attr_atate != battery[FIELD_BATTERY_PERCENT]:
+        if self._attr_native_value is not None and self._attr_native_value != battery[FIELD_BATTERY_PERCENT]:
             self.last_change = datetime.now(timezone.utc)
-        self._attr_state = battery[FIELD_BATTERY_PERCENT]
+        self._attr_native_value = battery[FIELD_BATTERY_PERCENT]
         self.battery_present = battery[FIELD_BATTERY_PRESENT]
         self.ac_present = battery[FIELD_AC_PRESENT]
         self.async_schedule_update_ha_state()

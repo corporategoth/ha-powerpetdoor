@@ -410,11 +410,12 @@ class PowerPetDoorClient:
                     if future:
                         future.set_result(val)
 
-            elif msg["CMD"] == CMD_GET_FW_INFO:
-                for callback in self.hw_info_listeners.values():
-                    callback(msg[FIELD_FWINFO])
-                if future:
-                    future.set_result(msg[FIELD_FWINFO])
+            elif msg["CMD"] == CMD_GET_HW_INFO:
+                if FIELD_FWINFO in msg:
+                    for callback in self.hw_info_listeners.values():
+                        callback(msg[FIELD_FWINFO])
+                    if future:
+                        future.set_result(msg[FIELD_FWINFO])
 
             elif msg["CMD"] == CMD_GET_DOOR_BATTERY:
                 data = {
