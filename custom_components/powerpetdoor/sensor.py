@@ -99,7 +99,7 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
 
     @property
     def icon(self) -> str | None:
-        if self.availabe:
+        if self.available:
             if self.native_value is None:
                 return "mdi:lan-pending"
             else:
