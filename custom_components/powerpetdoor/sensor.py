@@ -123,6 +123,11 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
     async def update_settings(self) -> None:
         _update_settings = self._update_settings
         await self.client.sleep(self.update_settings_interval)
+        if _update_settings and not _update_settings.cancelled():
+            self.client.send_message(CONFIG, CMD_GET_HW_INFO)
+            self.client.send_message(CONFIG, CMD_GET_SETTINGS)
+            self.client.send_message(CONFIG, CMD_GET_DOOR_BATTERY)
+
 
     def handle_settings(self, settings: dict) -> None:
         if self._update_settings:

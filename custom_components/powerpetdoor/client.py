@@ -108,6 +108,7 @@ class PowerPetDoorClient:
     _keepalive = None
     _check_receipt = None
     _last_ping = None
+    _last_command = None
     _failed_pings = 0
     _buffer = ''
     _outstanding = {}
@@ -216,7 +217,8 @@ class PowerPetDoorClient:
         """asyncio callback for a successful connection."""
         _LOGGER.info("Connection Successful!")
         self._transport = transport
-        self._keepalive = self.ensure_future(self.keepalive())
+        if self.cfg_keepalive:
+            self._keepalive = self.ensure_future(self.keepalive())
 
         # Caller code
         if self.on_connect:
@@ -249,6 +251,7 @@ class PowerPetDoorClient:
             future.cancel("Connection Terminated")
         self._outstanding = {}
         self._last_ping = None
+        self._last_command = None
         self._failed_pings = 0
         self._buffer = ''
         self._queue = queue.SimpleQueue()
@@ -286,12 +289,12 @@ class PowerPetDoorClient:
         if _check_receipt and not _check_receipt.cancelled():
             _LOGGER.error('Did not receive a response to a message in more than {} seconds.'.format(self.cfg_timeout))
             self.disconnect()
-        self._check_receipt = None
-        self.dequeue_data()
+        else:
+            self._check_receipt = None
+            self.dequeue_data()
 
     def enqueue_data(self, data) -> None:
-        rawdata = json.dumps(data).encode("ascii")
-        self._queue.put_nowait(rawdata)
+        self._queue.put(data)
         if not self._check_receipt:
             self.dequeue_data();
 
@@ -309,11 +312,24 @@ class PowerPetDoorClient:
             self._keepalive.cancel()
             self._keepalive = None
         try:
-            rawdata = self._queue.get_nowait()
+            data = self._queue.get_nowait()
+            if COMMAND in data:
+                self._last_command = data[COMMAND]
+            elif CONFIG in data:
+                self._last_command = data[CONFIG]
+            elif PING in data:
+                self._last_command = PONG
+            else:
+                _LOGGER.warn("Sending unknown command type")
+                self._last_command = None
+
+            rawdata = json.dumps(data).encode("ascii")
             _LOGGER.debug(str.format('TX > {0}', rawdata))
             self._transport.write(rawdata)
-            self._check_receipt = self.ensure_future(self.check_receipt())
-            self._keepalive = self.ensure_future(self.keepalive())
+            if self._last_command:
+                self._check_receipt = self.ensure_future(self.check_receipt())
+            if self.cfg_keepalive:
+                self._keepalive = self.ensure_future(self.keepalive())
         except queue.Empty as err:
             _LOGGER.warning('Attempted to dequeue from an empty queue')
             return
@@ -324,10 +340,6 @@ class PowerPetDoorClient:
     def data_received(self, rawdata) -> None:
         """asyncio callback for any data recieved from the power pet door."""
         if rawdata != '':
-            if self._check_receipt:
-                self._check_receipt.cancel()
-                self._check_receipt = None
-
             try:
                 data = rawdata.decode('ascii')
                 _LOGGER.debug(str.format('RX < {0}', data))
@@ -357,6 +369,12 @@ class PowerPetDoorClient:
             self.replyMsgId = msg["msgID"]
             if self.replyMsgId in self._outstanding and not self._outstanding[self.replyMsgId].cancelled():
                 future = self._outstanding[self.replyMsgId]
+
+        if msg["CMD"] == self._last_command:
+            if self._check_receipt:
+                self._check_receipt.cancel()
+                self._check_receipt = None
+            self.dequeue_data()
 
         if msg[FIELD_SUCCESS] == "true":
             if msg["CMD"] in (CMD_GET_DOOR_STATUS, DOOR_STATUS):
