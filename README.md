@@ -10,8 +10,7 @@ This addon was NOT made by anyone affiliated with High Tech Pet, don't bug them 
 1. Use HACS, and add a [custom repository](https://github.com/corporategoth/ha-powerpetdoor)
 1. Search HACS integrations for Power Pet Door and install it.
 1. Once the integration is installed, restart your Home Assistant.
-1. Edit your `configuration.yaml` file to add a powerpetdoor 'switch' (see configuration below)
-1. Restart Home Assistant again to pick switch.
+1. Under Integrations, add Power Pet Door, and configure it appropriately.
 
 ## Configuration
 
