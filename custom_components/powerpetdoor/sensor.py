@@ -124,8 +124,11 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         _update_settings = self._update_settings
         await self.client.sleep(self.update_settings_interval)
         if _update_settings and not _update_settings.cancelled():
+            # Wait between requesting info.
             self.client.send_message(CONFIG, CMD_GET_HW_INFO)
+            await self.client.sleep(5.0)
             self.client.send_message(CONFIG, CMD_GET_SETTINGS)
+            await self.client.sleep(5.0)
             self.client.send_message(CONFIG, CMD_GET_DOOR_BATTERY)
 
 
@@ -296,7 +299,7 @@ async def async_setup_entry(hass: HomeAssistant,
         PetDoorCoordinator(coordinator=obj["coordinator"],
                            client=obj["client"],
                            device=obj["device"],
-                           update_settings_interval=entry.data.get(CONF_REFRESH)),
+                           update_settings_interval=entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))),
         PetDoorBattery(client=obj["client"],
                        name=f"{name} - Battery",
                        device=obj["device"]),

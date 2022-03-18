@@ -1,5 +1,6 @@
 from typing import TypedDict, Any
 from homeassistant.config_entries import ConfigEntry
+from types import MappingProxyType
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 
@@ -47,12 +48,6 @@ PP_SCHEMA: list[Entry] = [
         validating_schema = vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
                                                       vol.Match(ValidHostnameRegex))),
     ),
-    Entry(
-        field = CONF_HOLD,
-        optional = True,
-        default = DEFAULT_HOLD,
-        input_schema = bool
-    ),
 ]
 
 PP_SCHEMA_ADV: list[Entry] = [
@@ -62,6 +57,18 @@ PP_SCHEMA_ADV: list[Entry] = [
         default = DEFAULT_PORT,
         input_schema = cv.port
     ),
+]
+
+PP_OPT_SCHEMA: list[Entry] = [
+    Entry(
+        field = CONF_HOLD,
+        optional = True,
+        default = DEFAULT_HOLD,
+        input_schema = bool
+    ),
+]
+
+PP_OPT_SCHEMA_ADV: list[Entry] = [
     Entry(
         field = CONF_TIMEOUT,
         optional = False,
@@ -89,20 +96,21 @@ PP_SCHEMA_ADV: list[Entry] = [
     Entry(
         field = CONF_UPDATE,
         optional = True,
+        default = 0,
         input_schema = vol.Coerce(float)
     ),
 ]
 
 def get_input_schema(schema: list[Entry],
                      excluded: set[str] = {},
-                     defaults: ConfigEntry = None) -> dict:
+                     defaults: MappingProxyType[str, Any] = None) -> dict:
     rv = {}
     for entry in schema:
         if not entry["field"] in excluded:
             field = None
             default = None
-            if defaults is not None and entry["field"] in defaults.data:
-                default = defaults.data[entry["field"]]
+            if defaults and entry["field"] in defaults:
+                default = defaults[entry["field"]]
             elif "default" in entry:
                 default = entry["default"]
             if entry["optional"]:
@@ -118,14 +126,14 @@ def get_input_schema(schema: list[Entry],
 
 def get_validating_schema(schema: list[Entry],
                           excluded: set[str] = {},
-                          defaults: ConfigEntry = None) -> dict:
+                          defaults: MappingProxyType[str, Any] = None) -> dict:
     rv = {}
     for entry in schema:
         if not entry["field"] in excluded:
             field = None
             default = None
-            if defaults and entry["field"] in defaults.data:
-                default = defaults.data[entry["field"]]
+            if defaults and entry["field"] in defaults:
+                default = defaults[entry["field"]]
             elif "default" in entry:
                 default = entry["default"]
             if entry["optional"]:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import datetime
 from asyncio import TimeoutError
 
 from homeassistant.core import HomeAssistant
@@ -36,13 +37,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     name = entry.data.get(CONF_NAME)
     device_id = f"{host}:{port}"
 
-    timeout = entry.data.get(CONF_TIMEOUT)
+    timeout = entry.options.get(CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT))
     client = PowerPetDoorClient(
         host=host,
         port=port,
-        keepalive=entry.data.get(CONF_KEEP_ALIVE),
+        keepalive=entry.options.get(CONF_KEEP_ALIVE, entry.data.get(CONF_KEEP_ALIVE)),
         timeout=timeout,
-        reconnect=entry.data.get(CONF_RECONNECT),
+        reconnect=entry.options.get(CONF_RECONNECT, entry.data.get(CONF_RECONNECT)),
         loop=hass.loop,
     )
 
@@ -65,12 +66,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             return None
 
+    update = entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE))
     coordinator = DataUpdateCoordinator(
         hass=hass,
         logger=_LOGGER,
         name=name,
         update_method=async_update_data,
-        update_interval=entry.data.get(CONF_UPDATE)
+        update_interval=datetime.datetime(seconds=update) if update else None
     )
 
     hass.data[DOMAIN][device_id] = {

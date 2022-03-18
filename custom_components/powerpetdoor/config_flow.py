@@ -1,6 +1,7 @@
 """Adds config flow for power pet door integration."""
 from __future__ import annotations
 
+import logging
 import asyncio
 import contextlib
 import json
@@ -23,7 +24,9 @@ from .const import (
     PONG,
 )
 
-from .schema import PP_SCHEMA, PP_SCHEMA_ADV, get_input_schema
+from .schema import PP_SCHEMA, PP_SCHEMA_ADV, PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV, get_input_schema
+
+_LOGGER = logging.getLogger(__name__)
 
 async def validate_connection(host: str, port: int) -> str | None:
     error = None
@@ -73,8 +76,8 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    DATA_SCHEMA = vol.Schema(get_input_schema(PP_SCHEMA))
-    DATA_SCHEMA_ADV = DATA_SCHEMA.extend(get_input_schema(PP_SCHEMA_ADV))
+    DATA_SCHEMA = vol.Schema(get_input_schema(PP_SCHEMA)).extend(get_input_schema(PP_OPT_SCHEMA))
+    DATA_SCHEMA_ADV = DATA_SCHEMA.extend(get_input_schema(PP_SCHEMA_ADV)).extend(get_input_schema(PP_OPT_SCHEMA_ADV))
 
     @staticmethod
     @callback
@@ -97,9 +100,21 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         errors = {}
         if user_input is not None:
-            host = user_input.get(CONF_HOST)
-            port = user_input.get(CONF_PORT)
-            name = user_input.get(CONF_NAME)
+            data = {}
+            for schema in (PP_SCHEMA, PP_SCHEMA_ADV):
+                for entry in schema:
+                    if entry["field"] in user_input:
+                        data[entry["field"]] = user_input.get(entry["field"])
+
+            options = {}
+            for schema in (PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV):
+                for entry in schema:
+                    if entry["field"] in user_input:
+                        options[entry["field"]] = user_input.get(entry["field"])
+
+            host = data.get(CONF_HOST)
+            port = data.get(CONF_PORT)
+            name = data.get(CONF_NAME)
 
             error = await validate_connection(host, port)
             if error:
@@ -120,8 +135,15 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_SCHEMA, excluded={CONF_HOST}, defaults=entry))
-        self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_SCHEMA_ADV, excluded={CONF_PORT}, defaults=entry))
+        self.entry = entry
+        options = entry.options
+        for schema in (PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV):
+            for entry in schema:
+                if entry["field"] not in options and entry["field"] in entry.data:
+                    options[entry["field"]] = entry.data.get(entry["field"])
+
+        self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_OPT_SCHEMA, defaults=entry.options))
+        self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_OPT_SCHEMA_ADV, defaults=entry.options))
 
 
     async def async_step_init(
@@ -131,13 +153,9 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
 
         errors = {}
         if user_input is not None:
-            error = await validate_connection(host, port)
-            if error:
-                errors["base"] = error
-            else:
-                return self.async_create_entry(title=name, data=user_input)
+            return self.async_create_entry(title=self.entry.title, data=user_input)
 
         if self.show_advanced_options is True:
-            return self.async_show_form(step_id="user", data_schema=self.DATA_SCHEMA_ADV, errors=errors)
+            return self.async_show_form(step_id="init", data_schema=self.DATA_SCHEMA_ADV, errors=errors)
 
-        return self.async_show_form(step_id="user", data_schema=self.DATA_SCHEMA, errors=errors)
+        return self.async_show_form(step_id="init", data_schema=self.DATA_SCHEMA, errors=errors)
