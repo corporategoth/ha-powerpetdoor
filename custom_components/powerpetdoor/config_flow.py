@@ -23,7 +23,7 @@ from .const import (
     PONG,
 )
 
-from .schema import PP_SCHEMA, PP_SCHEMA_ADV, get_validating_schema
+from .schema import PP_SCHEMA, PP_SCHEMA_ADV, get_input_schema
 
 async def validate_connection(host: str, port: int) -> str | None:
     error = None
@@ -121,7 +121,7 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_SCHEMA, excluded={CONF_HOST}, defaults=entry))
-        self.DATA_SCHEMA_ADV = DATA_SCHEMA.extend(get_input_schema(PP_SCHEMA_ADV, excluded={CONF_PORT}, defaults=entry))
+        self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_SCHEMA_ADV, excluded={CONF_PORT}, defaults=entry))
 
 
     async def async_step_init(
@@ -138,6 +138,6 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title=name, data=user_input)
 
         if self.show_advanced_options is True:
-            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA_ADV, errors=errors)
+            return self.async_show_form(step_id="user", data_schema=self.DATA_SCHEMA_ADV, errors=errors)
 
-        return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)
+        return self.async_show_form(step_id="user", data_schema=self.DATA_SCHEMA, errors=errors)

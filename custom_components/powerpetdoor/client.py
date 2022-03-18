@@ -5,6 +5,7 @@ import async_timeout
 import logging
 import json
 import time
+import queue
 from datetime import datetime, timezone
 
 from collections.abc import Callable
@@ -110,6 +111,7 @@ class PowerPetDoorClient:
     _failed_pings = 0
     _buffer = ''
     _outstanding = {}
+    _queue = queue.SimpleQueue()
 
     def __init__(self, host: str, port: int, keepalive: float, timeout: float,
                  reconnect: float, loop: EventLoop | None = None) -> None:
@@ -249,6 +251,7 @@ class PowerPetDoorClient:
         self._last_ping = None
         self._failed_pings = 0
         self._buffer = ''
+        self._queue = queue.SimpleQueue()
 
         # Caller code
         if self.on_disconnect:
@@ -284,22 +287,36 @@ class PowerPetDoorClient:
             _LOGGER.error('Did not receive a response to a message in more than {} seconds.'.format(self.cfg_timeout))
             self.disconnect()
         self._check_receipt = None
+        self.dequeue_data()
 
-    def send_data(self, data) -> None:
+    def enqueue_data(self, data) -> None:
+        rawdata = json.dumps(data).encode("ascii")
+        self._queue.put_nowait(rawdata)
+        if not self._check_receipt:
+            self.dequeue_data();
+
+    def dequeue_data(self) -> None:
         """Raw data send- just make sure it's encoded properly and logged."""
+        if self._queue.empty():
+            return
+        if self._check_receipt:
+            _LOGGER.warning('Attempted to send data while another message is still outstanding')
+            return
         if not self._transport:
             _LOGGER.warning('Attempted to write to the stream without a connection active')
             return
         if self._keepalive:
             self._keepalive.cancel()
             self._keepalive = None
-        rawdata = json.dumps(data).encode("ascii")
-        _LOGGER.debug(str.format('TX > {0}', rawdata))
         try:
+            rawdata = self._queue.get_nowait()
+            _LOGGER.debug(str.format('TX > {0}', rawdata))
             self._transport.write(rawdata)
-            if not self._check_receipt:
-                self._check_receipt = self.ensure_future(self.check_receipt())
+            self._check_receipt = self.ensure_future(self.check_receipt())
             self._keepalive = self.ensure_future(self.keepalive())
+        except queue.Empty as err:
+            _LOGGER.warning('Attempted to dequeue from an empty queue')
+            return
         except RuntimeError as err:
             _LOGGER.error(str.format('Failed to write to the stream. ({0}) ', err))
             self.disconnect()
@@ -456,7 +473,7 @@ class PowerPetDoorClient:
             rv.add_done_callback(cleanup)
 
         self.msgId += 1
-        self.send_data({ type: arg, "msgId": msgId, "dir": "p2d" })
+        self.enqueue_data({ type: arg, "msgId": msgId, "dir": "p2d" })
         return rv
 
     @property

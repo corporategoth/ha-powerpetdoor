@@ -1,3 +1,4 @@
+from typing import TypedDict, Any
 from homeassistant.config_entries import ConfigEntry
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -23,112 +24,119 @@ from .const import (
     ValidHostnameRegex,
 )
 
-class Entry(TypeDict):
+class Entry(TypedDict):
     field: str
-    description: str | None = None
-    msg: msg | None = None
+    description: str
+    msg: str
     optional: bool
-    default: Any | None = None
+    default: Any
     input_schema: Any
-    validting_schema: Any | None = None
+    validting_schema: Any
 
-PP_SCHEMA: list[Entry] = {
-    {
-        field: CONF_NAME,
-        optional: True,
-        default: DEFAULT_NAME,
-        input_schema: cv.string
-    },
-    {
-        field: CONF_HOST,
-        optional: False,
-        input_schema: cv.string,
-        validating_schema: vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
+PP_SCHEMA: list[Entry] = [
+    Entry(
+        field = CONF_NAME,
+        optional = True,
+        default = DEFAULT_NAME,
+        input_schema = cv.string
+    ),
+    Entry(
+        field = CONF_HOST,
+        optional = False,
+        input_schema = cv.string,
+        validating_schema = vol.All(cv.string, vol.Any(vol.Match(ValidIpAddressRegex),
                                                       vol.Match(ValidHostnameRegex))),
-    },
-    {
-        field: CONF_HOLD,
-        optional: True,
-        default: DEFAULT_HOLD,
-        input_schema: bool
-    },
-}
+    ),
+    Entry(
+        field = CONF_HOLD,
+        optional = True,
+        default = DEFAULT_HOLD,
+        input_schema = bool
+    ),
+]
 
-PP_SCHEMA_ADV: list[Entry] = {
-    {
-        field: CONF_PORT,
-        optional: True,
-        default: DEFAULT_PORT,
-        input_schema: cv.port
-    },
-    {
-        field: CONF_TIMEOUT,
-        optional: False,
-        default: DEFAULT_TIMEOUT,
-        input_schema: vol.Coerce(float)
-    },
-    {
-        field: CONF_RECONNECT,
-        optional: False,
-        default: DEFAULT_RECONNECT,
-        input_schema: vol.Coerce(float)
-    },
-    {
-        field: CONF_KEEP_ALIVE,
-        optional: False,
-        default: DEFAULT_KEEP_ALOVE,
-        input_schema: vol.Coerce(float)
-    },
-    {
-        field: CONF_REFRESH,
-        optional: True,
-        default: DEFAULT_REFRESH,
-        input_schema: vol.Coerce(float)
-    },
-    {
-        field: CONF_UPDATE,
-        optional: True,
-        default: DEFAULT_UPDATE,
-        input_schema: vol.Coerce(float)
-    },
-}
+PP_SCHEMA_ADV: list[Entry] = [
+    Entry(
+        field = CONF_PORT,
+        optional = True,
+        default = DEFAULT_PORT,
+        input_schema = cv.port
+    ),
+    Entry(
+        field = CONF_TIMEOUT,
+        optional = False,
+        default = DEFAULT_CONNECT_TIMEOUT,
+        input_schema = vol.Coerce(float)
+    ),
+    Entry(
+        field = CONF_RECONNECT,
+        optional = False,
+        default = DEFAULT_RECONNECT_TIMEOUT,
+        input_schema = vol.Coerce(float)
+    ),
+    Entry(
+        field = CONF_KEEP_ALIVE,
+        optional = False,
+        default = DEFAULT_KEEP_ALIVE_TIMEOUT,
+        input_schema = vol.Coerce(float)
+    ),
+    Entry(
+        field = CONF_REFRESH,
+        optional = True,
+        default = DEFAULT_REFRESH_TIMEOUT,
+        input_schema = vol.Coerce(float)
+    ),
+    Entry(
+        field = CONF_UPDATE,
+        optional = True,
+        input_schema = vol.Coerce(float)
+    ),
+]
 
 def get_input_schema(schema: list[Entry],
                      excluded: set[str] = {},
-                     defaults: ConfigEntry | None = None) -> dict:
+                     defaults: ConfigEntry = None) -> dict:
     rv = {}
     for entry in schema:
         if not entry["field"] in excluded:
             field = None
-            default = UNDEFINED
-            if defaults and entry["field"] in defaults:
-                default = defaults[entry["field"]]
-            elif entry["default"] is not None:
+            default = None
+            if defaults is not None and entry["field"] in defaults.data:
+                default = defaults.data[entry["field"]]
+            elif "default" in entry:
                 default = entry["default"]
             if entry["optional"]:
-                field = vol.Optional(entry["field"], default=default, description=entry["description"], msg=entry["msg"])
+                field = vol.Optional(entry["field"], default=default,
+                                     description = entry["description"] if "description" in entry else None,
+                                     msg = entry["msg"] if "msg" in entry else None)
             else:
-                field = vol.Required(entry["field"], default=default, description=entry["description"], msg=entry["msg"])
+                field = vol.Required(entry["field"], default=default,
+                                     description = entry["description"] if "description" in entry else None,
+                                     msg = entry["msg"] if "msg" in entry else None)
             rv[field] = entry["input_schema"]
     return rv
 
 def get_validating_schema(schema: list[Entry],
                           excluded: set[str] = {},
-                          defaults: ConfigEntry | None = None) -> dict:
+                          defaults: ConfigEntry = None) -> dict:
     rv = {}
     for entry in schema:
         if not entry["field"] in excluded:
             field = None
-            default = UNDEFINED
-            if defaults and entry["field"] in defaults:
-                default = defaults[entry["field"]]
-            elif entry["default"] is not None:
+            default = None
+            if defaults and entry["field"] in defaults.data:
+                default = defaults.data[entry["field"]]
+            elif "default" in entry:
                 default = entry["default"]
             if entry["optional"]:
-                field = vol.Optional(entry["field"], default=default, description=entry["description"], msg=entry["msg"])
+                field = vol.Optional(entry["field"], default=default,
+                                     description = entry["description"] if "description" in entry else None,
+                                     msg = entry["msg"] if "msg" in entry else None)
             else:
-                field = vol.Required(entry["field"], default=default, description=entry["description"], msg=entry["msg"])
-            if entry["validating_schema"] is not None:
+                field = vol.Required(entry["field"], default=default,
+                                     description = entry["description"] if "description" in entry else None,
+                                     msg = entry["msg"] if "msg" in entry else None)
+            if "validating_schema" in entry:
                 rv[field] = entry["validating_schema"]
             else:
                 rv[field] = entry["input_schema"]

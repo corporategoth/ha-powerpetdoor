@@ -123,8 +123,6 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
     async def update_settings(self) -> None:
         _update_settings = self._update_settings
         await self.client.sleep(self.update_settings_interval)
-        if _update_settings and not _update_settings.cancelled():
-            self.client.send_message(CONFIG, CMD_GET_HW_INFO)
 
     def handle_settings(self, settings: dict) -> None:
         if self._update_settings:
@@ -150,10 +148,11 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
             device = registry.async_get_device(identifiers=self.device_info[ATTR_IDENTIFIERS])
             registry.async_update_device(device.id, hw_version=hw_version, sw_version=sw_version)
 
-        self.client.send_message(CONFIG, CMD_GET_SETTINGS)
 
     def on_connect(self) -> None:
         self.client.send_message(CONFIG, CMD_GET_HW_INFO)
+        self.client.send_message(CONFIG, CMD_GET_SETTINGS)
+        self.client.send_message(CONFIG, CMD_GET_DOOR_BATTERY)
 
     def on_disconnect(self) -> None:
         if self._update_settings:
@@ -163,7 +162,6 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
     def on_ping(self, value: int) -> None:
         self._attr_native_value = value
         self.async_schedule_update_ha_state()
-        self.client.send_message(CONFIG, CMD_GET_DOOR_BATTERY)
 
 class PetDoorBattery(SensorEntity):
     _attr_device_class = SensorDeviceClass.BATTERY
