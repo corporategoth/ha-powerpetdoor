@@ -179,6 +179,8 @@ class PetDoor(CoordinatorEntity, Entity):
     @property
     def extra_state_attributes(self) -> dict | None:
         rv = { CONF_HOLD: self.hold }
+        if self.coordinator.data:
+            rv[FIELD_DOOR_STATUS] = self.coordinator.data
         if self.last_change:
             rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
         return rv

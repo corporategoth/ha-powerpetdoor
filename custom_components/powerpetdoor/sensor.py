@@ -28,14 +28,12 @@ from .const import (
     CONF_NAME,
     CONF_REFRESH,
     CONFIG,
-    CMD_GET_DOOR_STATUS,
     CMD_GET_SETTINGS,
     CMD_GET_HW_INFO,
     CMD_GET_DOOR_BATTERY,
     STATE_LAST_CHANGE,
     STATE_BATTERY_CHARGING,
     STATE_BATTERY_DISCHARGING,
-    FIELD_DOOR_STATUS,
     FIELD_BATTERY_PERCENT,
     FIELD_BATTERY_PRESENT,
     FIELD_AC_PRESENT,
@@ -113,8 +111,6 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         rv = copy.deepcopy(self.coordinator.data if self.coordinator.data else {})
         rv[CONF_HOST] = self.client.host
         rv[CONF_PORT] = self.client.port
-        if self.coordinator.data:
-            rv[FIELD_DOOR_STATUS] = self.coordinator.data
         if ATTR_HW_VERSION in self.device_info:
             rv[ATTR_HW_VERSION] = self.device_info[ATTR_HW_VERSION]
         if ATTR_SW_VERSION in self.device_info:
