@@ -136,14 +136,16 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.entry = entry
-        options = entry.options
+        options = {}
+        for k, v in entry.options.items():
+            options[k] = v
         for schema in (PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV):
             for ent in schema:
                 if ent["field"] not in options and ent["field"] in entry.data:
                     options[ent["field"]] = entry.data.get(ent["field"])
 
-        self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_OPT_SCHEMA, defaults=entry.options))
-        self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_OPT_SCHEMA_ADV, defaults=entry.options))
+        self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_OPT_SCHEMA, defaults=options))
+        self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_OPT_SCHEMA_ADV, defaults=options))
 
 
     async def async_step_init(
