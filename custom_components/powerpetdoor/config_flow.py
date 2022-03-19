@@ -138,9 +138,9 @@ class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
         self.entry = entry
         options = entry.options
         for schema in (PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV):
-            for entry in schema:
-                if entry["field"] not in options and entry["field"] in entry.data:
-                    options[entry["field"]] = entry.data.get(entry["field"])
+            for ent in schema:
+                if ent["field"] not in options and ent["field"] in entry.data:
+                    options[ent["field"]] = entry.data.get(ent["field"])
 
         self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_OPT_SCHEMA, defaults=entry.options))
         self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_OPT_SCHEMA_ADV, defaults=entry.options))

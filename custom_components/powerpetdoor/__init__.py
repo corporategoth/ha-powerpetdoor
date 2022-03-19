@@ -7,7 +7,6 @@ from asyncio import TimeoutError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from .client import PowerPetDoorClient
@@ -37,13 +36,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     name = entry.data.get(CONF_NAME)
     device_id = f"{host}:{port}"
 
-    timeout = entry.options.get(CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT))
     client = PowerPetDoorClient(
         host=host,
         port=port,
-        keepalive=entry.options.get(CONF_KEEP_ALIVE, entry.data.get(CONF_KEEP_ALIVE)),
-        timeout=timeout,
+        timeout=entry.options.get(CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT)),
         reconnect=entry.options.get(CONF_RECONNECT, entry.data.get(CONF_RECONNECT)),
+        keepalive=entry.options.get(CONF_KEEP_ALIVE, entry.data.get(CONF_KEEP_ALIVE)),
         loop=hass.loop,
     )
 
@@ -54,31 +52,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=name
     )
 
-    async def async_update_data() -> str | None:
-        future = client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
-        if future is not None:
-            try:
-                return await client.wait_for(future, timeout)
-            except TimeoutError:
-                _LOGGER.error("Timed out waiting for status update!")
-                future.cancel()
-                return None
-        else:
-            return None
-
-    update = entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE))
-    coordinator = DataUpdateCoordinator(
-        hass=hass,
-        logger=_LOGGER,
-        name=name,
-        update_method=async_update_data,
-        update_interval=datetime.datetime(seconds=update) if update else None
-    )
-
     hass.data[DOMAIN][device_id] = {
         "client": client,
         "device": device_info,
-        "coordinator": coordinator
     }
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)

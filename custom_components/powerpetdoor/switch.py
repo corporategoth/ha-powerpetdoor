@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import voluptuous as vol
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import Entity, ToggleEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
@@ -25,6 +26,7 @@ from .const import (
     CONF_HOST,
     CONF_PORT,
     CONF_NAME,
+    CONF_UPDATE,
     CONF_HOLD,
     COMMAND,
     CONFIG,
@@ -59,7 +61,7 @@ from .const import (
     SERVICE_TOGGLE,
 )
 
-from .schema import PP_SCHEMA, PP_SCHEMA_ADV, get_validating_schema
+from .schema import PP_SCHEMA, PP_OPT_SCHEMA, PP_SCHEMA_ADV, PP_OPT_SCHEMA_ADV, get_validating_schema
 
 import logging
 
@@ -95,28 +97,36 @@ SWITCHES = {
         "update": CMD_GET_AUTO,
         "enable": CMD_ENABLE_AUTO,
         "disable": CMD_DISABLE_AUTO,
-        "icon_on": "mdi:autorenew",
-        "icon_off": "mdi:autorenew-off"
+        "icon_on": "mdi:calendar-week",
+        "icon_off": "mdi:calendar-remove"
     },
 }
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV))
+PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_OPT_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV)).extend(get_validating_schema(PP_OPT_SCHEMA_ADV))
 
 DOOR_SCHEMA = {
     vol.Optional(CONF_HOLD): cv.boolean
 }
 
-class PetDoor(Entity):
+class PetDoor(CoordinatorEntity, Entity):
     _attr_device_class = BinarySensorDeviceClass.DOOR
-    _attr_should_poll = False
-
     last_change = None
 
     def __init__(self,
+                 hass: HomeAssistant,
                  client: PowerPetDoorClient,
                  name: str,
                  device: DeviceInfo | None = None,
-                 hold: bool = True) -> None:
+                 hold: bool = True,
+                 update_interval: float | None = None) -> None:
+        coordinator = DataUpdateCoordinator(
+                hass=hass,
+                logger=_LOGGER,
+                name=name,
+                update_method=self.update_method,
+                update_interval=timedelta(seconds=update_interval) if update_interval else None)
+
+        super().__init__(coordinator)
         self.client = client
         self.hold = hold
 
@@ -126,25 +136,30 @@ class PetDoor(Entity):
 
         client.add_listener(name=self.unique_id, door_status_update=self.handle_state_update)
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        await self.coordinator.async_refresh()
+
     @callback
-    async def async_update(self) -> None:
+    async def update_method(self) -> str:
         _LOGGER.debug("Requesting update of door status")
-        self.client.send_message(CONFIG, CMD_GET_DOOR_STATUS)
+        future = self.client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
+        return await future
 
     @property
     def available(self) -> bool:
-        return self.client.available
+        return (self.client.available and super().available)
 
     @property
     def state(self) -> Literal[STATE_CLOSED, STATE_OPEN, STATE_OPENING, STATE_CLOSING] | None:
         """Return the state."""
-        if self._attr_state is None:
+        if self.coordinator.data is None:
             return None
-        elif self._attr_state in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED):
+        elif self.coordinator.data in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED):
             return STATE_CLOSED
-        elif self._attr_state in (DOOR_STATE_HOLDING, DOOR_STATE_KEEPUP):
+        elif self.coordinator.data in (DOOR_STATE_HOLDING, DOOR_STATE_KEEPUP):
             return STATE_OPEN
-        elif self._attr_state in (DOOR_STATE_RISING, DOOR_STATE_SLOWING):
+        elif self.coordinator.data in (DOOR_STATE_RISING, DOOR_STATE_SLOWING):
             return STATE_OPENING
         else:
             return STATE_CLOSING
@@ -152,7 +167,7 @@ class PetDoor(Entity):
     @property
     def is_on(self) -> bool | None:
         """Return True if entity is on."""
-        return (self._attr_state not in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED))
+        return (self.coordinator.data not in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED))
 
     @property
     def icon(self) -> str | None:
@@ -168,11 +183,15 @@ class PetDoor(Entity):
             rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
         return rv
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.last_change = datetime.now(timezone.utc)
+        super()._handle_coordinator_update()
+
+    @callback
     def handle_state_update(self, state: str) -> None:
-        if self._attr_state is not None and self._attr_state != state:
-            self.last_change = datetime.now(timezone.utc)
-        self._attr_state = state
-        self.async_schedule_update_ha_state()
+        if state != self.coordinator.data:
+            self.coordinator.async_set_updated_data(state)
 
     async def turn_on(self, hold: bool | None = None, **kwargs: Any) -> None:
         """Turn the entity on."""
@@ -213,7 +232,6 @@ class PetDoor(Entity):
 class PetDoorSwitch(ToggleEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
     _attr_should_poll = False
-
     last_change = None
 
     def __init__(self,
@@ -307,9 +325,11 @@ async def async_setup_entry(hass: HomeAssistant,
     obj = hass.data[DOMAIN][f"{host}:{port}"]
 
     async_add_entities([
-        PetDoor(client=obj["client"],
+        PetDoor(hass=hass,
+                client=obj["client"],
                 name=f"{name}",
                 device=obj["device"],
+                update_interval=entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE)),
                 hold=entry.options.get(CONF_HOLD, entry.data.get(CONF_HOLD))),
         PetDoorSwitch(client=obj["client"],
                       name=f"{name} - Inside Sensor",

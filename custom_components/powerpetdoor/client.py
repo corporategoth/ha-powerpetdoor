@@ -220,6 +220,8 @@ class PowerPetDoorClient:
         if self.cfg_keepalive:
             self._keepalive = self.ensure_future(self.keepalive())
 
+        self.dequeue_data();
+
         # Caller code
         if self.on_connect:
             self.on_connect()
@@ -295,7 +297,7 @@ class PowerPetDoorClient:
 
     def enqueue_data(self, data) -> None:
         self._queue.put(data)
-        if not self._check_receipt:
+        if self._transport and not self._check_receipt:
             self.dequeue_data();
 
     def dequeue_data(self) -> None:
