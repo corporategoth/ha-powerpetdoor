@@ -49,6 +49,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_FAILED_MSG = 2
 MAX_FAILED_PINGS = 3
 
 def find_end(s) -> int | None:
@@ -109,6 +110,7 @@ class PowerPetDoorClient:
     _check_receipt = None
     _last_ping = None
     _last_command = None
+    _failed_msg = 0
     _failed_pings = 0
     _buffer = ''
     _outstanding = {}
@@ -254,6 +256,7 @@ class PowerPetDoorClient:
         self._outstanding = {}
         self._last_ping = None
         self._last_command = None
+        self._failed_msg = 0
         self._failed_pings = 0
         self._buffer = ''
         self._queue = queue.SimpleQueue()
@@ -285,20 +288,47 @@ class PowerPetDoorClient:
             self._last_ping = str(round(time.time()*1000))
             self.send_message(PING, self._last_ping)
 
-    async def check_receipt(self) -> None:
+    async def check_receipt(self, rawdata) -> None:
         _check_receipt = self._check_receipt
         await self.sleep(self.cfg_timeout)
         if _check_receipt and not _check_receipt.cancelled():
-            _LOGGER.error('Did not receive a response to a message in more than {} seconds.'.format(self.cfg_timeout))
-            self.disconnect()
+            self._failed_msg += 1
+            if self._failed_msg < MAX_FAILED_MSG:
+                _LOGGER.warn('Did not receive a response to a {} message in more than {} seconds, retrying.'.format(self._last_command, self.cfg_timeout))
+            else:
+                _LOGGER.error('Did not receive a response to a {} message in more than {} seconds {} times, dropped.'.format(self._last_command, self.cfg_timeout, self._failed_msg))
+                self._failed_msg = 0
         else:
-            self._check_receipt = None
+            self._failed_msg = 0
+
+        self._check_receipt = None
+        if self._failed_msg == 0:
             self.dequeue_data()
+        else:
+            self._send_data(rawdata)
 
     def enqueue_data(self, data) -> None:
         self._queue.put(data)
         if self._transport and not self._check_receipt:
             self.dequeue_data();
+
+    def _send_data(self, rawdata) -> None:
+        if not self._transport:
+            _LOGGER.warning('Attempted to write to the stream without a connection active')
+            return
+        if self._keepalive:
+            self._keepalive.cancel()
+            self._keepalive = None
+        try:
+            _LOGGER.debug(str.format('TX > {0}', rawdata))
+            self._transport.write(rawdata)
+            if self._last_command:
+                self._check_receipt = self.ensure_future(self.check_receipt(rawdata))
+            if self.cfg_keepalive:
+                self._keepalive = self.ensure_future(self.keepalive())
+        except RuntimeError as err:
+            _LOGGER.error(str.format('Failed to write to the stream. ({0}) ', err))
+            self.disconnect()
 
     def dequeue_data(self) -> None:
         """Raw data send- just make sure it's encoded properly and logged."""
@@ -310,9 +340,6 @@ class PowerPetDoorClient:
         if not self._transport:
             _LOGGER.warning('Attempted to write to the stream without a connection active')
             return
-        if self._keepalive:
-            self._keepalive.cancel()
-            self._keepalive = None
         try:
             data = self._queue.get_nowait()
             if COMMAND in data:
@@ -325,19 +352,12 @@ class PowerPetDoorClient:
                 _LOGGER.warn("Sending unknown command type")
                 self._last_command = None
 
+            self._failed_msg = 0
             rawdata = json.dumps(data).encode("ascii")
-            _LOGGER.debug(str.format('TX > {0}', rawdata))
-            self._transport.write(rawdata)
-            if self._last_command:
-                self._check_receipt = self.ensure_future(self.check_receipt())
-            if self.cfg_keepalive:
-                self._keepalive = self.ensure_future(self.keepalive())
+            self._send_data(rawdata)
         except queue.Empty as err:
             _LOGGER.warning('Attempted to dequeue from an empty queue')
             return
-        except RuntimeError as err:
-            _LOGGER.error(str.format('Failed to write to the stream. ({0}) ', err))
-            self.disconnect()
 
     def data_received(self, rawdata) -> None:
         """asyncio callback for any data recieved from the power pet door."""
