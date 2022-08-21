@@ -1,13 +1,6 @@
 {
-    "domain": "powerpetdoor",
     "name": "Power Pet Door",
     "content_in_root": false,
-    "issue_tracker": "https://github.com/corporategoth/ha-powerpetdoor/issues",
-    "documentation": "https://github.com/corporategoth/ha-powerpetdoor",
-    "dependencies": [],
-    "codeowners": ["@corporategoth"],
-    "requirements": [],
     "iot_class": "local_push",
-    "quality_scale": "gold",
     "render_readme": true
 }
