@@ -20,7 +20,6 @@ from .const import (
     CONF_UPDATE,
     CONF_RECONNECT,
     CONFIG,
-    CMD_GET_DOOR_STATUS,
 )
 
 PLATFORMS = [ Platform.SENSOR, Platform.SWITCH ]
