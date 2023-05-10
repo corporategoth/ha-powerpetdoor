@@ -22,7 +22,7 @@ from .const import (
     CONFIG,
 )
 
-PLATFORMS = [ Platform.SENSOR, Platform.SWITCH ]
+PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON ]
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -6,7 +6,6 @@
                     "name": "The friendly name of the Power Pet Door",
                     "host": "The host of the Power Pet Door",
                     "port": "The port for the Power Pet Door (default: 3000)",
-                    "hold": "Hold then door open by default when open command is run",
                     "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
@@ -32,7 +31,6 @@
         "step": {
             "init": {
                 "data": {
-                    "hold": "Hold then door open by default when open command is run",
                     "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",

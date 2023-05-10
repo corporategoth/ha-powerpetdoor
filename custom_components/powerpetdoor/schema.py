@@ -7,7 +7,6 @@ import voluptuous as vol
 from .const import (
     CONF_NAME,
     CONF_HOST,
-    CONF_HOLD,
     CONF_PORT,
     CONF_TIMEOUT,
     CONF_RECONNECT,
@@ -20,7 +19,6 @@ from .const import (
     DEFAULT_RECONNECT_TIMEOUT,
     DEFAULT_KEEP_ALIVE_TIMEOUT,
     DEFAULT_REFRESH_TIMEOUT,
-    DEFAULT_HOLD,
     ValidIpAddressRegex,
     ValidHostnameRegex,
 )
@@ -60,12 +58,6 @@ PP_SCHEMA_ADV: list[Entry] = [
 ]
 
 PP_OPT_SCHEMA: list[Entry] = [
-    Entry(
-        field = CONF_HOLD,
-        optional = True,
-        default = DEFAULT_HOLD,
-        input_schema = bool
-    ),
 ]
 
 PP_OPT_SCHEMA_ADV: list[Entry] = [

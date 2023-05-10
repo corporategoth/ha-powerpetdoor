@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import json
 import copy
 from datetime import datetime, timezone, timedelta
 
@@ -12,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
+import homeassistant.helpers.config_validation as cv
 from .client import PowerPetDoorClient
 from homeassistant.const import (
     ATTR_SW_VERSION,
@@ -43,6 +43,9 @@ from .const import (
     FIELD_FW_MINOR,
     FIELD_FW_PATCH,
 )
+
+from .schema import PP_SCHEMA, PP_OPT_SCHEMA, PP_SCHEMA_ADV, PP_OPT_SCHEMA_ADV, get_validating_schema
+PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_OPT_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV)).extend(get_validating_schema(PP_OPT_SCHEMA_ADV))
 
 _LOGGER = logging.getLogger(__name__)
 
