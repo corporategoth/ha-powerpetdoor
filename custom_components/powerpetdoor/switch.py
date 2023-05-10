@@ -31,9 +31,6 @@ from .const import (
     FIELD_OUTSIDE,
     FIELD_POWER,
     FIELD_AUTO,
-    SERVICE_OPEN,
-    SERVICE_CLOSE,
-    SERVICE_TOGGLE,
 )
 
 import logging

@@ -6,8 +6,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
-from homeassistant.components.cover import CoverEntity, CoverDeviceClass
-from homeassistant.helpers import entity_platform
+from homeassistant.components.cover import CoverEntity, CoverDeviceClass, SUPPORT_CLOSE, SUPPORT_OPEN
 from .client import PowerPetDoorClient
 
 from .const import (
@@ -31,9 +30,6 @@ from .const import (
     CMD_CLOSE,
     STATE_LAST_CHANGE,
     FIELD_DOOR_STATUS,
-    SERVICE_OPEN,
-    SERVICE_CLOSE,
-    SERVICE_TOGGLE,
 )
 
 import logging
@@ -42,6 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class PetDoor(CoordinatorEntity, CoverEntity):
     _attr_device_class = CoverDeviceClass.SHUTTER
+    _attr_supported_features = (SUPPORT_CLOSE | SUPPORT_OPEN)
     _attr_position = None
 
     last_change = None
@@ -99,6 +96,16 @@ class PetDoor(CoordinatorEntity, CoverEntity):
             return 66
         elif self.coordinator.data in (DOOR_STATE_RISING, DOOR_STATE_CLOSING_MID_OPEN):
             return 33
+
+    @property
+    def is_opening(self) -> bool | None:
+        """Return True if entity is on."""
+        return (self.coordinator.data in (DOOR_STATE_RISING, DOOR_STATE_SLOWING))
+
+    @property
+    def is_closing(self) -> bool | None:
+        """Return True if entity is on."""
+        return (self.coordinator.data in (DOOR_STATE_CLOSING_TOP_OPEN, DOOR_STATE_CLOSING_MID_OPEN))
 
     @property
     def is_closed(self) -> bool | None:

@@ -6,9 +6,6 @@ from homeassistant.const import (
     CONF_PORT,
     CONF_TIMEOUT,
     ATTR_ENTITY_ID,
-    SERVICE_TOGGLE,
-    SERVICE_OPEN,
-    SERVICE_CLOSE,
 )
 
 DOMAIN = "powerpetdoor"
