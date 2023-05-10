@@ -30,6 +30,7 @@ from .const import (
     CMD_CLOSE,
     STATE_LAST_CHANGE,
     FIELD_DOOR_STATUS,
+    FIELD_POWER,
 )
 
 import logging
@@ -42,6 +43,7 @@ class PetDoor(CoordinatorEntity, CoverEntity):
     _attr_position = None
 
     last_change = None
+    power = True
 
     def __init__(self,
                  hass: HomeAssistant,
@@ -63,7 +65,7 @@ class PetDoor(CoordinatorEntity, CoverEntity):
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-door"
 
-        client.add_listener(name=self.unique_id, door_status_update=self.handle_state_update)
+        client.add_listener(name=self.unique_id, door_status_update=self.handle_state_update, sensor_update={FIELD_POWER: self.handle_power_update})
 
     async def update_method(self) -> str:
         _LOGGER.debug("Requesting update of door status")
@@ -82,7 +84,7 @@ class PetDoor(CoordinatorEntity, CoverEntity):
 
     @property
     def available(self) -> bool:
-        return (self.client.available and super().available)
+        return (self.client.available and super().available and self.power)
 
     @property
     def current_cover_position(self) -> int | None:
@@ -130,6 +132,11 @@ class PetDoor(CoordinatorEntity, CoverEntity):
     def handle_state_update(self, state: str) -> None:
         if state != self.coordinator.data:
             self.coordinator.async_set_updated_data(state)
+
+    @callback
+    def handle_power_update(self, state: bool) -> None:
+        self.power = state
+        self.async_schedule_update_ha_state()
 
     async def open_cover(self, **kwargs: Any) -> None:
         """Turn the entity off."""

@@ -5,6 +5,7 @@ import copy
 from datetime import datetime, timezone, timedelta
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -50,6 +51,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).ex
 _LOGGER = logging.getLogger(__name__)
 
 class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = TIME_MILLISECONDS
 
@@ -172,6 +174,9 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-battery"
 
+        self.client.add_listener(name=self.unique_id,
+                                 battery_update=self.handle_battery_update)
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         await self.coordinator.async_refresh()
@@ -250,6 +255,11 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
     def _handle_coordinator_update(self) -> None:
         self.last_change = datetime.now(timezone.utc)
         super()._handle_coordinator_update()
+
+    @callback
+    def handle_battery_update(self, battery_update: dict) -> None:
+        if battery_update != self.coordinator.data:
+            self.coordinator.async_set_updated_data(battery_update)
 
     @property
     def extra_state_attributes(self) -> dict | None:

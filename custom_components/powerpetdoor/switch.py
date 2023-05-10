@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.entity import Entity, ToggleEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
@@ -44,7 +45,8 @@ SWITCHES = {
         "enable": CMD_ENABLE_INSIDE,
         "disable": CMD_DISABLE_INSIDE,
         "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off"
+        "icon_off": "mdi:motion-sensor-off",
+        "category": EntityCategory.CONFIG
     },
     "outside": {
         "field": FIELD_OUTSIDE,
@@ -52,7 +54,17 @@ SWITCHES = {
         "enable": CMD_ENABLE_OUTSIDE,
         "disable": CMD_DISABLE_OUTSIDE,
         "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off"
+        "icon_off": "mdi:motion-sensor-off",
+        "category": EntityCategory.CONFIG
+    },
+    "auto": {
+        "field": FIELD_AUTO,
+        "update": CMD_GET_AUTO,
+        "enable": CMD_ENABLE_AUTO,
+        "disable": CMD_DISABLE_AUTO,
+        "icon_on": "mdi:calendar-week",
+        "icon_off": "mdi:calendar-remove",
+        "category": EntityCategory.CONFIG
     },
     "power": {
         "field": FIELD_POWER,
@@ -62,20 +74,13 @@ SWITCHES = {
         "icon_on": "mdi:power",
         "icon_off": "mdi:power-off"
     },
-    "auto": {
-        "field": FIELD_AUTO,
-        "update": CMD_GET_AUTO,
-        "enable": CMD_ENABLE_AUTO,
-        "disable": CMD_DISABLE_AUTO,
-        "icon_on": "mdi:calendar-week",
-        "icon_off": "mdi:calendar-remove"
-    },
 }
 
 class PetDoorSwitch(ToggleEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
     _attr_should_poll = False
     last_change = None
+    power = True
 
     def __init__(self,
                  client: PowerPetDoorClient,
@@ -86,10 +91,14 @@ class PetDoorSwitch(ToggleEntity):
         self.switch = switch
 
         self._attr_name = name
+        if "category" in switch:
+            self._attr_entity_category = switch["category"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
         client.add_listener(name=self.unique_id, sensor_update={self.switch["field"]: self.handle_state_update} )
+        if self.switch["field"] is not FIELD_POWER:
+            client.add_listener(name=self.unique_id, sensor_update={FIELD_POWER: self.handle_power_update})
 
     @callback
     async def async_update(self) -> None:
@@ -98,7 +107,7 @@ class PetDoorSwitch(ToggleEntity):
 
     @property
     def available(self) -> bool:
-        return self.client.available
+        return self.client.available and self.power
 
     @property
     def icon(self) -> str | None:
@@ -117,6 +126,11 @@ class PetDoorSwitch(ToggleEntity):
         if self._attr_is_on is not None and self._attr_is_on != state:
             self.last_change = datetime.now(timezone.utc)
         self._attr_is_on = state
+        self.async_schedule_update_ha_state()
+
+    @callback
+    def handle_power_update(self, state: bool) -> None:
+        self.power = state
         self.async_schedule_update_ha_state()
 
     async def turn_on(self, **kwargs: Any) -> None:
