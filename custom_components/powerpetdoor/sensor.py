@@ -59,12 +59,14 @@ STATS = {
         "icon": "mdi:reload",
         "class": "total_increasing",
         "category": EntityCategory.DIAGNOSTIC,
+        "disabled": True,
     },
     "auto_retracts": {
         "field": FIELD_TOTAL_AUTO_RETRACTS,
         "icon": "mdi:alert",
         "class": "total_increasing",
         "category": EntityCategory.DIAGNOSTIC,
+        "disabled": True,
     },
 }
 
@@ -319,6 +321,8 @@ class PetDoorStats(CoordinatorEntity, SensorEntity):
             self._attr_entity_category = sensor["category"]
         if "class" in sensor:
             self._attr_state_class = sensor["class"]
+        if "disabled" in sensor:
+            self._attr_entity_registry_visible_default = not sensor["disabled"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{sensor['field']}"
 

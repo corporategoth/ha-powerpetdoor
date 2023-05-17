@@ -58,6 +58,7 @@ NUMBERS = {
         "class": NumberDeviceClass.VOLTAGE,
         "category": EntityCategory.CONFIG,
         "unit_of_measurement": UnitOfElectricPotential.VOLT,
+        "disabled": True,
     },
     "sleep_sensor_trigger_voltage": {
         "field": FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE,
@@ -68,6 +69,7 @@ NUMBERS = {
         "class": NumberDeviceClass.VOLTAGE,
         "category": EntityCategory.CONFIG,
         "unit_of_measurement": UnitOfElectricPotential.VOLT,
+        "disabled": True,
     },
 }
 
@@ -99,6 +101,8 @@ class PetDoorNumber(CoordinatorEntity, NumberEntity):
             self._attr_native_step = number["step"]
         if "unit" in number:
             self._attr_native_unit_of_measurement = number["unit"]
+        if "disabled" in number:
+            self._attr_entity_registry_visible_default = not number["disabled"]
         if "multiplier" in number:
             self.multiplier = number["multiplier"]
         self._attr_device_info = device

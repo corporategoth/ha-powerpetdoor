@@ -94,7 +94,8 @@ SWITCHES = {
         "disable": CMD_DISABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
         "icon_on": "mdi:weather-sunny-alert",
         "icon_off": "mdi:shield-sun-outline",
-        "category": EntityCategory.CONFIG
+        "category": EntityCategory.CONFIG,
+        "disabled": True,
     },
     "cmd_lockout": {
         "field": FIELD_CMD_LOCKOUT,
@@ -103,7 +104,8 @@ SWITCHES = {
         "disable": CMD_DISABLE_CMD_LOCKOUT,
         "icon_on": "mdi:window-shutter-open",
         "icon_off": "mdi:window-shutter",
-        "category": EntityCategory.CONFIG
+        "category": EntityCategory.CONFIG,
+        "disabled": True,
     },
     "autoretract": {
         "field": FIELD_AUTORETRACT,
@@ -112,7 +114,8 @@ SWITCHES = {
         "disable": CMD_DISABLE_AUTORETRACT,
         "icon_on": "mdi:window-shutter-alert",
         "icon_off": "mdi:window-shutter-settings",
-        "category": EntityCategory.CONFIG
+        "category": EntityCategory.CONFIG,
+        "disabled": True,
     },
     "power": {
         "field": FIELD_POWER,
@@ -129,26 +132,31 @@ NOTIFICATION_SWITCHES = {
         "field": FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
         "icon_on": "mdi:motion-sensor",
         "icon_off": "mdi:motion-sensor-off",
+        "disabled": True,
     },
     "inside_off": {
         "field": FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS,
         "icon_on": "mdi:motion-sensor",
         "icon_off": "mdi:motion-sensor-off",
+        "disabled": True,
     },
     "outside_on": {
         "field": FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS,
         "icon_on": "mdi:motion-sensor",
         "icon_off": "mdi:motion-sensor-off",
+        "disabled": True,
     },
     "outside_off": {
         "field": FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS,
         "icon_on": "mdi:motion-sensor",
         "icon_off": "mdi:motion-sensor-off",
+        "disabled": True,
     },
     "low_battery": {
         "field": FIELD_LOW_BATTERY_NOTIFICATIONS,
         "icon_on": "mdi:battery-alert-variant-outline",
         "icon_off": "mdi:battery-remove-outline",
+        "disabled": True,
     },
 }
 
@@ -170,6 +178,8 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
         self._attr_name = name
         if "category" in switch:
             self._attr_entity_category = switch["category"]
+        if "disabled" in switch:
+            self._attr_entity_registry_visible_default = not switch["disabled"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
@@ -244,6 +254,8 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
         self.switch = switch
 
         self._attr_name = name
+        if "disabled" in switch:
+            self._attr_entity_registry_visible_default = not switch["disabled"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
