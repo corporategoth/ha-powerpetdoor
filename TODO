@@ -1,0 +1,16 @@
+Timezone Setting
+    - The timezone is set with SET_TIMEZONE function (and likely GET_TIMEZONE).  It's also reported on settings.
+    - The timezone includes DST timings.  eg. EST5EDT,M3.2.0,M11.1.0
+    - Need to figure out how to set this up properly to be editable without screwing things up!
+
+Scheduling Support
+    - Scheduling is done using a series of schedule entities.
+    - The list of entities is obtained with GET_SCHEDULE_LIST (returns an array of indexes)
+        {"schedules":[0,1,2,3],"success":"true","msgID":425,"dir":"d2p","CMD":"GET_SCHEDULE_LIST"}
+    - You can remove a schedule entry with DELETE_SCHEDULE (passing in the index)
+    - Set or replace schedule entries with SET_SCHEDULE commands, looking like:
+        {"config":"SET_SCHEDULE","index":0,"schedule":{"index":0,"inside":true,"outside":false,"in_end_time":{"hour":23,"min":59},"in_start_time":{"hour":0,"min":0},"out_end_time":{"hour":0,"min":0},"out_start_time":{"hour":0,"min":0},"enabled":true,"daysOfWeek":[0,1,1,1,1,1,1]},"msgId":426,"dir":"p2d"}
+      Response:
+        {"schedule":{"index":0,"daysOfWeek":[0,1,1,1,1,1,1],"enabled":1,"inside":1,"outside":0,"in_start_time":{"hour":0,"min":0},"in_end_time":{"hour":23,"min":59},"out_start_time":{"hour":0,"min":0},"out_end_time":{"hour":0,"min":0}},"success":"true","msgID":426,"dir":"d2p","CMD":"SET_SCHEDULE"}
+    - Need to figure out both how I want to present this (with entities), AND how I can/will convert those entities
+      into cards.  Also might need to use services alongside it.

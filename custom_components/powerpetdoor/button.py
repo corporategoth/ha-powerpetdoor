@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.button import ButtonEntity
@@ -82,6 +83,6 @@ async def async_setup_entry(hass: HomeAssistant,
 
     async_add_entities([
         PetDoorButton(client=obj["client"],
-                      name=f"{name} - Cycle",
+                      name=f"{name} Cycle",
                       device=obj["device"]),
     ])

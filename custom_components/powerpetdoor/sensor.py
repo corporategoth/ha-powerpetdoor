@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import copy
 from datetime import datetime, timezone, timedelta
 
 from homeassistant.core import HomeAssistant, callback
@@ -15,10 +14,10 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass, Sens
 import homeassistant.helpers.config_validation as cv
 from .client import PowerPetDoorClient
 from homeassistant.const import (
+    UnitOfTime,
     ATTR_SW_VERSION,
     ATTR_HW_VERSION,
     ATTR_IDENTIFIERS,
-    TIME_MILLISECONDS,
     PERCENTAGE,
 )
 
@@ -27,17 +26,21 @@ from .const import (
     CONF_HOST,
     CONF_PORT,
     CONF_NAME,
+    CONF_UPDATE,
     CONF_REFRESH,
     CONFIG,
-    CMD_GET_SETTINGS,
     CMD_GET_HW_INFO,
     CMD_GET_DOOR_BATTERY,
+    CMD_GET_DOOR_OPEN_STATS,
     STATE_LAST_CHANGE,
     STATE_BATTERY_CHARGING,
     STATE_BATTERY_DISCHARGING,
     FIELD_BATTERY_PERCENT,
     FIELD_BATTERY_PRESENT,
     FIELD_AC_PRESENT,
+    FIELD_POWER,
+    FIELD_TOTAL_OPEN_CYCLES,
+    FIELD_TOTAL_AUTO_RETRACTS,
     FIELD_FW_VER,
     FIELD_FW_REV,
     FIELD_FW_MAJOR,
@@ -50,10 +53,25 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).ex
 
 _LOGGER = logging.getLogger(__name__)
 
-class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
+STATS = {
+    "open_cycles": {
+        "field": FIELD_TOTAL_OPEN_CYCLES,
+        "icon": "mdi:reload",
+        "class": "total_increasing",
+        "category": EntityCategory.DIAGNOSTIC,
+    },
+    "auto_retracts": {
+        "field": FIELD_TOTAL_AUTO_RETRACTS,
+        "icon": "mdi:alert",
+        "class": "total_increasing",
+        "category": EntityCategory.DIAGNOSTIC,
+    },
+}
+
+class PetDoorLatency(CoordinatorEntity, SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = TIME_MILLISECONDS
+    _attr_native_unit_of_measurement = UnitOfTime.MILLISECONDS
 
     last_change = None
     def __init__(self,
@@ -63,43 +81,38 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
                  device: DeviceInfo | None = None,
                  update_interval: float | None = None) -> None:
         coordinator = DataUpdateCoordinator(
-                hass=hass,
-                logger=_LOGGER,
-                name=name,
-                update_method=self.update_method,
-                update_interval=timedelta(seconds=update_interval) if update_interval else None)
-
+            hass=hass,
+            logger=_LOGGER,
+            name=name,
+            update_method=self.update_method,
+            update_interval=timedelta(seconds=update_interval) if update_interval else None)
         super().__init__(coordinator)
         self.client = client
 
-        self.client.on_connect = self.on_connect
-        self.client.on_ping = self.on_ping
-
-        self._attr_name = coordinator.name
+        self._attr_name = name
         self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}:{client.port}"
+        self._attr_unique_id = f"{client.host}:{client.port}-latency"
 
-        self.client.add_listener(name=self.unique_id,
-                                 hw_info_update=self.handle_hw_info)
+        self.client.add_listener(self.unique_id, hw_info_update=self.handle_hw_info)
+        self.client.add_handlers(name, on_connect=self.coordinator.async_request_refresh, on_ping=self.on_ping)
 
     async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
         self.client.start()
-        await self.coordinator.async_refresh()
+        await super().async_added_to_hass()
+
+    @callback
+    async def update_method(self) -> dict:
+        _LOGGER.debug("Requesting update of firmware status")
+        future = self.client.send_message(CONFIG, CMD_GET_HW_INFO, notify=True)
+        return await future
 
     async def async_will_remove_from_hass(self) -> None:
         self.client.stop()
         await super().async_will_remove_from_hass()
 
-    @callback
-    async def update_method(self) -> dict:
-        _LOGGER.debug("Requesting update of door settings")
-        future = self.client.send_message(CONFIG, CMD_GET_SETTINGS, notify=True)
-        return await future
-
     @property
     def available(self) -> bool:
-        return (self.client.available and super().available)
+        return self.client.available and super().available
 
     @property
     def icon(self) -> str | None:
@@ -111,11 +124,32 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
         else:
             return "mdi:lan-disconnect"
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.last_change = datetime.now(timezone.utc)
+
+        if self.coordinator.data:
+            hw_version = "{0} rev {1}".format(self.coordinator.data[FIELD_FW_VER], self.coordinator.data[FIELD_FW_REV])
+            sw_version = "{0}.{1}.{2}".format(self.coordinator.data[FIELD_FW_MAJOR],
+                                              self.coordinator.data[FIELD_FW_MINOR],
+                                              self.coordinator.data[FIELD_FW_PATCH])
+            self._attr_device_info[ATTR_HW_VERSION] = hw_version
+            self._attr_device_info[ATTR_SW_VERSION] = sw_version
+            self.async_schedule_update_ha_state()
+
+            registry = async_get_device_registry(self.hass)
+            if registry:
+                device = registry.async_get_device(identifiers=self.device_info[ATTR_IDENTIFIERS])
+                registry.async_update_device(device.id, hw_version=hw_version, sw_version=sw_version)
+
+        super()._handle_coordinator_update()
+
     @property
     def extra_state_attributes(self) -> dict | None:
-        rv = copy.deepcopy(self.coordinator.data if self.coordinator.data else {})
-        rv[CONF_HOST] = self.client.host
-        rv[CONF_PORT] = self.client.port
+        rv = {
+            CONF_HOST: self.client.host,
+            CONF_PORT: self.client.port
+        }
         if ATTR_HW_VERSION in self.device_info:
             rv[ATTR_HW_VERSION] = self.device_info[ATTR_HW_VERSION]
         if ATTR_SW_VERSION in self.device_info:
@@ -124,25 +158,9 @@ class PetDoorCoordinator(CoordinatorEntity, SensorEntity):
             rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
         return rv
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.last_change = datetime.now(timezone.utc)
-        super()._handle_coordinator_update()
-
     def handle_hw_info(self, fwinfo: dict) -> None:
-        hw_version = "{0} rev {1}".format(fwinfo[FIELD_FW_VER], fwinfo[FIELD_FW_REV])
-        sw_version = "{0}.{1}.{2}".format(fwinfo[FIELD_FW_MAJOR], fwinfo[FIELD_FW_MINOR], fwinfo[FIELD_FW_PATCH])
-        self._attr_device_info[ATTR_HW_VERSION] = hw_version
-        self._attr_device_info[ATTR_SW_VERSION] = sw_version
-        self.async_schedule_update_ha_state()
-
-        registry = async_get_device_registry(self.hass)
-        if registry:
-            device = registry.async_get_device(identifiers=self.device_info[ATTR_IDENTIFIERS])
-            registry.async_update_device(device.id, hw_version=hw_version, sw_version=sw_version)
-
-    def on_connect(self) -> None:
-        self.client.send_message(CONFIG, CMD_GET_HW_INFO)
+        if fwinfo != self.coordinator.data:
+            self.coordinator.async_set_updated_data(fwinfo)
 
     def on_ping(self, value: int) -> None:
         self._attr_native_value = value
@@ -159,7 +177,7 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
                  client: PowerPetDoorClient,
                  name: str,
                  device: DeviceInfo | None = None,
-                 update_interval: float | None= None) -> None:
+                 update_interval: float | None = None) -> None:
         coordinator = DataUpdateCoordinator(
                 hass=hass,
                 logger=_LOGGER,
@@ -174,12 +192,8 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-battery"
 
-        self.client.add_listener(name=self.unique_id,
-                                 battery_update=self.handle_battery_update)
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        await self.coordinator.async_refresh()
+        self.client.add_listener(self.unique_id, battery_update=self.handle_battery_update)
+        self.client.add_handlers(name, on_connect=self.coordinator.async_request_refresh)
 
     @callback
     async def update_method(self) -> dict:
@@ -286,6 +300,66 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
     def ac_present(self) -> bool:
         return self.coordinator.data.get(FIELD_AC_PRESENT) if self.coordinator.data else None
 
+class PetDoorStats(CoordinatorEntity, SensorEntity):
+    last_change = None
+    power = True
+
+    def __init__(self,
+                 client: PowerPetDoorClient,
+                 name: str,
+                 sensor: dict,
+                 coordinator: DataUpdateCoordinator,
+                 device: DeviceInfo | None = None):
+        super().__init__(coordinator)
+        self.client = client
+        self.sensor = sensor
+
+        self._attr_name = name
+        if "category" in sensor:
+            self._attr_entity_category = sensor["category"]
+        if "class" in sensor:
+            self._attr_state_class = sensor["class"]
+        self._attr_device_info = device
+        self._attr_unique_id = f"{client.host}:{client.port}-{sensor['field']}"
+
+        client.add_listener(name=self.unique_id,
+                            stats_update={sensor["field"]: self.handle_state_update},
+                            sensor_update={FIELD_POWER: self.handle_power_update})
+
+    @property
+    def available(self) -> bool:
+        return (self.client.available and super().available and self.power)
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data[self.sensor["field"]]
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        rv = {}
+        if self.last_change:
+            rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
+        return rv
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.last_change = datetime.now(timezone.utc)
+        super()._handle_coordinator_update()
+
+    @callback
+    def handle_state_update(self, state: float) -> None:
+        if self.coordinator.data and state != self.coordinator.data[self.sensor["field"]]:
+            changed = self.coordinator.data
+            changed[self.sensor["field"]] = state
+            self.coordinator.async_set_updated_data(changed)
+
+    @callback
+    def handle_power_update(self, state: bool) -> None:
+        self.power = state
+        self.async_schedule_update_ha_state()
+
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
                             entry: ConfigEntry,
@@ -299,14 +373,45 @@ async def async_setup_entry(hass: HomeAssistant,
     obj = hass.data[DOMAIN][device_id]
 
     async_add_entities([
-        PetDoorCoordinator(hass=hass,
-                           client=obj["client"],
-                           name=name,
-                           device=obj["device"],
-                           update_interval=entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))),
-        PetDoorBattery(hass=hass,
+        PetDoorLatency(hass=hass,
                        client=obj["client"],
-                       name=f"{name} - Battery",
+                       name=f"{name} Latency",
                        device=obj["device"],
                        update_interval=entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))),
+        PetDoorBattery(hass=hass,
+                       client=obj["client"],
+                       name=f"{name} Battery",
+                       device=obj["device"],
+                       update_interval=entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))),
+    ])
+
+    async def update_stats() -> dict:
+        _LOGGER.debug("Requesting update of stats")
+        future = obj["client"].send_message(CONFIG, CMD_GET_DOOR_OPEN_STATS, notify=True)
+        return await future
+
+    timeout = entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE))
+    if not timeout:
+        timeout = entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))
+
+    stats_coordinator = DataUpdateCoordinator(
+        hass=hass,
+        logger=_LOGGER,
+        name=f"{name} Stats",
+        update_method=update_stats,
+        update_interval=timedelta(timeout))
+
+    obj["client"].add_handlers(f"{name} Stats", on_connect=stats_coordinator.async_request_refresh)
+
+    async_add_entities([
+        PetDoorStats(client=obj["client"],
+                     name=f"{name} Total Open Cycles",
+                     sensor=STATS["open_cycles"],
+                     coordinator=stats_coordinator,
+                     device=obj["device"]),
+        PetDoorStats(client=obj["client"],
+                     name=f"{name} Total Auto-Retracts",
+                     sensor=STATS["auto_retracts"],
+                     coordinator=stats_coordinator,
+                     device=obj["device"]),
     ])

@@ -1,24 +1,31 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import EntityCategory
-from homeassistant.helpers.entity import Entity, ToggleEntity
+from homeassistant.helpers.entity import DeviceInfo, Entity, ToggleEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.switch import SwitchDeviceClass
-from .client import PowerPetDoorClient
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
+from .client import PowerPetDoorClient, make_bool
 
 from .const import (
     DOMAIN,
     CONF_HOST,
     CONF_PORT,
     CONF_NAME,
+    CONF_REFRESH,
     CONFIG,
     CMD_GET_SENSORS,
     CMD_GET_POWER,
     CMD_GET_AUTO,
+    CMD_GET_OUTSIDE_SENSOR_SAFETY_LOCK,
+    CMD_GET_CMD_LOCKOUT,
+    CMD_GET_AUTORETRACT,
+    CMD_GET_NOTIFICATIONS,
+    CMD_SET_NOTIFICATIONS,
     CMD_ENABLE_INSIDE,
     CMD_DISABLE_INSIDE,
     CMD_ENABLE_OUTSIDE,
@@ -27,11 +34,25 @@ from .const import (
     CMD_POWER_OFF,
     CMD_ENABLE_AUTO,
     CMD_DISABLE_AUTO,
+    CMD_DISABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
+    CMD_ENABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
+    CMD_DISABLE_CMD_LOCKOUT,
+    CMD_ENABLE_CMD_LOCKOUT,
+    CMD_DISABLE_AUTORETRACT,
+    CMD_ENABLE_AUTORETRACT,
     STATE_LAST_CHANGE,
     FIELD_INSIDE,
     FIELD_OUTSIDE,
     FIELD_POWER,
     FIELD_AUTO,
+    FIELD_OUTSIDE_SENSOR_SAFETY_LOCK,
+    FIELD_CMD_LOCKOUT,
+    FIELD_AUTORETRACT,
+    FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
+    FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS,
+    FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS,
+    FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS,
+    FIELD_LOW_BATTERY_NOTIFICATIONS,
 )
 
 import logging
@@ -44,8 +65,8 @@ SWITCHES = {
         "update": CMD_GET_SENSORS,
         "enable": CMD_ENABLE_INSIDE,
         "disable": CMD_DISABLE_INSIDE,
-        "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off",
+        "icon_on": "mdi:leak",
+        "icon_off": "mdi:leak-off",
         "category": EntityCategory.CONFIG
     },
     "outside": {
@@ -53,8 +74,8 @@ SWITCHES = {
         "update": CMD_GET_SENSORS,
         "enable": CMD_ENABLE_OUTSIDE,
         "disable": CMD_DISABLE_OUTSIDE,
-        "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off",
+        "icon_on": "mdi:leak",
+        "icon_off": "mdi:leak-off",
         "category": EntityCategory.CONFIG
     },
     "auto": {
@@ -64,6 +85,33 @@ SWITCHES = {
         "disable": CMD_DISABLE_AUTO,
         "icon_on": "mdi:calendar-week",
         "icon_off": "mdi:calendar-remove",
+        "category": EntityCategory.CONFIG
+    },
+    "outside_sensor_safety_lock": {
+        "field": FIELD_OUTSIDE_SENSOR_SAFETY_LOCK,
+        "update": CMD_GET_OUTSIDE_SENSOR_SAFETY_LOCK,
+        "enable": CMD_ENABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
+        "disable": CMD_DISABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
+        "icon_on": "mdi:weather-sunny-alert",
+        "icon_off": "mdi:shield-sun-outline",
+        "category": EntityCategory.CONFIG
+    },
+    "cmd_lockout": {
+        "field": FIELD_CMD_LOCKOUT,
+        "update": CMD_GET_CMD_LOCKOUT,
+        "enable": CMD_ENABLE_CMD_LOCKOUT,
+        "disable": CMD_DISABLE_CMD_LOCKOUT,
+        "icon_on": "mdi:window-shutter-open",
+        "icon_off": "mdi:window-shutter",
+        "category": EntityCategory.CONFIG
+    },
+    "autoretract": {
+        "field": FIELD_AUTORETRACT,
+        "update": CMD_GET_AUTORETRACT,
+        "enable": CMD_ENABLE_AUTORETRACT,
+        "disable": CMD_DISABLE_AUTORETRACT,
+        "icon_on": "mdi:window-shutter-alert",
+        "icon_off": "mdi:window-shutter-settings",
         "category": EntityCategory.CONFIG
     },
     "power": {
@@ -76,9 +124,36 @@ SWITCHES = {
     },
 }
 
-class PetDoorSwitch(ToggleEntity):
+NOTIFICATION_SWITCHES = {
+    "inside_on": {
+        "field": FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
+        "icon_on": "mdi:motion-sensor",
+        "icon_off": "mdi:motion-sensor-off",
+    },
+    "inside_off": {
+        "field": FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS,
+        "icon_on": "mdi:motion-sensor",
+        "icon_off": "mdi:motion-sensor-off",
+    },
+    "outside_on": {
+        "field": FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS,
+        "icon_on": "mdi:motion-sensor",
+        "icon_off": "mdi:motion-sensor-off",
+    },
+    "outside_off": {
+        "field": FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS,
+        "icon_on": "mdi:motion-sensor",
+        "icon_off": "mdi:motion-sensor-off",
+    },
+    "low_battery": {
+        "field": FIELD_LOW_BATTERY_NOTIFICATIONS,
+        "icon_on": "mdi:battery-alert-variant-outline",
+        "icon_off": "mdi:battery-remove-outline",
+    },
+}
+
+class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
-    _attr_should_poll = False
     last_change = None
     power = True
 
@@ -86,7 +161,9 @@ class PetDoorSwitch(ToggleEntity):
                  client: PowerPetDoorClient,
                  name: str,
                  switch: dict,
+                 coordinator: DataUpdateCoordinator,
                  device: DeviceInfo | None = None) -> None:
+        super().__init__(coordinator)
         self.client = client
         self.switch = switch
 
@@ -96,18 +173,13 @@ class PetDoorSwitch(ToggleEntity):
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
-        client.add_listener(name=self.unique_id, sensor_update={self.switch["field"]: self.handle_state_update} )
-        if self.switch["field"] is not FIELD_POWER:
+        client.add_listener(name=self.unique_id, sensor_update={switch["field"]: self.handle_state_update})
+        if switch["field"] is not FIELD_POWER:
             client.add_listener(name=self.unique_id, sensor_update={FIELD_POWER: self.handle_power_update})
-
-    @callback
-    async def async_update(self) -> None:
-        _LOGGER.debug("Requesting update of door status")
-        self.client.send_message(CONFIG, self.switch["update"])
 
     @property
     def available(self) -> bool:
-        return self.client.available and self.power
+        return self.client.available and super().available and self.power
 
     @property
     def icon(self) -> str | None:
@@ -123,31 +195,113 @@ class PetDoorSwitch(ToggleEntity):
         return None
 
     def handle_state_update(self, state: bool) -> None:
-        if self._attr_is_on is not None and self._attr_is_on != state:
-            self.last_change = datetime.now(timezone.utc)
-        self._attr_is_on = state
-        self.async_schedule_update_ha_state()
+        if self.coordinator.data and state != self.coordinator.data[self.switch["field"]]:
+            changed = self.coordinator.data
+            changed[self.switch["field"]] = state
+            self.coordinator.async_set_updated_data(changed)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.last_change = datetime.now(timezone.utc)
+        if self.coordinator.data:
+            if self.switch["field"] is not FIELD_POWER and FIELD_POWER in self.coordinator.data:
+                self.power = self.coordinator.data[FIELD_POWER]
+        super()._handle_coordinator_update()
 
     @callback
     def handle_power_update(self, state: bool) -> None:
         self.power = state
         self.async_schedule_update_ha_state()
 
-    async def turn_on(self, **kwargs: Any) -> None:
-        """Turn the entity on."""
-        return self.client.run_coroutine_threadsafe(self.async_turn_on(**kwargs)).result()
+    @property
+    def is_on(self) -> bool:
+        if self.coordinator.data is None:
+            return None
+        return make_bool(self.coordinator.data[self.switch["field"]])
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
+    async def async_turn_on(self) -> None:
         """Turn the entity on."""
         self.client.send_message(CONFIG, self.switch["enable"])
 
-    async def turn_off(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
-        return self.client.run_coroutine_threadsafe(self.async_turn_off(**kwargs)).result()
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
+    async def async_turn_off(self) -> None:
         """Turn the entity off."""
         self.client.send_message(CONFIG, self.switch["disable"])
+
+class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_entity_category = EntityCategory.CONFIG
+    last_change = None
+    power = True
+
+    def __init__(self,
+                 client: PowerPetDoorClient,
+                 name: str,
+                 switch: dict,
+                 coordinator: DataUpdateCoordinator,
+                 device: DeviceInfo | None = None) -> None:
+        super().__init__(coordinator)
+        self.client = client
+        self.switch = switch
+
+        self._attr_name = name
+        self._attr_device_info = device
+        self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
+
+        client.add_listener(name=self.unique_id,
+                            notifications_update={switch["field"]: self.handle_state_update},
+                            sensor_update={FIELD_POWER: self.handle_power_update})
+
+    @property
+    def available(self) -> bool:
+        return self.client.available and super().available and self.power
+
+    @property
+    def icon(self) -> str | None:
+        if self.is_on:
+            return self.switch["icon_on"]
+        else:
+            return self.switch["icon_off"]
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        if self.last_change:
+            return { STATE_LAST_CHANGE: self.last_change.isoformat() }
+        return None
+
+    def handle_state_update(self, state: bool) -> None:
+        if self.coordinator.data and state != self.coordinator.data[self.switch["field"]]:
+            changed = self.coordinator.data
+            changed[self.switch["field"]] = state
+            self.coordinator.async_set_updated_data(changed)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.last_change = datetime.now(timezone.utc)
+        super()._handle_coordinator_update()
+
+    @callback
+    def handle_power_update(self, state: bool) -> None:
+        self.power = state
+        self.async_schedule_update_ha_state()
+
+    @property
+    def is_on(self) -> bool:
+        if self.coordinator.data is None:
+            return None
+        return make_bool(self.coordinator.data[self.switch["field"]])
+
+    async def async_turn_on(self) -> None:
+        """Turn the entity on."""
+        changed = self.coordinator.data
+        changed[self.switch["field"]] = True
+        self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
+
+    async def async_turn_off(self) -> None:
+        """Turn the entity off."""
+        changed = self.coordinator.data
+        changed[self.switch["field"]] = False
+        self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
+
 
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
@@ -161,19 +315,80 @@ async def async_setup_entry(hass: HomeAssistant,
 
     async_add_entities([
         PetDoorSwitch(client=obj["client"],
-                      name=f"{name} - Inside Sensor",
+                      name=f"{name} Inside Sensor",
                       switch=SWITCHES["inside"],
+                      coordinator=obj["settings"],
                       device=obj["device"]),
         PetDoorSwitch(client=obj["client"],
-                      name=f"{name} - Outside Sensor",
+                      name=f"{name} Outside Sensor",
                       switch=SWITCHES["outside"],
+                      coordinator=obj["settings"],
                       device=obj["device"]),
         PetDoorSwitch(client=obj["client"],
-                      name=f"{name} - Power",
+                      name=f"{name} Power",
                       switch=SWITCHES["power"],
+                      coordinator=obj["settings"],
                       device=obj["device"]),
         PetDoorSwitch(client=obj["client"],
-                      name=f"{name} - Auto",
+                      name=f"{name} Auto",
                       switch=SWITCHES["auto"],
+                      coordinator=obj["settings"],
                       device=obj["device"]),
+        PetDoorSwitch(client=obj["client"],
+                      name=f"{name} Outside Safety Lock",
+                      switch=SWITCHES["outside_sensor_safety_lock"],
+                      coordinator=obj["settings"],
+                      device=obj["device"]),
+        PetDoorSwitch(client=obj["client"],
+                      name=f"{name} Pet Proximity Keep Open",
+                      switch=SWITCHES["cmd_lockout"],
+                      coordinator=obj["settings"],
+                      device=obj["device"]),
+        PetDoorSwitch(client=obj["client"],
+                      name=f"{name} Auto Retract",
+                      switch=SWITCHES["autoretract"],
+                      coordinator=obj["settings"],
+                      device=obj["device"]),
+    ])
+
+    async def update_notifications() -> dict:
+        _LOGGER.debug("Requesting update of notifications")
+        future = obj["client"].send_message(CONFIG, CMD_GET_NOTIFICATIONS, notify=True)
+        return await future
+
+    notifications_coordinator = DataUpdateCoordinator(
+        hass=hass,
+        logger=_LOGGER,
+        name=f"{name} Notifications",
+        update_method=update_notifications,
+        update_interval=timedelta(entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))))
+
+    obj["client"].add_handlers(f"{name} Notifications", on_connect=notifications_coordinator.async_request_refresh)
+
+    async_add_entities([
+        PetDoorNotificationSwitch(client=obj["client"],
+                                  name=f"{name} Notify Inside On",
+                                  switch=NOTIFICATION_SWITCHES["inside_on"],
+                                  coordinator=notifications_coordinator,
+                                  device=obj["device"]),
+        PetDoorNotificationSwitch(client=obj["client"],
+                                  name=f"{name} Notify Inside Off",
+                                  switch=NOTIFICATION_SWITCHES["inside_off"],
+                                  coordinator=notifications_coordinator,
+                                  device=obj["device"]),
+        PetDoorNotificationSwitch(client=obj["client"],
+                                  name=f"{name} Notify Outside On",
+                                  switch=NOTIFICATION_SWITCHES["outside_on"],
+                                  coordinator=notifications_coordinator,
+                                  device=obj["device"]),
+        PetDoorNotificationSwitch(client=obj["client"],
+                                  name=f"{name} Notify Outside Off",
+                                  switch=NOTIFICATION_SWITCHES["outside_off"],
+                                  coordinator=notifications_coordinator,
+                                  device=obj["device"]),
+        PetDoorNotificationSwitch(client=obj["client"],
+                                  name=f"{name} Notify Low Battery",
+                                  switch=NOTIFICATION_SWITCHES["low_battery"],
+                                  coordinator=notifications_coordinator,
+                                  device=obj["device"]),
     ])

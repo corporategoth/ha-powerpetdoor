@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.cover import CoverEntity, CoverDeviceClass, SUPPORT_CLOSE, SUPPORT_OPEN
 from .client import PowerPetDoorClient
 
@@ -65,19 +66,12 @@ class PetDoor(CoordinatorEntity, CoverEntity):
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-door"
 
-        client.add_listener(name=self.unique_id, door_status_update=self.handle_state_update, sensor_update={FIELD_POWER: self.handle_power_update})
+        client.add_listener(name=self.unique_id,
+                            door_status_update=self.handle_state_update,
+                            sensor_update={FIELD_POWER: self.handle_power_update})
+        self.client.add_handlers(name, on_connect=self.coordinator.async_request_refresh)
 
     async def update_method(self) -> str:
-        _LOGGER.debug("Requesting update of door status")
-        future = self.client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
-        return await future
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        await self.coordinator.async_refresh()
-
-    @callback
-    async def async_update(self) -> None:
         _LOGGER.debug("Requesting update of door status")
         future = self.client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
         return await future
@@ -102,16 +96,22 @@ class PetDoor(CoordinatorEntity, CoverEntity):
     @property
     def is_opening(self) -> bool | None:
         """Return True if entity is on."""
+        if self.coordinator.data is None:
+            return None
         return (self.coordinator.data in (DOOR_STATE_RISING, DOOR_STATE_SLOWING))
 
     @property
     def is_closing(self) -> bool | None:
         """Return True if entity is on."""
+        if self.coordinator.data is None:
+            return None
         return (self.coordinator.data in (DOOR_STATE_CLOSING_TOP_OPEN, DOOR_STATE_CLOSING_MID_OPEN))
 
     @property
     def is_closed(self) -> bool | None:
         """Return True if entity is on."""
+        if self.coordinator.data is None:
+            return None
         return (self.coordinator.data in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED))
 
     @property
@@ -138,28 +138,13 @@ class PetDoor(CoordinatorEntity, CoverEntity):
         self.power = state
         self.async_schedule_update_ha_state()
 
-    async def open_cover(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
-        return self.client.run_coroutine_threadsafe(self.async_open_cover(**kwargs)).result()
-
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         self.client.send_message(COMMAND, CMD_OPEN_AND_HOLD)
 
-    async def close_cover(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
-        return self.client.run_coroutine_threadsafe(self.async_close_cover(**kwargs)).result()
-
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         self.client.send_message(COMMAND, CMD_CLOSE)
-
-    def toggle(self, **kwargs: Any) -> None:
-        """Toggle the entity."""
-        if self.is_closed:
-            self.open_cover(**kwargs)
-        else:
-            self.close_cover(**kwargs)
 
     async def async_toggle(self, **kwargs: Any) -> None:
         """Toggle the entity."""
@@ -167,28 +152,6 @@ class PetDoor(CoordinatorEntity, CoverEntity):
             await self.async_open_cover(**kwargs)
         else:
             await self.async_close_cover(**kwargs)
-
-async def async_setup_platform(
-        hass: HomeAssistant,
-        config: ConfigType,
-        async_add_devices: AddEntitiesCallback,
-        discovery_info: DiscoveryInfoType | None = None,
-) -> None:
-    """Set up the Power Pet Door sensor."""
-    _LOGGER.warning(
-        "Configuration of the Power Pet Door platform in YAML is deprecated and "
-        "will be removed in Home Assistant 2022.6; Your existing configuration "
-        "has been imported into the UI automatically and can be safely removed "
-        "from your configuration.yaml file"
-    )
-
-    hass.async_create_task(
-        hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": SOURCE_IMPORT},
-            data=config,
-        )
-    )
 
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
@@ -203,7 +166,7 @@ async def async_setup_entry(hass: HomeAssistant,
     async_add_entities([
         PetDoor(hass=hass,
                 client=obj["client"],
-                name=f"{name}",
+                name=f"{name} Door",
                 device=obj["device"],
                 update_interval=entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE)))
     ])
