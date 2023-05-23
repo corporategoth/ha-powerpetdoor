@@ -4,6 +4,8 @@ from homeassistant.const import (
     CONF_NAME,
     CONF_HOST,
     CONF_PORT,
+    CONF_ICON,
+    CONF_ID,
     CONF_TIMEOUT,
     ATTR_ENTITY_ID,
 )
@@ -45,6 +47,9 @@ FIELD_TOTAL_AUTO_RETRACTS = "totalAutoRetracts"
 FIELD_SETTINGS = "settings"
 FIELD_NOTIFICATIONS = "notifications"
 FIELD_TZ = "tz"
+FIELD_SCHEDULE = "schedule"
+FIELD_SCHEDULES = "schedules"
+FIELD_INDEX = "schedules"
 FIELD_HOLD_OPEN_TIME = "holdOpenTime"
 FIELD_SENSOR_TRIGGER_VOLTAGE = "sensorTriggerVoltage"
 FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE = "sleepSensorTriggerVoltage"

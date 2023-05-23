@@ -4,11 +4,14 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+from homeassistant import loader
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.const import Platform
+from homeassistant.components.schedule import Schedule, DOMAIN as SCHEDULE_DOMAIN, LOGGER as SCHEDULE_LOGGER
 from .client import PowerPetDoorClient
 from .const import (
     DOMAIN,
@@ -25,14 +28,44 @@ from .const import (
     CMD_GET_NOTIFICATIONS,
 )
 
-PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER ]
+PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER, SCHEDULE_DOMAIN ]
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Power Pet Door from a config entry."""
+async def schedule_async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Setup a config entry."""
+    component: EntityComponent[Schedule] = hass.data[SCHEDULE_DOMAIN]
+    return await component.async_setup_entry(entry)
+
+async def schedule_async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Setup a config entry."""
+    component: EntityComponent[Schedule] = hass.data[SCHEDULE_DOMAIN]
+    return await component.async_unload_entry(entry)
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
+    # Schedule doesn't set itself up as an entity type for use
+    # by other integrations.  This hacks around that so that
+    # we can use it as an entity type.
+    if not SCHEDULE_DOMAIN in hass.data:
+        schedule_component = hass.data[SCHEDULE_DOMAIN] = EntityComponent[Schedule](SCHEDULE_LOGGER, SCHEDULE_DOMAIN, hass)
+        await schedule_component.async_setup({})
+
+    integration = await loader.async_get_integration(hass, SCHEDULE_DOMAIN)
+    if integration:
+        schedule_component = integration.get_component()
+        if schedule_component:
+            if not hasattr(schedule_component, "async_setup_entry"):
+                schedule_component.async_setup_entry = schedule_async_setup_entry
+            if not hasattr(schedule_component, "async_unload_entry"):
+                schedule_component.async_unload_entry = schedule_async_unload_entry
+
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Power Pet Door from a config entry."""
     host = entry.data.get(CONF_HOST)
     port = entry.data.get(CONF_PORT)
     name = entry.data.get(CONF_NAME)
@@ -76,6 +109,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
+
     return True
 
 

@@ -38,6 +38,10 @@ from .const import (
     CMD_ENABLE_AUTORETRACT,
     CMD_POWER_ON,
     CMD_POWER_OFF,
+    CMD_GET_SCHEDULE_LIST,
+    CMD_DELETE_SCHEDULE,
+    CMD_GET_SCHEDULE,
+    CMD_SET_SCHEDULE,
     CMD_GET_HW_INFO,
     CMD_GET_DOOR_BATTERY,
     CMD_GET_NOTIFICATIONS,
@@ -55,6 +59,9 @@ from .const import (
     FIELD_SETTINGS,
     FIELD_NOTIFICATIONS,
     FIELD_TZ,
+    FIELD_SCHEDULE,
+    FIELD_SCHEDULES,
+    FIELD_INDEX,
     FIELD_HOLD_OPEN_TIME,
     FIELD_POWER,
     FIELD_INSIDE,
@@ -764,6 +771,18 @@ class PowerPetDoorClient:
                             callback(val)
                     if future:
                         future.set_result(val)
+
+            elif msg["CMD"] == CMD_GET_SCHEDULE_LIST:
+                if future:
+                    future.set_result(msg[FIELD_SCHEDULES])
+
+            elif msg["CMD"] == CMD_DELETE_SCHEDULE:
+                if future:
+                    future.set_result(msg[FIELD_INDEX])
+
+            elif msg["CMD"] in (CMD_GET_SCHEDULE, CMD_SET_SCHEDULE):
+                if future:
+                    future.set_result(msg[FIELD_SCHEDULE])
 
             elif msg["CMD"] == PONG:
                 if msg[PONG] == self._last_ping:

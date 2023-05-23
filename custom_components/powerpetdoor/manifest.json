@@ -3,7 +3,7 @@
   "name": "Power Pet Door",
   "codeowners": [ "@corporategoth" ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [ "schedule" ],
   "documentation": "https://github.com/corporategoth/ha-powerpetdoor",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/corporategoth/ha-powerpetdoor/issues",
