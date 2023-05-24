@@ -4,13 +4,18 @@ Timezone Setting
     - Need to figure out how to set this up properly to be editable without screwing things up!
 
 Scheduling Support
-    - Scheduling is done using a series of schedule entities.
-    - The list of entities is obtained with GET_SCHEDULE_LIST (returns an array of indexes)
-        {"schedules":[0,1,2,3],"success":"true","msgID":425,"dir":"d2p","CMD":"GET_SCHEDULE_LIST"}
-    - You can remove a schedule entry with DELETE_SCHEDULE (passing in the index)
-    - Set or replace schedule entries with SET_SCHEDULE commands, looking like:
-        {"config":"SET_SCHEDULE","index":0,"schedule":{"index":0,"inside":true,"outside":false,"in_end_time":{"hour":23,"min":59},"in_start_time":{"hour":0,"min":0},"out_end_time":{"hour":0,"min":0},"out_start_time":{"hour":0,"min":0},"enabled":true,"daysOfWeek":[0,1,1,1,1,1,1]},"msgId":426,"dir":"p2d"}
-      Response:
-        {"schedule":{"index":0,"daysOfWeek":[0,1,1,1,1,1,1],"enabled":1,"inside":1,"outside":0,"in_start_time":{"hour":0,"min":0},"in_end_time":{"hour":23,"min":59},"out_start_time":{"hour":0,"min":0},"out_end_time":{"hour":0,"min":0}},"success":"true","msgID":426,"dir":"d2p","CMD":"SET_SCHEDULE"}
-    - Need to figure out both how I want to present this (with entities), AND how I can/will convert those entities
-      into cards.  Also might need to use services alongside it.
+    - Schedule helpers are normally backed by a Store.  Right now, our schedule entity is not, meaning:
+        1. When you click on the helper, you can't see or edit the schedule.  This is a flaw in the schedule
+           component itself, as editing the schedule seems use websockets directly manipulating the store
+           that then notify the schedule entity (as opposed to manipulating the entity and updating the store).
+        2. We CAN'T access the same store as the schedule, as the schedule component hides the store it
+           creates away in a function.  Meaning the store knows about schedule entities, but NOT the other
+           way around, so I can't "attach" to the store, or embed the store-created entity in my entity.
+        3. We can't use an alternative store (real or virtual), because the websockets API is bound to the
+           store, so if we use a new store/API, it won't know how to present the edit components in the UI.
+        4. Using the websockets API to create/edit the schedule (when the schedule is refreshed from the
+           door) seems kludgy, and will leave behind the baggage of an old schedule helper if you deleted
+           or renamed the door.
+        5. A feature request to fix this has been requested here:
+           https://community.home-assistant.io/t/new-schedule-entity-so-it-can-be-used-in-integrations/468072
+           But with not many votes, it will likely never happen.
