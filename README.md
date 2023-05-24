@@ -66,29 +66,31 @@ You can go to the Integrations page and add a Power Pet Door integration.
 
 ## Entities
 
-| Entity                         | Entity Type | Description                                                                                  |
-|--------------------------------|-------------|----------------------------------------------------------------------------------------------|
-| `Door`                         | `Cover`     | The main control for the door itself.  Acts like a shutter entity.                           |
-| `Auto`                         | `Switch`    | Enable or disable the door sensors based on a schedule setup in the Power Pet Door app.      |
-| `Battery`                      | `Sensor`    | Display the current charge of the battery, if one is attached.                               |
-| `Cycle`                        | `Button`    | A button to perform the open / close cycle (or close the door if it's holding open).         |
-| `Inside Sensor`                | `Switch`    | Enable or disable detection of a dog collar from the inside of the door.                     |
-| `Outside Sensor`               | `Switch`    | Enable or disbale detection of a dog collar from the outside of the door.                    |
+| Entity                         | Entity Type | Description                                                                                      |
+|--------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| `Door`                         | `Cover`     | The main control for the door itself.  Acts like a shutter entity.                               |
+| `Auto`                         | `Switch`    | Enable or disable the door sensors based on a schedule setup in the Power Pet Door app.          |
+| `Battery`                      | `Sensor`    | Display the current charge of the battery, if one is attached.                                   |
+| `Cycle`                        | `Button`    | A button to perform the open / close cycle (or close the door if it's holding open).             |
+| `Inside Sensor`                | `Switch`    | Enable or disable detection of a dog collar from the inside of the door.                         |
+| `Outside Sensor`               | `Switch`    | Enable or disbale detection of a dog collar from the outside of the door.                        |
 | `Power`                        | `Switch`    | Turn on or off the pet door (WiFi will stay enabled).  Disables ALL buttons, and door operation. |
-| `Outside Safety Lock`          | `Switch`    | Always allow the pet to come inside, ignoring your schedule.                                 |
-| `Pet Proximity Keep Open`      | `Switch`    | Keep the pet door open if the pet remains in proximity of the door.                          |
-| `Auto Retract`                 | `Switch`    | Automatically retract (open) the door if it detects an obstruction while closing.            |
-| `Latency`                      | `Sensor`    | The time it's taking for Home Assistant to communicate to the Power Pet Door (round trip).   |
-| `Total Open Cycles`            | `Sensor`    | Total number of times the door has been opened.                                              |
-| `Total Auto-Retracts`          | `Sensor`    | Total number of times the door re-opened itself due to a detected obsctuction.               |
-| `Hold Time`                    | `Number`    | Amount of time (in seconds) to hold the door open during the open/close cycle.               |
-| `Sensor Trigger Voltage`       | `Number`    | Voltage required to trigger the sensor to open the door (based on signal strength).          |
-| `Sleep Sensor Trigger Voltage` | `Number`    | Voltage required to trigger the sensor to open the door (based on signal strength) while off. |
-| `Notify Inside On`             | `Switch`    | Notify when your pet goes outside.                                                           |
-| `Notify Inside Off`            | `Switch`    | Notify when your pet tries to go outside, but the Inside sensor is off.                      |
-| `Notify Outside On`            | `Switch`    | Notify when your pet comes inside.                                                           |
-| `Notify Outside Off`           | `Switch`    | Notify when your pet tries to come inside, but the Outside sensor is off.                    |
-| `Notifyt Low Battery`          | `Switch`    | Notify when the door's battery is low.                                                       |
+| `Outside Safety Lock`          | `Switch`    | Always allow the pet to come inside, ignoring your schedule.                                     |
+| `Pet Proximity Keep Open`      | `Switch`    | Keep the pet door open if the pet remains in proximity of the door.                              |
+| `Auto Retract`                 | `Switch`    | Automatically retract (open) the door if it detects an obstruction while closing.                |
+| `Latency`                      | `Sensor`    | The time it's taking for Home Assistant to communicate to the Power Pet Door (round trip).       |
+| `Total Open Cycles`            | `Sensor`    | Total number of times the door has been opened.                                                  |
+| `Total Auto-Retracts`          | `Sensor`    | Total number of times the door re-opened itself due to a detected obsctuction.                   |
+| `Hold Time`                    | `Number`    | Amount of time (in seconds) to hold the door open during the open/close cycle.                   |
+| `Sensor Trigger Voltage`       | `Number`    | Voltage required to trigger the sensor to open the door (based on signal strength).              |
+| `Sleep Sensor Trigger Voltage` | `Number`    | Voltage required to trigger the sensor to open the door (based on signal strength) while off.    |
+| `Notify Inside On`             | `Switch`    | Notify when your pet goes outside.                                                               |
+| `Notify Inside Off`            | `Switch`    | Notify when your pet tries to go outside, but the Inside sensor is off.                          |
+| `Notify Outside On`            | `Switch`    | Notify when your pet comes inside.                                                               |
+| `Notify Outside Off`           | `Switch`    | Notify when your pet tries to come inside, but the Outside sensor is off.                        |
+| `Notify Low Battery`           | `Switch`    | Notify when the door's battery is low.                                                           |
+| `Inside Schedule`              | `Schedule`  | The schedule for the automatic enabling/disabling of the Inside Sensor.                          |
+| `Outside Schedule`             | `Schedule`  | The schedule for the automatic enabling/disabling of the Outside Sensor.                         |
 
 
 ## Attributes
