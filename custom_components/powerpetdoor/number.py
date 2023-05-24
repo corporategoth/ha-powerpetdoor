@@ -102,7 +102,7 @@ class PetDoorNumber(CoordinatorEntity, NumberEntity):
         if "unit" in number:
             self._attr_native_unit_of_measurement = number["unit"]
         if "disabled" in number:
-            self._attr_entity_registry_visible_default = not number["disabled"]
+            self._attr_entity_registry_enabled_default = not number["disabled"]
         if "multiplier" in number:
             self.multiplier = number["multiplier"]
         self._attr_device_info = device
@@ -143,7 +143,8 @@ class PetDoorNumber(CoordinatorEntity, NumberEntity):
     @callback
     def handle_power_update(self, state: bool) -> None:
         self.power = state
-        self.async_schedule_update_ha_state()
+        if self.enabled:
+            self.async_schedule_update_ha_state()
 
     async def async_set_native_value(self, value: float) -> None:
         """Open the cover."""

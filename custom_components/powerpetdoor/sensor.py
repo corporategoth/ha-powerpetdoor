@@ -322,7 +322,7 @@ class PetDoorStats(CoordinatorEntity, SensorEntity):
         if "class" in sensor:
             self._attr_state_class = sensor["class"]
         if "disabled" in sensor:
-            self._attr_entity_registry_visible_default = not sensor["disabled"]
+            self._attr_entity_registry_enabled_default = not sensor["disabled"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{sensor['field']}"
 
@@ -362,7 +362,8 @@ class PetDoorStats(CoordinatorEntity, SensorEntity):
     @callback
     def handle_power_update(self, state: bool) -> None:
         self.power = state
-        self.async_schedule_update_ha_state()
+        if self.enabled:
+            self.async_schedule_update_ha_state()
 
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,

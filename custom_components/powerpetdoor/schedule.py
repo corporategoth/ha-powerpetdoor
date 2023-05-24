@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, date, time, timezone, timedelta
+from datetime import datetime, time, timezone, timedelta
 from copy import deepcopy
 
 from homeassistant.core import HomeAssistant, callback
@@ -51,12 +51,14 @@ SCHEDULES = {
         "prefix": FIELD_INSIDE_PREFIX,
         "icon": "mdi:home-clock",
         "category": EntityCategory.CONFIG,
+        "disabled": True,
     },
     "outside": {
         "field": FIELD_OUTSIDE,
         "prefix": FIELD_OUTSIDE_PREFIX,
         "icon": "mdi:sun-clock",
         "category": EntityCategory.CONFIG,
+        "disabled": True,
     },
 }
 
@@ -232,6 +234,8 @@ class PetDoorSchedule(CoordinatorEntity, Schedule):
 
         if "category" in schedule:
             self._attr_entity_category = schedule["category"]
+        if "disabled" in schedule:
+            self._attr_entity_registry_enabled_default = not schedule["disabled"]
         self._attr_device_info = device
 
         client.add_listener(name=self.unique_id, sensor_update={FIELD_POWER: self.handle_power_update})
@@ -314,7 +318,8 @@ class PetDoorSchedule(CoordinatorEntity, Schedule):
     @callback
     def handle_power_update(self, state: bool) -> None:
         self.power = state
-        self.async_schedule_update_ha_state()
+        if self.enabled:
+            self.async_schedule_update_ha_state()
 
 
 async def async_setup_entry(hass: HomeAssistant,

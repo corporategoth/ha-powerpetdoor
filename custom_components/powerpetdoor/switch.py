@@ -179,7 +179,7 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
         if "category" in switch:
             self._attr_entity_category = switch["category"]
         if "disabled" in switch:
-            self._attr_entity_registry_visible_default = not switch["disabled"]
+            self._attr_entity_registry_enabled_default = not switch["disabled"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
@@ -221,7 +221,8 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
     @callback
     def handle_power_update(self, state: bool) -> None:
         self.power = state
-        self.async_schedule_update_ha_state()
+        if self.enabled:
+            self.async_schedule_update_ha_state()
 
     @property
     def is_on(self) -> bool:
@@ -255,7 +256,7 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
 
         self._attr_name = name
         if "disabled" in switch:
-            self._attr_entity_registry_visible_default = not switch["disabled"]
+            self._attr_entity_registry_enabled_default = not switch["disabled"]
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
@@ -294,7 +295,8 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
     @callback
     def handle_power_update(self, state: bool) -> None:
         self.power = state
-        self.async_schedule_update_ha_state()
+        if self.enabled:
+            self.async_schedule_update_ha_state()
 
     @property
     def is_on(self) -> bool:
