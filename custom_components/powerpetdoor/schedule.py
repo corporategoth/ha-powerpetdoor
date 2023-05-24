@@ -343,7 +343,7 @@ async def async_setup_entry(hass: HomeAssistant,
         logger=_LOGGER,
         name=f"{name} Schedule",
         update_method=update_schedule,
-        update_interval=timedelta(entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))))
+        update_interval=timedelta(entry.options.get(CONF_REFRESH)))
 
     obj["client"].add_handlers(f"{name} Schedule", on_connect=schedule_coordinator.async_request_refresh)
 

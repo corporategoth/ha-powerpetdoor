@@ -168,5 +168,5 @@ async def async_setup_entry(hass: HomeAssistant,
                 client=obj["client"],
                 name=f"{name} Door",
                 device=obj["device"],
-                update_interval=entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE)))
+                update_interval=entry.options.get(CONF_UPDATE))
     ])

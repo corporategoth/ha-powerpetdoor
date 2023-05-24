@@ -16,6 +16,9 @@ CONF_REFRESH = "refresh"
 CONF_UPDATE = "update"
 CONF_KEEP_ALIVE = "keep_alive"
 CONF_RECONNECT = "reconnect"
+CONF_HOLD_MIN = "hold_min"
+CONF_HOLD_MAX = "hold_max"
+CONF_HOLD_STEP = "hold_step"
 
 STATE_LAST_CHANGE = "last_change"
 STATE_BATTERY_CHARGING = "battery_charging"
@@ -28,6 +31,11 @@ DEFAULT_RECONNECT_TIMEOUT = 5.0
 DEFAULT_KEEP_ALIVE_TIMEOUT = 30.0
 DEFAULT_REFRESH_TIMEOUT = 300.0
 MINIMUM_TIME_BETWEEN_MSGS = 0.200
+
+# These values mirror the app.  Though the actual value can be a MUCH broader range.
+DEFAULT_HOLD_MIN = 2
+DEFAULT_HOLD_MAX = 8
+DEFAULT_HOLD_STEP = 2
 
 COMMAND = "cmd"
 CONFIG = "config"
@@ -58,6 +66,8 @@ FIELD_START_TIME_SUFFIX = "_start_time"
 FIELD_END_TIME_SUFFIX = "_end_time"
 FIELD_HOUR = "hour"
 FIELD_MINUTE = "min"
+FIELD_VOLTAGE = "voltage"
+FIELD_HOLD_TIME = "holdTime"
 FIELD_HOLD_OPEN_TIME = "holdOpenTime"
 FIELD_SENSOR_TRIGGER_VOLTAGE = "sensorTriggerVoltage"
 FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE = "sleepSensorTriggerVoltage"

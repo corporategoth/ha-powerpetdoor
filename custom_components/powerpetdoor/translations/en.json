@@ -1,7 +1,15 @@
 {
+    "title": "Power Pet Door",
     "config": {
         "step": {
             "user": {
+                "data": {
+                    "name": "The friendly name of the Power Pet Door",
+                    "host": "The host of the Power Pet Door",
+                    "advanced": "Show advanced options"
+                }
+            },
+            "user_advanced": {
                 "data": {
                     "name": "The friendly name of the Power Pet Door",
                     "host": "The host of the Power Pet Door",
@@ -10,7 +18,10 @@
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
                     "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
-                    "update": "How often to update the current door position (seconds)"
+                    "update": "How often to update the current door position (seconds)",
+                    "hold_min": "Minimum value the door hold time can be set to (seconds)",
+                    "hold_max": "Maximum value the door hold time can be set to (seconds)",
+                    "hold_step": "Step between valid values for the door hold time"
                 }
             }
         },
@@ -29,13 +40,16 @@
     },
     "options": {
         "step": {
-            "init": {
+            "user": {
                 "data": {
                     "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
                     "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
                     "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
                     "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
-                    "update": "How often to update the current door position (seconds)"
+                    "update": "How often to update the current door position (seconds)",
+                    "hold_min": "Minimum value the door hold time can be set to (seconds)",
+                    "hold_max": "Maximum value the door hold time can be set to (seconds)",
+                    "hold_step": "Step between valid values for the door hold time"
                 }
             }
         },

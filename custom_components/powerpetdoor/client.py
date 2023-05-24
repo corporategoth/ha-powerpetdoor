@@ -62,7 +62,9 @@ from .const import (
     FIELD_SCHEDULE,
     FIELD_SCHEDULES,
     FIELD_INDEX,
+    FIELD_HOLD_TIME,
     FIELD_HOLD_OPEN_TIME,
+    FIELD_VOLTAGE,
     FIELD_POWER,
     FIELD_INSIDE,
     FIELD_OUTSIDE,
@@ -601,6 +603,23 @@ class PowerPetDoorClient:
                     for name, callback in self.sensor_listeners[FIELD_AUTORETRACT].items():
                         if name not in keys:
                             callback(val)
+                if self.timezone_listeners:
+                    val: str = msg[FIELD_SETTINGS][FIELD_TZ]
+                    for callback in self.timezone_listners.values():
+                        callback(val)
+                if self.hold_time_listeners:
+                    val: int = msg[FIELD_SETTINGS][FIELD_HOLD_OPEN_TIME]
+                    for callback in self.hold_time_listeners.values():
+                        callback(val)
+                if self.sensor_trigger_voltage_listeners:
+                    val: int = msg[FIELD_SETTINGS][FIELD_SENSOR_TRIGGER_VOLTAGE]
+                    for callback in self.sensor_trigger_voltage_listeners.values():
+                        callback(val)
+                if self.sleep_sensor_trigger_voltage_listeners:
+                    val: int = msg[FIELD_SETTINGS][FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE]
+                    for callback in self.sleep_sensor_trigger_voltage_listeners.values():
+                        callback(val)
+
                 if future:
                     future.set_result(msg[FIELD_SETTINGS])
 
@@ -739,36 +758,32 @@ class PowerPetDoorClient:
             elif msg["CMD"] in (CMD_GET_TIMEZONE, CMD_SET_TIMEZONE):
                 if FIELD_TZ in msg:
                     val: str = msg[FIELD_TZ]
-                    if self.timezone_listners[FIELD_TZ]:
-                        for callback in self.timezone_listners[FIELD_TZ].values():
-                            callback(val)
+                    for callback in self.timezone_listners.values():
+                        callback(val)
                     if future:
                         future.set_result(val)
 
             elif msg["CMD"] in (CMD_GET_HOLD_TIME, CMD_SET_HOLD_TIME):
-                if FIELD_HOLD_OPEN_TIME in msg:
-                    val: int = msg[FIELD_HOLD_OPEN_TIME]
-                    if self.hold_time_listeners[FIELD_HOLD_OPEN_TIME]:
-                        for callback in self.hold_time_listeners[FIELD_HOLD_OPEN_TIME].values():
-                            callback(val)
+                if FIELD_HOLD_TIME in msg:
+                    val: int = msg[FIELD_HOLD_TIME]
+                    for callback in self.hold_time_listeners.values():
+                        callback(val)
                     if future:
                         future.set_result(val)
 
             elif msg["CMD"] in (CMD_GET_SENSOR_TRIGGER_VOLTAGE, CMD_SET_SENSOR_TRIGGER_VOLTAGE):
                 if FIELD_SENSOR_TRIGGER_VOLTAGE in msg:
                     val: int = msg[FIELD_SENSOR_TRIGGER_VOLTAGE]
-                    if self.sensor_trigger_voltage_listeners[FIELD_SENSOR_TRIGGER_VOLTAGE]:
-                        for callback in self.sensor_trigger_voltage_listeners[FIELD_SENSOR_TRIGGER_VOLTAGE].values():
-                            callback(val)
+                    for callback in self.sensor_trigger_voltage_listeners.values():
+                        callback(val)
                     if future:
                         future.set_result(val)
 
             elif msg["CMD"] in (CMD_GET_SLEEP_SENSOR_TRIGGER_VOLTAGE, CMD_SET_SLEEP_SENSOR_TRIGGER_VOLTAGE):
                 if FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE in msg:
                     val: int = msg[FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE]
-                    if self.sleep_sensor_trigger_voltage_listeners[FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE]:
-                        for callback in self.sleep_sensor_trigger_voltage_listeners[FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE].values():
-                            callback(val)
+                    for callback in self.sleep_sensor_trigger_voltage_listeners.values():
+                        callback(val)
                     if future:
                         future.set_result(val)
 

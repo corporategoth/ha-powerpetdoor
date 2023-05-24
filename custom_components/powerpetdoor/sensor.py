@@ -11,7 +11,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
-import homeassistant.helpers.config_validation as cv
 from .client import PowerPetDoorClient
 from homeassistant.const import (
     UnitOfTime,
@@ -47,9 +46,6 @@ from .const import (
     FIELD_FW_MINOR,
     FIELD_FW_PATCH,
 )
-
-from .schema import PP_SCHEMA, PP_OPT_SCHEMA, PP_SCHEMA_ADV, PP_OPT_SCHEMA_ADV, get_validating_schema
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_OPT_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV)).extend(get_validating_schema(PP_OPT_SCHEMA_ADV))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -317,12 +313,9 @@ class PetDoorStats(CoordinatorEntity, SensorEntity):
         self.sensor = sensor
 
         self._attr_name = name
-        if "category" in sensor:
-            self._attr_entity_category = sensor["category"]
-        if "class" in sensor:
-            self._attr_state_class = sensor["class"]
-        if "disabled" in sensor:
-            self._attr_entity_registry_enabled_default = not sensor["disabled"]
+        self._attr_entity_category = sensor.get("category")
+        self._attr_state_class = sensor.get("class")
+        self._attr_entity_registry_enabled_default = not sensor.get("disabled", False)
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{sensor['field']}"
 
@@ -382,12 +375,12 @@ async def async_setup_entry(hass: HomeAssistant,
                        client=obj["client"],
                        name=f"{name} Latency",
                        device=obj["device"],
-                       update_interval=entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))),
+                       update_interval=entry.options.get(CONF_REFRESH)),
         PetDoorBattery(hass=hass,
                        client=obj["client"],
                        name=f"{name} Battery",
                        device=obj["device"],
-                       update_interval=entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))),
+                       update_interval=entry.options.get(CONF_REFRESH)),
     ])
 
     async def update_stats() -> dict:
@@ -395,9 +388,9 @@ async def async_setup_entry(hass: HomeAssistant,
         future = obj["client"].send_message(CONFIG, CMD_GET_DOOR_OPEN_STATS, notify=True)
         return await future
 
-    timeout = entry.options.get(CONF_UPDATE, entry.data.get(CONF_UPDATE))
+    timeout = entry.options.get(CONF_UPDATE)
     if not timeout:
-        timeout = entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))
+        timeout = entry.options.get(CONF_REFRESH)
 
     stats_coordinator = DataUpdateCoordinator(
         hass=hass,

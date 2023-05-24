@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import logging
 import asyncio
-import contextlib
 import json
 import time
 from typing import Any
 
 import voluptuous as vol
 
+import homeassistant.helpers.config_validation as cv
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
@@ -19,12 +19,13 @@ from .const import (
     CONF_NAME,
     CONF_HOST,
     CONF_PORT,
+    DEFAULT_PORT,
     FIELD_SUCCESS,
     PING,
     PONG,
 )
 
-from .schema import PP_SCHEMA, PP_SCHEMA_ADV, PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV, get_input_schema
+from .schema import PP_SCHEMA, PP_SCHEMA_ADV, PP_OPT_SCHEMA, get_input_schema
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,9 +77,6 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    DATA_SCHEMA = vol.Schema(get_input_schema(PP_SCHEMA)).extend(get_input_schema(PP_OPT_SCHEMA))
-    DATA_SCHEMA_ADV = DATA_SCHEMA.extend(get_input_schema(PP_SCHEMA_ADV)).extend(get_input_schema(PP_OPT_SCHEMA_ADV))
-
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> PowerPetDoorOptionsFlow:
@@ -94,70 +92,83 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_user(user_input=config)
 
     async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None, errors: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-
-        errors = {}
         if user_input is not None:
-            data = {}
-            for schema in (PP_SCHEMA, PP_SCHEMA_ADV):
-                for entry in schema:
-                    if entry["field"] in user_input:
-                        data[entry["field"]] = user_input.get(entry["field"])
+            # Fake show_advanced_options ...
+            if user_input.get("advanced", False):
+                return await self.async_step_user_advanced(user_input=user_input, errors=errors)
 
-            options = {}
-            for schema in (PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV):
-                for entry in schema:
-                    if entry["field"] in user_input:
-                        options[entry["field"]] = user_input.get(entry["field"])
+            return await self.async_validate_and_create(user_input=user_input)
 
-            host = data.get(CONF_HOST)
-            port = data.get(CONF_PORT)
-            name = data.get(CONF_NAME)
+        # if self.show_advanced_options is True:
+        #     return await self.async_step_user_advanced(errors=errors)
 
-            error = await validate_connection(host, port)
-            if error:
-                errors["base"] = error
-            else:
-                await self.async_set_unique_id(host + ":" + str(port))
-                self._abort_if_unique_id_configured()
+        data_schema = vol.Schema(get_input_schema(PP_SCHEMA)) \
+            .extend({vol.Required("advanced", default=False): cv.boolean})
+        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
 
-                return self.async_create_entry(title=name, data=user_input)
+    async def async_step_user_advanced(
+            self, user_input: dict[str, Any] | None = None, errors: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None and not user_input.get("advanced", False):
+            return await self.async_validate_and_create(user_input=user_input)
 
-        if self.show_advanced_options is True:
-            return self.async_show_form(step_id="user", data_schema=self.DATA_SCHEMA_ADV, errors=errors)
+        data_schema = vol.Schema(get_input_schema(PP_SCHEMA, defaults=user_input)) \
+            .extend(get_input_schema(PP_SCHEMA_ADV)) \
+            .extend(get_input_schema(PP_OPT_SCHEMA))
 
-        return self.async_show_form(step_id="user", data_schema=self.DATA_SCHEMA, errors=errors)
+        return self.async_show_form(step_id="user_advanced", data_schema=data_schema, errors=errors)
+
+    async def async_validate_and_create(
+            self, user_input: dict[str, Any] | None = None, errors: dict[str, Any] | None = None
+    ) -> FlowResult:
+        data = {}
+        for schema in (PP_SCHEMA, PP_SCHEMA_ADV):
+            for entry in schema:
+                data[entry["field"]] = user_input.get(entry["field"], entry.get("default"))
+
+        options = {}
+        for entry in PP_OPT_SCHEMA:
+            options[entry["field"]] = user_input.get(entry["field"], entry.get("default"))
+
+        name = data.get(CONF_NAME)
+        host = data.get(CONF_HOST)
+        port = data.get(CONF_PORT, DEFAULT_PORT)
+
+        error = await validate_connection(host, port)
+        if error:
+            if self.show_advanced_options:
+                return await self.async_step_user_advanced(errors={"base": error})
+            return await self.async_step_user(errors={"base": error})
+
+        else:
+            await self.async_set_unique_id(host + ":" + str(port))
+            self._abort_if_unique_id_configured()
+
+            return self.async_create_entry(title=name, data=data, options=options)
+
 
 class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
     """Handle a option config for power pet door integration."""
 
     def __init__(self, entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.entry = entry
-        options = {}
-        for k, v in entry.options.items():
-            options[k] = v
-        for schema in (PP_OPT_SCHEMA, PP_OPT_SCHEMA_ADV):
-            for ent in schema:
-                if ent["field"] not in options and ent["field"] in entry.data:
-                    options[ent["field"]] = entry.data.get(ent["field"])
-
-        self.DATA_SCHEMA = vol.Schema(get_input_schema(PP_OPT_SCHEMA, defaults=options))
-        self.DATA_SCHEMA_ADV = self.DATA_SCHEMA.extend(get_input_schema(PP_OPT_SCHEMA_ADV, defaults=options))
-
+        self.title = entry.title
+        self.options = entry.options
 
     async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None, errors: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await self.async_step_user(user_input=user_input, errors=errors)
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None, errors: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-
-        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title=self.entry.title, data=user_input)
+            return self.async_create_entry(title=self.title, data=user_input)
 
-        if self.show_advanced_options is True:
-            return self.async_show_form(step_id="init", data_schema=self.DATA_SCHEMA_ADV, errors=errors)
-
-        return self.async_show_form(step_id="init", data_schema=self.DATA_SCHEMA, errors=errors)
+        data_schema = vol.Schema(get_input_schema(PP_OPT_SCHEMA, defaults=self.options))
+        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)

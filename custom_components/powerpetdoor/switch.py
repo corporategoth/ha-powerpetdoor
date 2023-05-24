@@ -105,6 +105,7 @@ SWITCHES = {
         "icon_on": "mdi:window-shutter-open",
         "icon_off": "mdi:window-shutter",
         "category": EntityCategory.CONFIG,
+        "inverted": True,
         "disabled": True,
     },
     "autoretract": {
@@ -176,10 +177,8 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
         self.switch = switch
 
         self._attr_name = name
-        if "category" in switch:
-            self._attr_entity_category = switch["category"]
-        if "disabled" in switch:
-            self._attr_entity_registry_enabled_default = not switch["disabled"]
+        self._attr_entity_category = switch.get("category")
+        self._attr_entity_registry_enabled_default = not switch.get("disabled", False)
         self._attr_device_info = device
         self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
 
@@ -228,15 +227,24 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
     def is_on(self) -> bool:
         if self.coordinator.data is None:
             return None
-        return make_bool(self.coordinator.data[self.switch["field"]])
+        if self.switch.get("inverted", False):
+            return not make_bool(self.coordinator.data[self.switch["field"]])
+        else:
+            return make_bool(self.coordinator.data[self.switch["field"]])
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
-        self.client.send_message(CONFIG, self.switch["enable"])
+        if self.switch.get("inverted", False):
+            self.client.send_message(CONFIG, self.switch["disable"])
+        else:
+            self.client.send_message(CONFIG, self.switch["enable"])
 
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
-        self.client.send_message(CONFIG, self.switch["disable"])
+        if self.switch.get("inverted", False):
+            self.client.send_message(CONFIG, self.switch["enable"])
+        else:
+            self.client.send_message(CONFIG, self.switch["disable"])
 
 class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
@@ -375,7 +383,7 @@ async def async_setup_entry(hass: HomeAssistant,
         logger=_LOGGER,
         name=f"{name} Notifications",
         update_method=update_notifications,
-        update_interval=timedelta(entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))))
+        update_interval=timedelta(entry.options.get(CONF_REFRESH)))
 
     obj["client"].add_handlers(f"{name} Notifications", on_connect=notifications_coordinator.async_request_refresh)
 

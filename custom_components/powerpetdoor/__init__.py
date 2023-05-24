@@ -12,6 +12,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.const import Platform
 from homeassistant.components.schedule import Schedule, DOMAIN as SCHEDULE_DOMAIN, LOGGER as SCHEDULE_LOGGER
+import homeassistant.helpers.config_validation as cv
+from .schema import PP_SCHEMA, PP_OPT_SCHEMA, PP_SCHEMA_ADV, get_validating_schema
 from .client import PowerPetDoorClient
 from .const import (
     DOMAIN,
@@ -29,6 +31,7 @@ from .const import (
 )
 
 PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER, SCHEDULE_DOMAIN ]
+PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_OPT_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,17 +69,31 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Power Pet Door from a config entry."""
+
+    # Make sure everything is populated, with defaults if necessary.
+    for ent in PP_OPT_SCHEMA:
+        if ent["field"] in entry.data:
+            entry.options[ent["field"]] = entry.data[ent["field"]]
+            del entry.data[ent["field"]]
+        if ent["field"] not in entry.options:
+            entry.options[ent["field"]] = entry.get("default")
+
+    for schema in (PP_SCHEMA, PP_SCHEMA_ADV):
+        for ent in schema:
+            if ent["field"] not in entry.data:
+                entry.data[ent["field"]] = entry.get("default")
+
+    name = entry.data.get(CONF_NAME)
     host = entry.data.get(CONF_HOST)
     port = entry.data.get(CONF_PORT)
-    name = entry.data.get(CONF_NAME)
     device_id = f"{host}:{port}"
 
     client = PowerPetDoorClient(
         host=host,
         port=port,
-        timeout=entry.options.get(CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT)),
-        reconnect=entry.options.get(CONF_RECONNECT, entry.data.get(CONF_RECONNECT)),
-        keepalive=entry.options.get(CONF_KEEP_ALIVE, entry.data.get(CONF_KEEP_ALIVE)),
+        timeout=entry.options.get(CONF_TIMEOUT),
+        reconnect=entry.options.get(CONF_RECONNECT),
+        keepalive=entry.options.get(CONF_KEEP_ALIVE),
         loop=hass.loop,
     )
 
@@ -97,7 +114,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         logger=_LOGGER,
         name=f"{name} Settings",
         update_method=update_settings,
-        update_interval=timedelta(entry.options.get(CONF_REFRESH, entry.data.get(CONF_REFRESH))))
+        update_interval=timedelta(entry.options.get(CONF_REFRESH)))
 
     client.add_handlers(f"{name} Settings", on_connect=settings_coordinator.async_request_refresh)
 
