@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+import copy
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import EntityCategory
@@ -292,7 +293,7 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
     def handle_state_update(self, state: bool) -> None:
         if self.coordinator.data and state != self.coordinator.data[self.switch["field"]]:
             changed = self.coordinator.data
-            changed[self.switch["field"]] = state
+            changed[self.switch["field"]] = make_bool(state)
             self.coordinator.async_set_updated_data(changed)
 
     @callback
@@ -310,17 +311,17 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
     def is_on(self) -> bool:
         if self.coordinator.data is None:
             return None
-        return make_bool(self.coordinator.data[self.switch["field"]])
+        return self.coordinator.data[self.switch["field"]]
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
-        changed = self.coordinator.data
+        changed = copy.deepcopy(self.coordinator.data)
         changed[self.switch["field"]] = True
         self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
 
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
-        changed = self.coordinator.data
+        changed = copy.deepcopy(self.coordinator.data)
         changed[self.switch["field"]] = False
         self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
 
@@ -376,7 +377,10 @@ async def async_setup_entry(hass: HomeAssistant,
     async def update_notifications() -> dict:
         _LOGGER.debug("Requesting update of notifications")
         future = obj["client"].send_message(CONFIG, CMD_GET_NOTIFICATIONS, notify=True)
-        return await future
+        result = await future
+        for key in result.keys():
+            result[key] = make_bool(result[key])
+        return result
 
     notifications_coordinator = DataUpdateCoordinator(
         hass=hass,

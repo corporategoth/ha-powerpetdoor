@@ -267,25 +267,25 @@ class PowerPetDoorClient:
                 self.notifications_listeners[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS][name] = notifications_update["*"]
                 self.notifications_listeners[FIELD_LOW_BATTERY_NOTIFICATIONS][name] = notifications_update["*"]
             else:
-                if FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS in sensor_update:
-                    self.sensor_listeners[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS][name] = sensor_update[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS]
-                if FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS in sensor_update:
-                    self.sensor_listeners[FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS][name] = sensor_update[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS]
-                if FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS in sensor_update:
-                    self.sensor_listeners[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS][name] = sensor_update[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS]
-                if FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS in sensor_update:
-                    self.sensor_listeners[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS][name] = sensor_update[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS]
-                if FIELD_LOW_BATTERY_NOTIFICATIONS in sensor_update:
-                    self.sensor_listeners[FIELD_LOW_BATTERY_NOTIFICATIONS][name] = sensor_update[FIELD_LOW_BATTERY_NOTIFICATIONS]
+                if FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS in notifications_update:
+                    self.notifications_listeners[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS][name] = notifications_update[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS]
+                if FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS in notifications_update:
+                    self.notifications_listeners[FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS][name] = notifications_update[FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS]
+                if FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS in notifications_update:
+                    self.notifications_listeners[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS][name] = notifications_update[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS]
+                if FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS in notifications_update:
+                    self.notifications_listeners[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS][name] = notifications_update[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS]
+                if FIELD_LOW_BATTERY_NOTIFICATIONS in notifications_update:
+                    self.notifications_listeners[FIELD_LOW_BATTERY_NOTIFICATIONS][name] = notifications_update[FIELD_LOW_BATTERY_NOTIFICATIONS]
         if stats_update:
             if "*" in stats_update:
-                self.notifications_listeners[FIELD_TOTAL_OPEN_CYCLES][name] = notifications_update["*"]
-                self.notifications_listeners[FIELD_TOTAL_AUTO_RETRACTS][name] = notifications_update["*"]
+                self.stats_listeners[FIELD_TOTAL_OPEN_CYCLES][name] = stats_update["*"]
+                self.stats_listeners[FIELD_TOTAL_AUTO_RETRACTS][name] = stats_update["*"]
             else:
-                if FIELD_TOTAL_OPEN_CYCLES in sensor_update:
-                    self.sensor_listeners[FIELD_TOTAL_OPEN_CYCLES][name] = sensor_update[FIELD_TOTAL_OPEN_CYCLES]
-                if FIELD_TOTAL_AUTO_RETRACTS in sensor_update:
-                    self.sensor_listeners[FIELD_TOTAL_AUTO_RETRACTS][name] = sensor_update[FIELD_TOTAL_AUTO_RETRACTS]
+                if FIELD_TOTAL_OPEN_CYCLES in stats_update:
+                    self.stats_listeners[FIELD_TOTAL_OPEN_CYCLES][name] = stats_update[FIELD_TOTAL_OPEN_CYCLES]
+                if FIELD_TOTAL_AUTO_RETRACTS in stats_update:
+                    self.stats_listeners[FIELD_TOTAL_AUTO_RETRACTS][name] = stats_update[FIELD_TOTAL_AUTO_RETRACTS]
         if hw_info_update:
             self.hw_info_listeners[name] = hw_info_update
         if battery_update:
@@ -624,47 +624,38 @@ class PowerPetDoorClient:
                     future.set_result(msg[FIELD_SETTINGS])
 
             elif msg["CMD"] in (CMD_GET_NOTIFICATIONS, CMD_SET_NOTIFICATIONS):
-                keys = self.notifications_listeners.keys()
                 if self.notifications_listeners[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS]:
                     val = make_bool(msg[FIELD_NOTIFICATIONS][FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS])
-                    for name, callback in self.notifications_listeners[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.notifications_listeners[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS].values():
+                        callback(val)
                 if self.notifications_listeners[FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS]:
                     val = make_bool(msg[FIELD_NOTIFICATIONS][FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS])
-                    for name, callback in self.notifications_listeners[FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.notifications_listeners[FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS].values():
+                        callback(val)
                 if self.notifications_listeners[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS]:
                     val = make_bool(msg[FIELD_NOTIFICATIONS][FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS])
-                    for name, callback in self.notifications_listeners[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.notifications_listeners[FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS].values():
+                        callback(val)
                 if self.notifications_listeners[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS]:
                     val = make_bool(msg[FIELD_NOTIFICATIONS][FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS])
-                    for name, callback in self.notifications_listeners[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.notifications_listeners[FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS].values():
+                        callback(val)
                 if self.notifications_listeners[FIELD_LOW_BATTERY_NOTIFICATIONS]:
                     val = make_bool(msg[FIELD_NOTIFICATIONS][FIELD_LOW_BATTERY_NOTIFICATIONS])
-                    for name, callback in self.notifications_listeners[FIELD_LOW_BATTERY_NOTIFICATIONS].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.notifications_listeners[FIELD_LOW_BATTERY_NOTIFICATIONS].values():
+                        callback(val)
                 if future:
                     future.set_result(msg[FIELD_NOTIFICATIONS])
 
             elif msg["CMD"] == CMD_GET_DOOR_OPEN_STATS:
-                keys = self.notifications_listeners.keys()
                 if self.stats_listeners[FIELD_TOTAL_OPEN_CYCLES]:
                     val = msg[FIELD_TOTAL_OPEN_CYCLES]
-                    for name, callback in self.stats_listeners[FIELD_TOTAL_OPEN_CYCLES].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.stats_listeners[FIELD_TOTAL_OPEN_CYCLES].values():
+                        callback(val)
                 if self.stats_listeners[FIELD_TOTAL_AUTO_RETRACTS]:
                     val = msg[FIELD_TOTAL_AUTO_RETRACTS]
-                    for name, callback in self.stats_listeners[FIELD_TOTAL_AUTO_RETRACTS].items():
-                        if name not in keys:
-                            callback(val)
+                    for callback in self.stats_listeners[FIELD_TOTAL_AUTO_RETRACTS].values():
+                        callback(val)
                 if future:
                     data = {
                         FIELD_TOTAL_OPEN_CYCLES: msg[FIELD_TOTAL_OPEN_CYCLES],
