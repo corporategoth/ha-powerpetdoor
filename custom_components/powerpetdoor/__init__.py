@@ -78,12 +78,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             options[ent["field"]] = data[ent["field"]]
             del data[ent["field"]]
         if ent["field"] not in options:
-            options[ent["field"]] = entry.get("default")
+            options[ent["field"]] = ent.get("default")
 
     for schema in (PP_SCHEMA, PP_SCHEMA_ADV):
         for ent in schema:
             if ent["field"] not in data:
-                data[ent["field"]] = entry.get("default")
+                data[ent["field"]] = ent.get("default")
 
     if data != entry.data or options != entry.options:
         await entry.async_update_entry(entry, data=data, options=options)
