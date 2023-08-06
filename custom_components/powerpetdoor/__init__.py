@@ -71,17 +71,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Power Pet Door from a config entry."""
 
     # Make sure everything is populated, with defaults if necessary.
+    data = dict(entry.data)
+    options = dict(entry.options)
     for ent in PP_OPT_SCHEMA:
-        if ent["field"] in entry.data:
-            entry.options[ent["field"]] = entry.data[ent["field"]]
-            del entry.data[ent["field"]]
-        if ent["field"] not in entry.options:
-            entry.options[ent["field"]] = entry.get("default")
+        if ent["field"] in data:
+            options[ent["field"]] = data[ent["field"]]
+            del data[ent["field"]]
+        if ent["field"] not in options:
+            options[ent["field"]] = entry.get("default")
 
     for schema in (PP_SCHEMA, PP_SCHEMA_ADV):
         for ent in schema:
-            if ent["field"] not in entry.data:
-                entry.data[ent["field"]] = entry.get("default")
+            if ent["field"] not in data:
+                data[ent["field"]] = entry.get("default")
+
+    if data != entry.data or options != entry.options:
+        await entry.async_update_entry(entry, data=data, options=options)
 
     name = entry.data.get(CONF_NAME)
     host = entry.data.get(CONF_HOST)
