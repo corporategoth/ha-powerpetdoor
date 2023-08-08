@@ -86,7 +86,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 data[ent["field"]] = ent.get("default")
 
     if data != entry.data or options != entry.options:
-        await entry.async_update_entry(entry, data=data, options=options)
+        hass.config_entries.async_update_entry(entry, data=data, options=options)
 
     name = entry.data.get(CONF_NAME)
     host = entry.data.get(CONF_HOST)
