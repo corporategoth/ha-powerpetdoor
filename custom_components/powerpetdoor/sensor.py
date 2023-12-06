@@ -169,7 +169,6 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = PERCENTAGE
 
-    last_change = None
     def __init__(self,
                  hass: HomeAssistant,
                  client: PowerPetDoorClient,
@@ -185,6 +184,8 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
 
         self.client = client
+
+        self.last_change = None
 
         self._attr_name = name
         self._attr_device_info = device
@@ -299,9 +300,6 @@ class PetDoorBattery(CoordinatorEntity, SensorEntity):
         return self.coordinator.data.get(FIELD_AC_PRESENT) if self.coordinator.data else None
 
 class PetDoorStats(CoordinatorEntity, SensorEntity):
-    last_change = None
-    power = True
-
     def __init__(self,
                  client: PowerPetDoorClient,
                  name: str,
@@ -311,6 +309,9 @@ class PetDoorStats(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self.client = client
         self.sensor = sensor
+
+        self.last_change = None
+        self.power = True
 
         self._attr_name = name
         self._attr_entity_category = sensor.get("category")

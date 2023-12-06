@@ -85,9 +85,6 @@ NUMBERS = {
 }
 
 class PetDoorNumber(CoordinatorEntity, NumberEntity):
-    last_change = None
-    power = True
-
     def __init__(self,
                  client: PowerPetDoorClient,
                  name: str,
@@ -97,6 +94,9 @@ class PetDoorNumber(CoordinatorEntity, NumberEntity):
         super().__init__(coordinator)
         self.client = client
         self.number = number
+
+        self.last_change = None
+        self.power = True
 
         self.multiplier = number.get("multiplier", 1.0)
 

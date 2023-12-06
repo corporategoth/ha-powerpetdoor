@@ -43,9 +43,6 @@ class PetDoor(CoordinatorEntity, CoverEntity):
     _attr_supported_features = (SUPPORT_CLOSE | SUPPORT_OPEN)
     _attr_position = None
 
-    last_change = None
-    power = True
-
     def __init__(self,
                  hass: HomeAssistant,
                  client: PowerPetDoorClient,
@@ -61,6 +58,9 @@ class PetDoor(CoordinatorEntity, CoverEntity):
 
         super().__init__(coordinator)
         self.client = client
+
+        self.last_change = None
+        self.power = True
 
         self._attr_name = name
         self._attr_device_info = device
