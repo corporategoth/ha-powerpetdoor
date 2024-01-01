@@ -28,14 +28,15 @@ _LOGGER = logging.getLogger(__name__)
 
 class PetDoorButton(ButtonEntity):
     _attr_should_poll = False
-    last_state = None
-    power = True
 
     def __init__(self,
                  client: PowerPetDoorClient,
                  name: str,
                  device: DeviceInfo | None = None) -> None:
         self.client = client
+
+        self.last_state = None
+        self.power = True
 
         self._attr_name = name
         self._attr_device_info = device

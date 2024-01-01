@@ -125,59 +125,6 @@ def make_bool(v: str | int | bool):
         return v
 
 class PowerPetDoorClient:
-    msgId = 1
-    replyMsgId = None
-
-    door_status_listeners: dict[str, Callable[[str], None]] = {}
-    settings_listeners: dict[str, Callable[[dict], None]] = {}
-    sensor_listeners: dict[str, dict[str, Callable[[bool], None]]] = {
-        FIELD_POWER: {},
-        FIELD_INSIDE: {},
-        FIELD_OUTSIDE: {},
-        FIELD_AUTO: {},
-        FIELD_OUTSIDE_SENSOR_SAFETY_LOCK: {},
-        FIELD_CMD_LOCKOUT: {},
-        FIELD_AUTORETRACT: {},
-    }
-    notifications_listeners: dict[str, dict[str, Callable[[bool], None]]] = {
-        FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS: {},
-        FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS: {},
-        FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS: {},
-        FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS: {},
-        FIELD_LOW_BATTERY_NOTIFICATIONS: {},
-    }
-    stats_listeners: dict[str, dict[str, Callable[[int], None]]] = {
-        FIELD_TOTAL_OPEN_CYCLES: {},
-        FIELD_TOTAL_AUTO_RETRACTS: {},
-    }
-    hw_info_listeners: dict[str, Callable[[dict], None]] = {}
-    battery_listeners: dict[str, Callable[[dict], None]] = {}
-
-    timezone_listeners: dict[str, Callable[[str], None]] = {}
-    hold_time_listeners: dict[str, Callable[[int], None]] = {}
-    sensor_trigger_voltage_listeners: dict[str, Callable[[int], None]] = {}
-    sleep_sensor_trigger_voltage_listeners: dict[str, Callable[[int], None]] = {}
-
-    on_connect: dict[str, Callable[[], Awaitable[None]]] = {}
-    on_disconnect: dict[str, Callable[[], Awaitable[None]]] = {}
-    on_ping: dict[str, Callable[[int], None]] = {}
-
-    _shutdown = False
-    _ownLoop = False
-    _eventLoop = None
-    _transport = None
-    _keepalive = None
-    _check_receipt = None
-    _last_ping = None
-    _last_command = None
-    _can_dequeue = False
-    _last_send = 0
-    _failed_msg = 0
-    _failed_pings = 0
-    _buffer = ''
-    _outstanding = {}
-    _queue = queue.SimpleQueue()
-
     def __init__(self, host: str, port: int, keepalive: float, timeout: float,
                  reconnect: float, loop: EventLoop | None = None) -> None:
         self.cfg_host = host
@@ -193,6 +140,59 @@ class PowerPetDoorClient:
         else:
             self._ownLoop = True
             self._eventLoop = asyncio.new_event_loop()
+
+        self.msgId = 1
+        self.replyMsgId = None
+
+        self.door_status_listeners: dict[str, Callable[[str], None]] = {}
+        self.settings_listeners: dict[str, Callable[[dict], None]] = {}
+        self.sensor_listeners: dict[str, dict[str, Callable[[bool], None]]] = {
+            FIELD_POWER: {},
+            FIELD_INSIDE: {},
+            FIELD_OUTSIDE: {},
+            FIELD_AUTO: {},
+            FIELD_OUTSIDE_SENSOR_SAFETY_LOCK: {},
+            FIELD_CMD_LOCKOUT: {},
+            FIELD_AUTORETRACT: {},
+        }
+        self.notifications_listeners: dict[str, dict[str, Callable[[bool], None]]] = {
+            FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS: {},
+            FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS: {},
+            FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS: {},
+            FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS: {},
+            FIELD_LOW_BATTERY_NOTIFICATIONS: {},
+        }
+        self.stats_listeners: dict[str, dict[str, Callable[[int], None]]] = {
+            FIELD_TOTAL_OPEN_CYCLES: {},
+            FIELD_TOTAL_AUTO_RETRACTS: {},
+        }
+        self.hw_info_listeners: dict[str, Callable[[dict], None]] = {}
+        self.battery_listeners: dict[str, Callable[[dict], None]] = {}
+
+        self.timezone_listeners: dict[str, Callable[[str], None]] = {}
+        self.hold_time_listeners: dict[str, Callable[[int], None]] = {}
+        self.sensor_trigger_voltage_listeners: dict[str, Callable[[int], None]] = {}
+        self.sleep_sensor_trigger_voltage_listeners: dict[str, Callable[[int], None]] = {}
+
+        self.on_connect: dict[str, Callable[[], Awaitable[None]]] = {}
+        self.on_disconnect: dict[str, Callable[[], Awaitable[None]]] = {}
+        self.on_ping: dict[str, Callable[[int], None]] = {}
+
+        self._shutdown = False
+        self._ownLoop = False
+        self._eventLoop = None
+        self._transport = None
+        self._keepalive = None
+        self._check_receipt = None
+        self._last_ping = None
+        self._last_command = None
+        self._can_dequeue = False
+        self._last_send = 0
+        self._failed_msg = 0
+        self._failed_pings = 0
+        self._buffer = ''
+        self._outstanding = {}
+        self._queue = queue.SimpleQueue()
 
     # Theses functions wrap asyncio but ensure the loop is correct!
     def ensure_future(self, *args: Any, **kwargs: Any):

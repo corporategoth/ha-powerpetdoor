@@ -164,8 +164,6 @@ NOTIFICATION_SWITCHES = {
 
 class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
-    last_change = None
-    power = True
 
     def __init__(self,
                  client: PowerPetDoorClient,
@@ -176,6 +174,9 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
         super().__init__(coordinator)
         self.client = client
         self.switch = switch
+
+        self.last_change = None
+        self.power = True
 
         self._attr_name = name
         self._attr_entity_category = switch.get("category")
@@ -250,8 +251,6 @@ class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
 class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
     _attr_entity_category = EntityCategory.CONFIG
-    last_change = None
-    power = True
 
     def __init__(self,
                  client: PowerPetDoorClient,
@@ -262,6 +261,9 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
         super().__init__(coordinator)
         self.client = client
         self.switch = switch
+
+        self.last_change = None
+        self.power = True
 
         self._attr_name = name
         if "disabled" in switch:

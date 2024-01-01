@@ -213,9 +213,6 @@ def compress_schedule(schedule: dict) -> dict:
 
 
 class PetDoorSchedule(CoordinatorEntity, Schedule):
-    last_change = None
-    power = True
-
     def __init__(self,
                  client: PowerPetDoorClient,
                  name: str,
@@ -231,6 +228,9 @@ class PetDoorSchedule(CoordinatorEntity, Schedule):
         Schedule.__init__(self, config=conf, editable=True)
         self.client = client
         self.schedule = schedule
+
+        self.last_change = None
+        self.power = True
 
         if "category" in schedule:
             self._attr_entity_category = schedule["category"]
