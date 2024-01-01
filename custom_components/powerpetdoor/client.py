@@ -133,6 +133,22 @@ class PowerPetDoorClient:
         self.cfg_timeout = timeout
         self.cfg_reconnect = reconnect
 
+        self._shutdown = False
+        self._ownLoop = False
+        self._eventLoop = None
+        self._transport = None
+        self._keepalive = None
+        self._check_receipt = None
+        self._last_ping = None
+        self._last_command = None
+        self._can_dequeue = False
+        self._last_send = 0
+        self._failed_msg = 0
+        self._failed_pings = 0
+        self._buffer = ''
+        self._outstanding = {}
+        self._queue = queue.SimpleQueue()
+
         if loop:
             _LOGGER.info("Latching onto an existing event loop.")
             self._ownLoop = False
@@ -177,22 +193,6 @@ class PowerPetDoorClient:
         self.on_connect: dict[str, Callable[[], Awaitable[None]]] = {}
         self.on_disconnect: dict[str, Callable[[], Awaitable[None]]] = {}
         self.on_ping: dict[str, Callable[[int], None]] = {}
-
-        self._shutdown = False
-        self._ownLoop = False
-        self._eventLoop = None
-        self._transport = None
-        self._keepalive = None
-        self._check_receipt = None
-        self._last_ping = None
-        self._last_command = None
-        self._can_dequeue = False
-        self._last_send = 0
-        self._failed_msg = 0
-        self._failed_pings = 0
-        self._buffer = ''
-        self._outstanding = {}
-        self._queue = queue.SimpleQueue()
 
     # Theses functions wrap asyncio but ensure the loop is correct!
     def ensure_future(self, *args: Any, **kwargs: Any):
