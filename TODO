@@ -19,3 +19,5 @@ Scheduling Support
         5. A feature request to fix this has been requested here:
            https://community.home-assistant.io/t/new-schedule-entity-so-it-can-be-used-in-integrations/468072
            But with not many votes, it will likely never happen.
+        6. A VERY simply PR that would make this possible, was rejected, so this basically will not happen:
+           https://github.com/home-assistant/core/pull/106882
