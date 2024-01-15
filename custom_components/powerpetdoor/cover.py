@@ -7,7 +7,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.components.cover import CoverEntity, CoverDeviceClass, SUPPORT_CLOSE, SUPPORT_OPEN
+from homeassistant.components.cover import CoverEntity, CoverDeviceClass, CoverEntityFeature
 from .client import PowerPetDoorClient
 
 from .const import (
@@ -40,7 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class PetDoor(CoordinatorEntity, CoverEntity):
     _attr_device_class = CoverDeviceClass.SHUTTER
-    _attr_supported_features = (SUPPORT_CLOSE | SUPPORT_OPEN)
+    _attr_supported_features = (CoverEntityFeature.CLOSE | CoverEntityFeature.OPEN)
     _attr_position = None
 
     def __init__(self,
