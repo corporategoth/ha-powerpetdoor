@@ -7,7 +7,9 @@
                     "name": "The friendly name of the Power Pet Door",
                     "host": "The host of the Power Pet Door",
                     "advanced": "Show advanced options"
-                }
+                },
+                "description": "Enter a name and the host for your Power Pet Door on your network.",
+                "title": "Basic Configuration"
             },
             "user_advanced": {
                 "data": {
@@ -22,7 +24,9 @@
                     "hold_min": "Minimum value the door hold time can be set to (seconds)",
                     "hold_max": "Maximum value the door hold time can be set to (seconds)",
                     "hold_step": "Step between valid values for the door hold time"
-                }
+                },
+                "description": "All configuration options for connecting to your power pet door.",
+                "title": "Advanced Configuration"
             }
         },
         "error": {
@@ -50,7 +54,9 @@
                     "hold_min": "Minimum value the door hold time can be set to (seconds)",
                     "hold_max": "Maximum value the door hold time can be set to (seconds)",
                     "hold_step": "Step between valid values for the door hold time"
-                }
+                },
+                "description": "Timers in use when interacting with your power pet door.",
+                "title": "Client Timers"
             }
         },
         "error": {
