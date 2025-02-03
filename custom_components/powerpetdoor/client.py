@@ -368,7 +368,7 @@ class PowerPetDoorClient:
 
     def connection_lost(self, exc) -> None:
         """asyncio callback for connection lost."""
-        self._can_dequeue = False
+        self.disconnect()
         if not self._shutdown:
             _LOGGER.error('The server closed the connection. Reconnecting...')
             self.ensure_future(self.reconnect(self.cfg_reconnect))
@@ -381,6 +381,15 @@ class PowerPetDoorClient:
     def disconnect(self) -> None:
         """Internal method for forcing connection closure if hung."""
         _LOGGER.debug('Closing connection with server...')
+        self._can_dequeue = False
+        self._last_ping = None
+        self._last_command = None
+        self._last_send = 0
+        self._failed_msg = 0
+        self._failed_pings = 0
+        self._buffer = ''
+        self._queue = queue.SimpleQueue()
+
         if self._keepalive:
             self._keepalive.cancel()
             self._keepalive = None
@@ -390,17 +399,10 @@ class PowerPetDoorClient:
         if self._transport:
             self._transport.close()
             self._transport = None
+
         for future in self._outstanding.values():
             future.cancel("Connection Terminated")
         self._outstanding = {}
-        self._last_ping = None
-        self._last_command = None
-        self._can_dequeue = False
-        self._last_send = 0
-        self._failed_msg = 0
-        self._failed_pings = 0
-        self._buffer = ''
-        self._queue = queue.SimpleQueue()
 
         # Caller code
         for callback in self.on_disconnect.values():
