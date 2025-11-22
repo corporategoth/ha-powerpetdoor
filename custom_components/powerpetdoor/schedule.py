@@ -13,7 +13,8 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
-from homeassistant.components.schedule import Schedule, WEEKDAY_TO_CONF, CONF_FROM, CONF_TO, ENTITY_SCHEMA
+from homeassistant.components.schedule import Schedule, WEEKDAY_TO_CONF, CONF_FROM, CONF_TO, ENTITY_SCHEMA, DOMAIN as SCHEDULE_DOMAIN
+import homeassistant.helpers.config_validation as cv
 from .client import PowerPetDoorClient
 
 from .const import (
@@ -42,6 +43,11 @@ from .const import (
     CMD_DELETE_SCHEDULE,
     CMD_GET_SCHEDULE,
     CMD_SET_SCHEDULE,
+    SERVICE_UPDATE_SCHEDULE,
+    ATTR_SCHEDULE,
+    ATTR_SCHEDULE_ENTRIES,
+    ATTR_SCHEDULE_COUNT,
+    ATTR_ENTITY_ID,
 )
 
 import logging
@@ -368,6 +374,50 @@ class PetDoorSchedule(CoordinatorEntity, Schedule):
         rv = {}
         if self.last_change:
             rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
+        
+        # Add human-readable schedule summary
+        if self.coordinator.data:
+            schedule_summary = []
+            day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+            
+            for sched in self.coordinator.data:
+                # Filter out disabled entries
+                if not sched.get(FIELD_ENABLED, True):
+                    continue
+                
+                # Only process entries for this schedule type (inside or outside)
+                if sched.get(self.schedule["field"], False):
+                    try:
+                        # Get days of week
+                        days = []
+                        for i, enabled in enumerate(sched.get(FIELD_DAYSOFWEEK, [])):
+                            if enabled:
+                                days.append(day_names[i])
+                        
+                        if days:
+                            # Get time windows
+                            start_key = self.schedule["prefix"] + FIELD_START_TIME_SUFFIX
+                            end_key = self.schedule["prefix"] + FIELD_END_TIME_SUFFIX
+                            
+                            if start_key in sched and end_key in sched:
+                                start_hour = sched[start_key].get(FIELD_HOUR, 0)
+                                start_min = sched[start_key].get(FIELD_MINUTE, 0)
+                                end_hour = sched[end_key].get(FIELD_HOUR, 0)
+                                end_min = sched[end_key].get(FIELD_MINUTE, 0)
+                                
+                                start_time = f"{start_hour:02d}:{start_min:02d}"
+                                end_time = f"{end_hour:02d}:{end_min:02d}"
+                                
+                                schedule_summary.append(f"{', '.join(days)}: {start_time}-{end_time}")
+                    except (KeyError, ValueError, TypeError) as e:
+                        _LOGGER.debug(f"Error formatting schedule entry for attributes: {e}")
+                        continue
+            
+            if schedule_summary:
+                rv[ATTR_SCHEDULE_ENTRIES] = schedule_summary
+                rv[ATTR_SCHEDULE_COUNT] = len(schedule_summary)
+                _LOGGER.debug(f"Generated schedule attributes: {len(schedule_summary)} entries")
+        
         return rv
 
     @callback
@@ -519,6 +569,91 @@ class PetDoorSchedule(CoordinatorEntity, Schedule):
         self.power = state
         if self.enabled:
             self.async_schedule_update_ha_state()
+
+
+async def async_handle_update_schedule_service(call) -> None:
+    """Handle the update_schedule service call."""
+    _LOGGER.info(f"Service update_schedule called")
+    
+    # Extract entity_id from target or data
+    entity_ids = call.data.get(ATTR_ENTITY_ID)
+    if not entity_ids:
+        # Try to get from target (service call format)
+        if hasattr(call, 'target') and call.target:
+            entity_ids = call.target.get(ATTR_ENTITY_ID)
+    
+    if not entity_ids:
+        _LOGGER.error("Service update_schedule called without entity_id")
+        raise ValueError("entity_id is required")
+    
+    # Handle both single entity_id and list
+    if isinstance(entity_ids, str):
+        entity_ids = [entity_ids]
+    
+    schedule_data = call.data.get(ATTR_SCHEDULE)
+    if not schedule_data:
+        _LOGGER.error("Service update_schedule called without schedule data")
+        raise ValueError("schedule is required")
+    
+    # Get schedule component to find entities
+    schedule_component = call.hass.data.get(SCHEDULE_DOMAIN)
+    if not schedule_component:
+        _LOGGER.error("Schedule component not found")
+        raise ValueError("Schedule component not available")
+    
+    # Process each entity
+    for entity_id in entity_ids:
+        entity = None
+        
+        # Try to get entity from schedule component using entity_id
+        # EntityComponent stores entities by unique_id, so we need to search
+        for entity_obj in schedule_component.entities:
+            if entity_obj.entity_id == entity_id:
+                entity = entity_obj
+                break
+        
+        if not entity or not isinstance(entity, PetDoorSchedule):
+            _LOGGER.warning(f"Entity {entity_id} is not a Power Pet Door schedule entity, skipping")
+            continue
+        
+        _LOGGER.info(f"Updating schedule for entity {entity_id}")
+        try:
+            await entity.async_update_config(schedule_data)
+            _LOGGER.info(f"Successfully updated schedule for entity {entity_id}")
+        except Exception as e:
+            _LOGGER.error(f"Failed to update schedule for entity {entity_id}: {e}", exc_info=True)
+            raise
+
+
+async def async_setup_services(hass: HomeAssistant) -> None:
+    """Set up services for the Power Pet Door integration."""
+    if hass.services.has_service(DOMAIN, SERVICE_UPDATE_SCHEDULE):
+        _LOGGER.debug("Service update_schedule already registered")
+        return
+    
+    async def update_schedule_handler(call):
+        await async_handle_update_schedule_service(call)
+    
+    # Define service schema - schedule format matches Home Assistant Schedule component
+    # entity_id can come from target or data, so we use make_entity_service_schema
+    service_schema = cv.make_entity_service_schema({
+        cv.Required(ATTR_SCHEDULE): cv.schema_with_slug_keys(
+            cv.ensure_list(
+                {
+                    cv.Required(CONF_FROM): cv.time,
+                    cv.Required(CONF_TO): cv.time,
+                }
+            )
+        ),
+    })
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_SCHEDULE,
+        update_schedule_handler,
+        schema=service_schema
+    )
+    _LOGGER.info(f"Registered service {DOMAIN}.{SERVICE_UPDATE_SCHEDULE}")
 
 
 async def async_setup_entry(hass: HomeAssistant,

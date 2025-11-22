@@ -89,8 +89,8 @@ You can go to the Integrations page and add a Power Pet Door integration.
 | `Notify Outside On`            | `Switch`    | Notify when your pet comes inside.                                                               |
 | `Notify Outside Off`           | `Switch`    | Notify when your pet tries to come inside, but the Outside sensor is off.                        |
 | `Notify Low Battery`           | `Switch`    | Notify when the door's battery is low.                                                           |
-| `Inside Schedule`              | `Schedule`  | The schedule for the automatic enabling/disabling of the Inside Sensor.                          |
-| `Outside Schedule`             | `Schedule`  | The schedule for the automatic enabling/disabling of the Outside Sensor.                         |
+| `Inside Schedule`              | `Schedule`  | The schedule for the automatic enabling/disabling of the Inside Sensor. Can be viewed via entity attributes and updated via service. |
+| `Outside Schedule`             | `Schedule`  | The schedule for the automatic enabling/disabling of the Outside Sensor. Can be viewed via entity attributes and updated via service. |
 
 
 ## Attributes
@@ -109,6 +109,177 @@ You can go to the Integrations page and add a Power Pet Door integration.
 | `*`       | `device_class`        | `string`    | The device class the entity presents as.                                                                                                                                                                             |
 | `*`       | `state_class`         | `string`    | The type of sensor this is (should always be `measurement`).                                                                                                                                                         |
 | `*`       | `unit_of_measurement` | `string`    | The unit measured by this sensor.                                                                                                                                                                                    |
+| `Inside Schedule` / `Outside Schedule` | `schedule_entries` | `list` | Human-readable schedule entries formatted as "Mon, Wed, Fri: 06:00-20:00" |
+| `Inside Schedule` / `Outside Schedule` | `schedule_count` | `number` | Number of active schedule entries |
+
+## Viewing and Editing Schedules
+
+### Viewing Schedules
+
+The Power Pet Door integration provides several ways to view the current schedule:
+
+#### Method 1: Entity Detail Page
+1. Navigate to **Settings** → **Devices & Services**
+2. Find your Power Pet Door device
+3. Click on the **Inside Schedule** or **Outside Schedule** entity
+4. View the schedule state and attributes, including:
+   - `schedule_entries`: Human-readable list of schedule times (e.g., "Mon, Wed, Fri: 06:00-20:00")
+   - `schedule_count`: Number of active schedule entries
+   - `last_change`: When the schedule was last updated
+
+#### Method 2: Developer Tools
+1. Go to **Developer Tools** → **States**
+2. Search for `schedule.power_pet_door_inside_schedule` or `schedule.power_pet_door_outside_schedule`
+3. View the entity state and all attributes
+
+#### Method 3: Exported JSON Files
+Schedule data is automatically exported to JSON files for backup and inspection:
+- **Location**: `{HA_CONFIG_DIR}/powerpetdoor/exports/`
+- **Filename format**: `schedule_export_YYYYMMDD_HHMMSS.json`
+- **Contents**: Full schedule data including timestamps, device ID, and all schedule entries
+- **Retention**: The 5 most recent export files are kept automatically
+
+#### Method 4: Entity Attributes
+Schedule entities include readable attributes:
+- `schedule_entries`: Array of formatted schedule strings showing days and time windows
+- `schedule_count`: Total number of active schedule entries
+
+### Editing Schedules
+
+**Note**: The built-in Home Assistant Schedule UI editor is not available for custom integration schedule entities due to a limitation in Home Assistant's Schedule component. However, you can edit schedules using the methods below.
+
+#### Method 1: Using the Service
+
+Use the `powerpetdoor.update_schedule` service to programmatically update schedules:
+
+**Service**: `powerpetdoor.update_schedule`
+
+**Parameters**:
+- `entity_id` (required): The schedule entity to update (e.g., `schedule.power_pet_door_inside_schedule`)
+- `schedule` (required): Schedule configuration in Home Assistant format
+
+**Schedule Format**:
+```yaml
+schedule:
+  monday:
+    - from: "06:00:00"
+      to: "20:00:00"
+  tuesday:
+    - from: "06:00:00"
+      to: "20:00:00"
+  wednesday:
+    - from: "06:00:00"
+      to: "20:00:00"
+  thursday:
+    - from: "06:00:00"
+      to: "20:00:00"
+  friday:
+    - from: "06:00:00"
+      to: "20:00:00"
+  saturday:
+    - from: "08:00:00"
+      to: "18:00:00"
+  sunday:
+    - from: "08:00:00"
+      to: "18:00:00"
+```
+
+**Example Service Call** (via Developer Tools → Services):
+```yaml
+service: powerpetdoor.update_schedule
+target:
+  entity_id: schedule.power_pet_door_inside_schedule
+data:
+  schedule:
+    monday:
+      - from: "06:00:00"
+        to: "20:00:00"
+    tuesday:
+      - from: "06:00:00"
+        to: "20:00:00"
+```
+
+#### Method 2: Using Automations
+
+You can create automations that update schedules based on conditions:
+
+```yaml
+automation:
+  - alias: "Update Pet Door Schedule for Weekdays"
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    condition:
+      condition: time
+      weekday:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+    action:
+      service: powerpetdoor.update_schedule
+      target:
+        entity_id: schedule.power_pet_door_inside_schedule
+      data:
+        schedule:
+          monday:
+            - from: "06:00:00"
+              to: "20:00:00"
+          tuesday:
+            - from: "06:00:00"
+              to: "20:00:00"
+          wednesday:
+            - from: "06:00:00"
+              to: "20:00:00"
+          thursday:
+            - from: "06:00:00"
+              to: "20:00:00"
+          friday:
+            - from: "06:00:00"
+              to: "20:00:00"
+```
+
+#### Method 3: Using the Device App
+
+As a fallback, you can edit schedules using the official Power Pet Door mobile app. The integration will automatically fetch the updated schedule on the next refresh (default: every 5 minutes).
+
+### Schedule Service Details
+
+**Service Name**: `powerpetdoor.update_schedule`
+
+**Description**: Updates a Power Pet Door schedule entity with new schedule configuration.
+
+**Parameters**:
+- `entity_id` (string, required): Target schedule entity ID
+- `schedule` (dict, required): Schedule configuration with weekday keys and time window arrays
+
+**Schedule Dictionary Format**:
+- Keys: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`
+- Values: Array of time window objects with `from` and `to` time strings (HH:MM:SS format)
+
+**Example**:
+```yaml
+service: powerpetdoor.update_schedule
+target:
+  entity_id: schedule.power_pet_door_inside_schedule
+data:
+  schedule:
+    monday:
+      - from: "06:00:00"
+        to: "20:00:00"
+    tuesday:
+      - from: "06:00:00"
+        to: "20:00:00"
+      - from: "12:00:00"
+        to: "13:00:00"  # Multiple time windows per day are supported
+```
+
+**Notes**:
+- Changes are immediately synced to the Power Pet Door device
+- All existing schedules on the device are deleted and replaced with the new schedule
+- The schedule is validated before being sent to the device
+- Service calls are logged for debugging
 
 ## Sample Card
 
