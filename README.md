@@ -340,7 +340,7 @@ cards:
 
 ### Schedule Calendar View Card
 
-![Schedule Calendar Card](images/schedule-calendar-card.png)
+![Schedule Calendar Card](images/PedDoorSchedule.png)
 
 This card displays a visual weekly calendar showing both Inside and Outside sensor schedules in a single grid view. Schedule times are color-coded (green for Inside, blue for Outside) and displayed for each day of the week.
 
