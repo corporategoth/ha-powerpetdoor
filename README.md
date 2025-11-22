@@ -338,6 +338,140 @@ cards:
         needle: false
 ```
 
+### Schedule Calendar View Card
+
+This card displays a visual weekly calendar showing both Inside and Outside sensor schedules in a single grid view. Schedule times are color-coded (green for Inside, blue for Outside) and displayed for each day of the week.
+
+**Prerequisites:**
+- Install the [HTML Jinja2 Template card](https://github.com/PiotrMachowski/Home-Assistant-Lovelace-HTML-Jinja2-Template-card) via HACS or manually
+- Ensure your schedule entities are enabled and have schedule data configured
+
+**Installation via HACS:**
+1. Go to **HACS** → **Frontend**
+2. Click the three-dot menu → **Custom repositories**
+3. Add repository: `https://github.com/PiotrMachowski/Home-Assistant-Lovelace-HTML-Jinja2-Template-card`
+4. Set category to **Lovelace** and click **Add**
+5. Find **Lovelace HTML Jinja2 Template card** and click **Download**
+6. Restart Home Assistant
+
+**Manual Installation:**
+1. Download `html-template-card.js` from the [GitHub repository](https://github.com/PiotrMachowski/Home-Assistant-Lovelace-HTML-Jinja2-Template-card)
+2. Place the file in your Home Assistant `www` directory (create it if it doesn't exist)
+3. Add the resource in Home Assistant: **Settings** → **Dashboards** → **Resources** → **Add Resource**
+   - URL: `/local/html-template-card.js`
+   - Resource type: **JavaScript Module**
+4. Restart Home Assistant
+
+**Card Configuration:**
+
+Replace `schedule.dog_door_dog_door_inside_schedule` and `schedule.dog_door_dog_door_outside_schedule` with your actual schedule entity IDs. You can find these in **Developer Tools** → **States** by searching for "schedule".
+
+```yaml
+type: custom:html-template-card
+title: Pet Door Schedules
+ignore_line_breaks: true
+always_update: true
+entities:
+  - schedule.dog_door_dog_door_inside_schedule
+  - schedule.dog_door_dog_door_outside_schedule
+content: |
+  {% set inside_entity = states['schedule.dog_door_dog_door_inside_schedule'] %}
+  {% set outside_entity = states['schedule.dog_door_dog_door_outside_schedule'] %}
+  {% set day_abbrevs = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] %}
+  
+  <style>
+    .schedule-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 12px 0; }
+    .schedule-day-header { padding: 10px 8px; background: var(--primary-color); color: white; text-align: center; border-radius: 4px; font-weight: bold; font-size: 0.95em; }
+    .schedule-day-cell { min-height: 80px; padding: 4px; background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: 4px; }
+    .schedule-time-block { padding: 8px 6px; margin: 4px 0; border-radius: 4px; text-align: center; font-size: 0.85em; font-weight: 500; color: white; }
+    .schedule-time-inside { background: var(--success-color); }
+    .schedule-time-outside { background: var(--info-color); }
+    .schedule-empty { padding: 8px; text-align: center; color: var(--disabled-text-color); font-size: 0.85em; }
+    .schedule-day-cell:has(.schedule-time-block) .schedule-empty { display: none; }
+    .schedule-summary { margin-top: 16px; padding: 12px; background: var(--info-color); border-radius: 4px; font-size: 0.9em; }
+    .schedule-legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 0.9em; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-color { width: 20px; height: 20px; border-radius: 4px; }
+    .legend-inside { background: var(--success-color); }
+    .legend-outside { background: var(--info-color); }
+  </style>
+  
+  {% if (inside_entity and inside_entity.state != 'unavailable' and inside_entity.attributes) or (outside_entity and outside_entity.state != 'unavailable' and outside_entity.attributes) %}
+    <div class="schedule-legend">
+      <div class="legend-item">
+        <div class="legend-color legend-inside"></div>
+        <span>Inside Sensor</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color legend-outside"></div>
+        <span>Outside Sensor</span>
+      </div>
+    </div>
+    
+    <div class="schedule-grid">
+      {% for day in day_abbrevs %}<div class="schedule-day-header">{{ day }}</div>{% endfor %}
+      {% for day_abbrev in day_abbrevs %}
+        <div class="schedule-day-cell">
+          {%- if inside_entity and inside_entity.attributes and inside_entity.attributes.get('schedule_entries') -%}
+            {%- for entry in inside_entity.attributes.schedule_entries -%}
+              {%- if day_abbrev in entry -%}
+                {%- set parts = entry.split(': ') -%}
+                {%- if parts|length >= 2 -%}
+                  <div class="schedule-time-block schedule-time-inside">{{ parts[1] }}</div>
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+          {%- if outside_entity and outside_entity.attributes and outside_entity.attributes.get('schedule_entries') -%}
+            {%- for entry in outside_entity.attributes.schedule_entries -%}
+              {%- if day_abbrev in entry -%}
+                {%- set parts = entry.split(': ') -%}
+                {%- if parts|length >= 2 -%}
+                  <div class="schedule-time-block schedule-time-outside">{{ parts[1] }}</div>
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+          <div class="schedule-empty">—</div>
+        </div>
+      {% endfor %}
+    </div>
+    
+    <div class="schedule-summary">
+      {% if inside_entity and inside_entity.attributes %}
+        <strong>Inside:</strong> {{ inside_entity.attributes.get('schedule_count', 0) }} entries
+        {% if inside_entity.attributes.get('last_change') %} (Updated: {{ inside_entity.attributes.last_change | as_datetime | as_local }}){% endif %}
+      {% else %}
+        <strong>Inside:</strong> Not available
+      {% endif %}
+      <br>
+      {% if outside_entity and outside_entity.attributes %}
+        <strong>Outside:</strong> {{ outside_entity.attributes.get('schedule_count', 0) }} entries
+        {% if outside_entity.attributes.get('last_change') %} (Updated: {{ outside_entity.attributes.last_change | as_datetime | as_local }}){% endif %}
+      {% else %}
+        <strong>Outside:</strong> Not available
+      {% endif %}
+    </div>
+  {% else %}
+    <div style="padding: 20px; text-align: center; color: var(--error-color);">
+      <p><strong>Schedule entities not available</strong></p>
+    </div>
+  {% endif %}
+```
+
+**Features:**
+- **Weekly Calendar Grid**: Displays all 7 days of the week in a single row
+- **Color-Coded Schedules**: Green blocks for Inside Sensor, blue blocks for Outside Sensor
+- **Multiple Time Windows**: Supports multiple schedule entries per day
+- **Auto-Hide Empty Days**: Days without schedules show a dash (—) only when no times are configured
+- **Schedule Summary**: Shows total entries and last update time for both sensors
+- **Legend**: Visual guide showing which color represents which sensor
+
+**Customization:**
+- Adjust colors by modifying the CSS variables (`--success-color` for inside, `--info-color` for outside)
+- Change cell height by adjusting `min-height` in `.schedule-day-cell`
+- Modify spacing by changing the `gap` value in `.schedule-grid`
+
 ## Credits
 
 Big thanks to the authors of the [Envisalink component](https://home-assistant.io/integrations/envisalink), which I based a lot of the async networking code off of.
