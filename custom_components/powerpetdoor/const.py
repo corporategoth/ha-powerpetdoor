@@ -149,3 +149,10 @@ CMD_DELETE_SCHEDULE = "DELETE_SCHEDULE"
 ValidIpAddressRegex = r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
 ValidHostnameRegex = r"^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
 ValidTZRegex = r"^$"
+
+# Service constants
+SERVICE_UPDATE_SCHEDULE = "update_schedule"
+ATTR_SCHEDULE = "schedule"
+ATTR_SCHEDULE_ENTRIES = "schedule_entries"
+ATTR_SCHEDULE_COUNT = "schedule_count"
+ATTR_SCHEDULE_RAW = "schedule_raw_data"

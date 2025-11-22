@@ -29,6 +29,7 @@ from .const import (
     CMD_GET_SETTINGS,
     CMD_GET_NOTIFICATIONS,
 )
+from .schedule import async_setup_services
 
 PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER, SCHEDULE_DOMAIN ]
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_OPT_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV))
@@ -63,6 +64,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 schedule_component.async_setup_entry = schedule_async_setup_entry
             if not hasattr(schedule_component, "async_unload_entry"):
                 schedule_component.async_unload_entry = schedule_async_unload_entry
+
+    # Set up services
+    try:
+        await async_setup_services(hass)
+    except Exception as e:
+        _LOGGER.error(f"Failed to set up services: {e}", exc_info=True)
 
     return True
 
