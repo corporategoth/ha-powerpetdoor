@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """Tests for PowerPetDoorClient."""
 from __future__ import annotations
 
@@ -535,6 +540,8 @@ class TestConnectionLost:
     def test_connection_lost_triggers_disconnect(self, mock_client):
         """connection_lost triggers disconnect cleanup."""
         client, _, _ = mock_client
+        # Set shutdown to prevent reconnect task from being created
+        client._shutdown = True
 
         client.connection_lost(None)
 

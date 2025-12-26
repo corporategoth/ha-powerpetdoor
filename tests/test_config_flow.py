@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """Tests for Power Pet Door config flow."""
 from __future__ import annotations
 
@@ -126,6 +131,16 @@ class TestValidateConnection:
 
 
 # ============================================================================
+# Config Flow Registration Fixture
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations):
+    """Enable custom integrations for all config flow tests."""
+    yield
+
+
+# ============================================================================
 # Config Flow Tests
 # ============================================================================
 
@@ -141,7 +156,8 @@ class TestConfigFlow:
 
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "user"
-        assert result["errors"] == {}
+        # errors can be None or {} when there are no errors
+        assert result.get("errors") in (None, {})
 
     @pytest.mark.asyncio
     async def test_user_step_creates_entry(

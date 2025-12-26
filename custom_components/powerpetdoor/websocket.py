@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """WebSocket API for Power Pet Door schedules."""
 from __future__ import annotations
 

@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """Pytest configuration and fixtures for Power Pet Door tests."""
 from __future__ import annotations
 
@@ -237,7 +242,7 @@ def client_config() -> dict:
 
 
 @pytest.fixture
-def mock_client(event_loop, mock_transport, client_config) -> tuple[PowerPetDoorClient, MockTransport, MockDeviceProtocol]:
+async def mock_client(event_loop, mock_transport, client_config) -> tuple[PowerPetDoorClient, MockTransport, MockDeviceProtocol]:
     """Create a PowerPetDoorClient with mocked transport.
 
     Returns:
@@ -259,7 +264,28 @@ def mock_client(event_loop, mock_transport, client_config) -> tuple[PowerPetDoor
     # Create device protocol helper
     device = MockDeviceProtocol(client)
 
-    return client, mock_transport, device
+    yield client, mock_transport, device
+
+    # Cleanup: stop the client to cancel background tasks
+    client.stop()
+
+    # Cancel any remaining tasks created by this client
+    if hasattr(client, '_keepalive') and client._keepalive and not client._keepalive.done():
+        client._keepalive.cancel()
+        try:
+            await client._keepalive
+        except asyncio.CancelledError:
+            pass
+
+    if hasattr(client, '_check_receipt') and client._check_receipt and not client._check_receipt.done():
+        client._check_receipt.cancel()
+        try:
+            await client._check_receipt
+        except asyncio.CancelledError:
+            pass
+
+    # Allow any pending tasks to complete
+    await asyncio.sleep(0)
 
 
 @pytest.fixture

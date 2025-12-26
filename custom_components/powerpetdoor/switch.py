@@ -1,3 +1,10 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
+"""Switch entities for Power Pet Door."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta

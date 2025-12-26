@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025 Preston Elder
+ *
+ * This software is released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ *
  * Power Pet Door Schedule Card v1.6.0
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */

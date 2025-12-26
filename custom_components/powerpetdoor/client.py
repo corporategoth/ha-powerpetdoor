@@ -1,3 +1,10 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
+"""Power Pet Door client for network communication."""
+
 from __future__ import annotations
 
 import asyncio

@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """Tests for Power Pet Door switch entities."""
 from __future__ import annotations
 
@@ -251,7 +256,6 @@ class TestPetDoorSwitch:
     def test_handle_power_update(self, inside_switch):
         """Test power update changes power state."""
         inside_switch.power = True
-        inside_switch.enabled = True
         inside_switch.async_schedule_update_ha_state = MagicMock()
         inside_switch.handle_power_update(False)
         assert inside_switch.power is False

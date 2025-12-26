@@ -1,4 +1,9 @@
-""" Constant Variables """
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
+"""Constants for Power Pet Door integration."""
 
 from homeassistant.const import (
     CONF_NAME,
@@ -145,6 +150,14 @@ CMD_SET_SCHEDULE_LIST = "SET_SCHEDULE_LIST"
 CMD_GET_SCHEDULE = "GET_SCHEDULE"
 CMD_SET_SCHEDULE = "SET_SCHEDULE"
 CMD_DELETE_SCHEDULE = "DELETE_SCHEDULE"
+
+# Service constants
+SERVICE_UPDATE_SCHEDULE = "update_schedule"
+
+# Attribute constants
+ATTR_SCHEDULE = "schedule"
+ATTR_SCHEDULE_ENTRIES = "schedule_entries"
+ATTR_SCHEDULE_COUNT = "schedule_count"
 
 # Message priorities (lower = higher priority)
 PRIORITY_CRITICAL = 0  # Keepalive (PING/PONG)

@@ -1,4 +1,10 @@
-K,
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
+"""Schema definitions for Power Pet Door integration."""
+
 from typing import TypedDict, Any
 from types import MappingProxyType
 import homeassistant.helpers.config_validation as cv

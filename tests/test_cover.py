@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """Tests for Power Pet Door cover entity."""
 from __future__ import annotations
 
@@ -287,14 +292,14 @@ class TestPetDoorEntity:
     # Entity Properties Tests
     # ==========================================================================
 
-    def test_device_class(self):
+    def test_device_class(self, pet_door):
         """Test device class is SHUTTER."""
-        assert PetDoor._attr_device_class == CoverDeviceClass.SHUTTER
+        assert pet_door.device_class == CoverDeviceClass.SHUTTER
 
-    def test_supported_features(self):
+    def test_supported_features(self, pet_door):
         """Test supported features are OPEN and CLOSE."""
         expected = CoverEntityFeature.CLOSE | CoverEntityFeature.OPEN
-        assert PetDoor._attr_supported_features == expected
+        assert pet_door.supported_features == expected
 
     # ==========================================================================
     # State Update Tests

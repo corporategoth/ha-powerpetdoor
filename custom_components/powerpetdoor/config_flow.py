@@ -1,4 +1,9 @@
-"""Adds config flow for power pet door integration."""
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
+"""Config flow for Power Pet Door integration."""
 from __future__ import annotations
 
 import logging

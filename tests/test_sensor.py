@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Preston Elder
+#
+# This software is released under the MIT License.
+# https://opensource.org/licenses/MIT
+
 """Tests for Power Pet Door sensor entities."""
 from __future__ import annotations
 
@@ -94,17 +99,17 @@ class TestPetDoorLatency:
     # Entity Properties Tests
     # ==========================================================================
 
-    def test_entity_category_is_diagnostic(self):
+    def test_entity_category_is_diagnostic(self, latency_sensor):
         """Test entity category is diagnostic."""
-        assert PetDoorLatency._attr_entity_category == EntityCategory.DIAGNOSTIC
+        assert latency_sensor.entity_category == EntityCategory.DIAGNOSTIC
 
-    def test_state_class_is_measurement(self):
+    def test_state_class_is_measurement(self, latency_sensor):
         """Test state class is measurement."""
-        assert PetDoorLatency._attr_state_class == SensorStateClass.MEASUREMENT
+        assert latency_sensor.state_class == SensorStateClass.MEASUREMENT
 
-    def test_unit_is_milliseconds(self):
+    def test_unit_is_milliseconds(self, latency_sensor):
         """Test unit is milliseconds."""
-        assert PetDoorLatency._attr_native_unit_of_measurement == UnitOfTime.MILLISECONDS
+        assert latency_sensor.native_unit_of_measurement == UnitOfTime.MILLISECONDS
 
     # ==========================================================================
     # Icon Tests
@@ -223,13 +228,13 @@ class TestPetDoorBattery:
     # Entity Properties Tests
     # ==========================================================================
 
-    def test_device_class_is_battery(self):
+    def test_device_class_is_battery(self, battery_sensor):
         """Test device class is battery."""
-        assert PetDoorBattery._attr_device_class == SensorDeviceClass.BATTERY
+        assert battery_sensor.device_class == SensorDeviceClass.BATTERY
 
-    def test_unit_is_percentage(self):
+    def test_unit_is_percentage(self, battery_sensor):
         """Test unit is percentage."""
-        assert PetDoorBattery._attr_native_unit_of_measurement == PERCENTAGE
+        assert battery_sensor.native_unit_of_measurement == PERCENTAGE
 
     # ==========================================================================
     # Native Value Tests
@@ -482,7 +487,6 @@ class TestPetDoorStats:
     def test_handle_power_update(self, stats_sensor):
         """Test handle_power_update updates power state."""
         stats_sensor.power = True
-        stats_sensor.enabled = True
         stats_sensor.async_schedule_update_ha_state = MagicMock()
         stats_sensor.handle_power_update(False)
         assert stats_sensor.power is False
