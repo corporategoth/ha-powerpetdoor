@@ -12,15 +12,12 @@ requires-python = ">=3.12"
 # Runtime dependencies are managed by Home Assistant via manifest.json
 # These are just for reference/development
 dependencies = [
-    "powerpetdoor>=0.1.0",
+    "pypowerpetdoor>=0.1.0",
     "tzdata>=2024.1",
 ]
 
-[tool.uv.sources]
-powerpetdoor = { path = "../py-powerpetdoor", editable = true }
-
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
