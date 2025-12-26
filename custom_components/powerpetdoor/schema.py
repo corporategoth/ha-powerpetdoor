@@ -1,3 +1,4 @@
+K,
 from typing import TypedDict, Any
 from types import MappingProxyType
 import homeassistant.helpers.config_validation as cv

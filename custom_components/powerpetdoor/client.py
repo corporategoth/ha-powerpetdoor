@@ -6,6 +6,8 @@ import logging
 import json
 import time
 import queue
+from dataclasses import dataclass, field
+from typing import Any
 
 from collections.abc import Callable, Awaitable
 
@@ -14,6 +16,9 @@ from .const import (
     CONFIG,
     PING,
     PONG,
+    PRIORITY_CRITICAL,
+    PRIORITY_LOW,
+    COMMAND_PRIORITIES,
     DOOR_STATUS,
     CMD_GET_SETTINGS,
     CMD_GET_SENSORS,
@@ -93,6 +98,19 @@ _LOGGER = logging.getLogger(__name__)
 MAX_FAILED_MSG = 2
 MAX_FAILED_PINGS = 3
 
+
+@dataclass(order=True)
+class PrioritizedMessage:
+    """A message with priority for the priority queue.
+
+    Lower priority values are processed first.
+    Sequence number ensures FIFO order within the same priority level.
+    """
+    priority: int
+    sequence: int = field(compare=True)
+    data: Any = field(compare=False)
+
+
 def find_end(s) -> int | None:
     if not len(s):
         return None
@@ -147,7 +165,8 @@ class PowerPetDoorClient:
         self._failed_pings = 0
         self._buffer = ''
         self._outstanding = {}
-        self._queue = queue.SimpleQueue()
+        self._queue = queue.PriorityQueue()
+        self._msg_sequence = 0  # Counter for FIFO ordering within same priority
 
         if loop:
             _LOGGER.info("Latching onto an existing event loop.")
@@ -388,7 +407,8 @@ class PowerPetDoorClient:
         self._failed_msg = 0
         self._failed_pings = 0
         self._buffer = ''
-        self._queue = queue.SimpleQueue()
+        self._queue = queue.PriorityQueue()
+        self._msg_sequence = 0  # Reset sequence counter
 
         if self._keepalive:
             self._keepalive.cancel()
@@ -450,11 +470,21 @@ class PowerPetDoorClient:
         else:
             await self._send_data(rawdata)
 
-    def enqueue_data(self, data) -> None:
-        self._queue.put(data)
+    def enqueue_data(self, data, priority: int = PRIORITY_LOW) -> None:
+        """Enqueue a message with the given priority.
+
+        Lower priority values are processed first.
+        """
+        msg = PrioritizedMessage(
+            priority=priority,
+            sequence=self._msg_sequence,
+            data=data
+        )
+        self._msg_sequence += 1
+        self._queue.put(msg)
         if self._transport and self._can_dequeue:
             self._can_dequeue = False
-            self.ensure_future(self.dequeue_data());
+            self.ensure_future(self.dequeue_data())
 
     async def _send_data(self, rawdata) -> None:
         if not self._transport:
@@ -499,7 +529,8 @@ class PowerPetDoorClient:
             return
 
         try:
-            data = self._queue.get_nowait()
+            prioritized_msg = self._queue.get_nowait()
+            data = prioritized_msg.data  # Extract actual message data from PrioritizedMessage
             if COMMAND in data:
                 self._last_command = data[COMMAND]
             elif CONFIG in data:
@@ -607,7 +638,7 @@ class PowerPetDoorClient:
                             callback(val)
                 if self.timezone_listeners:
                     val: str = msg[FIELD_SETTINGS][FIELD_TZ]
-                    for callback in self.timezone_listners.values():
+                    for callback in self.timezone_listeners.values():
                         callback(val)
                 if self.hold_time_listeners:
                     val: int = msg[FIELD_SETTINGS][FIELD_HOLD_OPEN_TIME]
@@ -751,7 +782,7 @@ class PowerPetDoorClient:
             elif msg["CMD"] in (CMD_GET_TIMEZONE, CMD_SET_TIMEZONE):
                 if FIELD_TZ in msg:
                     val: str = msg[FIELD_TZ]
-                    for callback in self.timezone_listners.values():
+                    for callback in self.timezone_listeners.values():
                         callback(val)
                     if future:
                         future.set_result(val)
@@ -819,8 +850,14 @@ class PowerPetDoorClient:
                 del self._outstanding[msgId]
             rv.add_done_callback(cleanup)
 
+        # Determine priority based on message type and command
+        if type == PING:
+            priority = PRIORITY_CRITICAL
+        else:
+            priority = COMMAND_PRIORITIES.get(arg, PRIORITY_LOW)
+
         self.msgId += 1
-        self.enqueue_data({ type: arg, "msgId": msgId, "dir": "p2d", **kwargs })
+        self.enqueue_data({ type: arg, "msgId": msgId, "dir": "p2d", **kwargs }, priority=priority)
         return rv
 
     @property

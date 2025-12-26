@@ -29,8 +29,11 @@ from .const import (
     CMD_GET_SETTINGS,
     CMD_GET_NOTIFICATIONS,
 )
+from .schedule import async_setup_services
+from .websocket import async_setup_websocket_api
+from .tz_utils import async_init_timezone_cache
 
-PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER, SCHEDULE_DOMAIN ]
+PLATFORMS = [ Platform.SENSOR, Platform.COVER, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER, Platform.SELECT, SCHEDULE_DOMAIN ]
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(get_validating_schema(PP_SCHEMA)).extend(get_validating_schema(PP_OPT_SCHEMA)).extend(get_validating_schema(PP_SCHEMA_ADV))
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,6 +66,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 schedule_component.async_setup_entry = schedule_async_setup_entry
             if not hasattr(schedule_component, "async_unload_entry"):
                 schedule_component.async_unload_entry = schedule_async_unload_entry
+
+    # Set up services and WebSocket API
+    await async_setup_services(hass)
+    await async_setup_websocket_api(hass)
 
     return True
 
@@ -129,6 +136,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "settings": settings_coordinator,
     }
 
+    # Initialize timezone cache in executor before setting up platforms
+    await async_init_timezone_cache(hass)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 
@@ -143,6 +153,16 @@ async def async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload Power Pet Door config entry."""
+    host = entry.data.get(CONF_HOST)
+    port = entry.data.get(CONF_PORT)
+    device_id = f"{host}:{port}"
+
+    # Safety net: Stop the client if still connected
+    # (ConnectionSwitch normally handles this, but this ensures cleanup on integration unload)
+    if device_id in hass.data[DOMAIN]:
+        client = hass.data[DOMAIN][device_id]["client"]
+        if client.available:
+            client.stop()
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 

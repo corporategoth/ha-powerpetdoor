@@ -1,8 +1,3 @@
-Timezone Setting
-    - The timezone is set with SET_TIMEZONE function (and likely GET_TIMEZONE).  It's also reported on settings.
-    - The timezone includes DST timings.  eg. EST5EDT,M3.2.0,M11.1.0
-    - Need to figure out how to set this up properly to be editable without screwing things up!
-
 Scheduling Support
     - Schedule helpers are normally backed by a Store.  Right now, our schedule entity is not, meaning:
         1. When you click on the helper, you can't see or edit the schedule.  This is a flaw in the schedule

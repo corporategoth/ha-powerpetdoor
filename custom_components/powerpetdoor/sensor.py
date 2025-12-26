@@ -94,19 +94,14 @@ class PetDoorLatency(CoordinatorEntity, SensorEntity):
         self.client.add_listener(self.unique_id, hw_info_update=self.handle_hw_info)
         self.client.add_handlers(name, on_connect=self.coordinator.async_request_refresh, on_ping=self.on_ping)
 
-    async def async_added_to_hass(self) -> None:
-        self.client.start()
-        await super().async_added_to_hass()
+    # NOTE: Lifecycle control (start/stop) is now handled by ConnectionSwitch.
+    # The latency sensor is just an observer - disabling it will NOT break the connection.
 
     @callback
     async def update_method(self) -> dict:
         _LOGGER.debug("Requesting update of firmware status")
         future = self.client.send_message(CONFIG, CMD_GET_HW_INFO, notify=True)
         return await future
-
-    async def async_will_remove_from_hass(self) -> None:
-        self.client.stop()
-        await super().async_will_remove_from_hass()
 
     @property
     def available(self) -> bool:

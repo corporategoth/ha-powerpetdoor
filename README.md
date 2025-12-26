@@ -89,8 +89,12 @@ You can go to the Integrations page and add a Power Pet Door integration.
 | `Notify Outside On`            | `Switch`    | Notify when your pet comes inside.                                                               |
 | `Notify Outside Off`           | `Switch`    | Notify when your pet tries to come inside, but the Outside sensor is off.                        |
 | `Notify Low Battery`           | `Switch`    | Notify when the door's battery is low.                                                           |
-| `Inside Schedule`              | `Schedule`  | The schedule for the automatic enabling/disabling of the Inside Sensor.                          |
-| `Outside Schedule`             | `Schedule`  | The schedule for the automatic enabling/disabling of the Outside Sensor.                         |
+| `Connection`                   | `Switch`    | Control the Home Assistant connection to the Power Pet Door. Turn off to allow the mobile app to connect (only one client can connect at a time). |
+| `Timezone`                     | `Select`    | Configure the timezone on the Power Pet Door device. Disabled by default.                        |
+| `Inside Schedule`              | `Schedule`  | The schedule for the automatic enabling/disabling of the Inside Sensor. Can be viewed via entity attributes and updated via service. |
+| `Outside Schedule`             | `Schedule`  | The schedule for the automatic enabling/disabling of the Outside Sensor. Can be viewed via entity attributes and updated via service. |
+
+**Note:** The Power Pet Door only supports a single network connection at a time. If you need to use the official mobile app, turn off the `Connection` switch first. Similarly, if Home Assistant cannot connect, ensure the mobile app is closed.
 
 
 ## Attributes
@@ -109,6 +113,80 @@ You can go to the Integrations page and add a Power Pet Door integration.
 | `*`       | `device_class`        | `string`    | The device class the entity presents as.                                                                                                                                                                             |
 | `*`       | `state_class`         | `string`    | The type of sensor this is (should always be `measurement`).                                                                                                                                                         |
 | `*`       | `unit_of_measurement` | `string`    | The unit measured by this sensor.                                                                                                                                                                                    |
+| `Inside Schedule` / `Outside Schedule` | `schedule_entries` | `list` | Human-readable schedule entries formatted as "Mon, Wed, Fri: 06:00-20:00" |
+| `Inside Schedule` / `Outside Schedule` | `schedule_count` | `number` | Number of active schedule entries |
+
+## Viewing and Editing Schedules
+
+### Viewing Schedules
+
+The Power Pet Door integration provides several ways to view the current schedule:
+
+#### Method 1: Custom Lovelace Card (Recommended)
+The integration includes a visual schedule card with editing capabilities:
+1. Add the resource to Home Assistant (see [Schedule Card Setup](#schedule-card-setup) below)
+2. Add the `powerpetdoor-schedule-card` to your dashboard
+3. View and edit schedules with a visual weekly calendar
+
+#### Method 2: Entity Detail Page
+1. Navigate to **Settings** → **Devices & Services**
+2. Find your Power Pet Door device
+3. Click on the **Inside Schedule** or **Outside Schedule** entity
+4. View the schedule state and attributes, including:
+   - `schedule_entries`: Human-readable list of schedule times (e.g., "Mon, Wed, Fri: 06:00-20:00")
+   - `schedule_count`: Number of active schedule entries
+   - `last_change`: When the schedule was last updated
+
+#### Method 3: Developer Tools
+1. Go to **Developer Tools** → **States**
+2. Search for `schedule.power_pet_door_inside_schedule` or `schedule.power_pet_door_outside_schedule`
+3. View the entity state and all attributes
+
+#### Method 4: Entity Attributes
+Schedule entities include readable attributes:
+- `schedule`: Machine-readable schedule data (days with time ranges)
+- `schedule_entries`: Array of formatted schedule strings showing days and time windows
+- `schedule_count`: Total number of active schedule entries
+
+### Editing Schedules
+
+#### Method 1: Custom Lovelace Card (Recommended)
+
+The easiest way to edit schedules is using the included visual schedule card:
+
+1. Add the card to your dashboard (see [Schedule Card Setup](#schedule-card-setup) below)
+2. Click **Edit** on the card to enter edit mode
+3. Click on any day column to add a new time slot
+4. Click on existing time slots to modify or delete them
+5. Click **Save** to sync changes to the device
+
+The card provides a visual weekly calendar that makes it easy to see and modify your schedule at a glance.
+
+#### Method 2: Using the Mobile App
+
+You can also edit schedules using the official Power Pet Door mobile app. The integration will automatically fetch the updated schedule on the next refresh (default: every 5 minutes).
+
+**Note**: The mobile app has a caching bug where it displays its own cached schedule rather than reading from the device. While this integration will correctly show schedule changes made via the app, the app may not reflect changes made through Home Assistant. The device itself always has the correct schedule - only the app's display is incorrect.
+
+#### Method 3: Using the Service (Advanced)
+
+For automations or programmatic updates, use the `powerpetdoor.update_schedule` service:
+
+```yaml
+service: powerpetdoor.update_schedule
+target:
+  entity_id: schedule.power_pet_door_inside_schedule
+data:
+  schedule:
+    monday:
+      - from: "06:00:00"
+        to: "20:00:00"
+    tuesday:
+      - from: "06:00:00"
+        to: "20:00:00"
+```
+
+The schedule format uses weekday names as keys, with arrays of time windows containing `from` and `to` times in HH:MM:SS format. Multiple time windows per day are supported.
 
 ## Sample Card
 
@@ -165,6 +243,73 @@ cards:
         entity: sensor.power_pet_door_battery
         name: Battery
         needle: false
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: switch.power_pet_door_auto
+        state: "on"
+    card:
+      type: custom:powerpetdoor-schedule-card
+      entity: schedule.power_pet_door_inside_schedule
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: switch.power_pet_door_auto
+        state: "on"
+    card:
+      type: custom:powerpetdoor-schedule-card
+      entity: schedule.power_pet_door_outside_schedule
+```
+
+### Schedule Card Setup
+
+The Power Pet Door integration includes a custom Lovelace card for viewing and editing schedules with a visual weekly calendar.
+
+**Installation:**
+
+1. **Add the resource to Home Assistant:**
+   - Go to **Settings** → **Dashboards** → click the three-dot menu → **Resources**
+   - Click **Add Resource**
+   - URL: `/local/community/ha-powerpetdoor/powerpetdoor-schedule-card.js` (if installed via HACS)
+     - OR `/local/powerpetdoor-schedule-card.js` (if manually installed)
+   - Resource type: **JavaScript Module**
+   - Click **Create**
+
+2. **Add the card to your dashboard:**
+   - Edit your dashboard
+   - Click **Add Card** → search for "Power Pet Door Schedule"
+   - Or use manual YAML configuration:
+
+```yaml
+type: custom:powerpetdoor-schedule-card
+entity: schedule.power_pet_door_inside_schedule
+```
+
+**Features:**
+- **Visual Weekly Calendar**: Displays the entire week with time slots
+- **Edit Mode**: Click "Edit" to add, modify, or remove time slots
+- **Multiple Time Windows**: Supports multiple schedule entries per day
+- **Click to Add**: In edit mode, click on any day column to add a new time slot
+- **Click to Edit**: Click on existing time slots to modify times or delete them
+- **WebSocket Integration**: Uses the `powerpetdoor/schedule/*` WebSocket commands for real-time updates
+
+**Card Configuration Options:**
+
+| Option | Required | Default | Description |
+| :--- | :---: | :--- | :--- |
+| entity | Yes | | The schedule entity ID (e.g., `schedule.power_pet_door_inside_schedule`) |
+| slot_color | No | `var(--primary-color, #03a9f4)` | Color for time slots |
+| active_slot_color | No | `var(--warning-color, #ff9800)` | Color for currently active time slot |
+| removal_color | No | `var(--error-color, #f44336)` | Color shown when shrinking/removing slots in edit mode |
+
+**Example with custom colors:**
+
+```yaml
+type: custom:powerpetdoor-schedule-card
+entity: schedule.power_pet_door_inside_schedule
+slot_color: '#4caf50'
+active_slot_color: 'var(--accent-color)'
+removal_color: 'rgba(255, 0, 0, 0.7)'
 ```
 
 ## Credits

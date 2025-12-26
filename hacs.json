@@ -1,5 +1,6 @@
 {
     "name": "Power Pet Door",
     "content_in_root": false,
-    "render_readme": true
+    "render_readme": true,
+    "filename": "powerpetdoor-schedule-card.js"
 }

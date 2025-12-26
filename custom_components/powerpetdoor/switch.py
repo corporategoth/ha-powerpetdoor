@@ -328,6 +328,94 @@ class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
         self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
 
 
+class ConnectionSwitch(CoordinatorEntity, ToggleEntity):
+    """Switch to control Power Pet Door connection state.
+
+    This is the primary lifecycle controller for the client connection.
+    ON = connected, OFF = disconnected.
+
+    The switch tracks the "desired" state (what the user wants) separately
+    from the actual connection state. This ensures the UI shows the correct
+    state immediately after toggling, even during connection/disconnection.
+    """
+
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:connection"
+    _attr_entity_registry_enabled_default = True  # Always enabled by default
+
+    def __init__(self,
+                 client: PowerPetDoorClient,
+                 name: str,
+                 coordinator: DataUpdateCoordinator,
+                 device: DeviceInfo | None = None) -> None:
+        super().__init__(coordinator)
+        self.client = client
+        self._attr_name = name
+        self._attr_unique_id = f"{client.host}:{client.port}-connection"
+        self._attr_device_info = device
+        # Track desired state - defaults to ON (will connect on startup)
+        self._desired_on = True
+
+        # Register for connect/disconnect callbacks
+        client.add_handlers(
+            name=self.unique_id,
+            on_connect=self._handle_connect,
+            on_disconnect=self._handle_disconnect
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Start connection when switch entity is added (defaults to ON)."""
+        await super().async_added_to_hass()
+        # Start the client - switch defaults to ON
+        self._desired_on = True
+        self.client.start()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Stop connection when switch entity is removed."""
+        self.client.stop()
+        await super().async_will_remove_from_hass()
+
+    async def _handle_connect(self) -> None:
+        """Handle connection established."""
+        self.async_write_ha_state()
+
+    async def _handle_disconnect(self) -> None:
+        """Handle connection lost."""
+        self.async_write_ha_state()
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if switch is on (desired state)."""
+        return self._desired_on
+
+    @property
+    def available(self) -> bool:
+        """Always available so user can control connection."""
+        return True
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return additional state attributes."""
+        return {
+            "connected": self.client.available,
+        }
+
+    async def async_turn_on(self) -> None:
+        """Connect to the device."""
+        self._desired_on = True
+        self.async_write_ha_state()
+        # start() sets _shutdown=False and initiates connection with auto-reconnect
+        self.client.start()
+
+    async def async_turn_off(self) -> None:
+        """Disconnect from the device."""
+        self._desired_on = False
+        self.async_write_ha_state()
+        # stop() sets _shutdown=True which prevents auto-reconnect
+        self.client.stop()
+
+
 # Right now this can be an alias for the above
 async def async_setup_entry(hass: HomeAssistant,
                             entry: ConfigEntry,
@@ -374,6 +462,10 @@ async def async_setup_entry(hass: HomeAssistant,
                       switch=SWITCHES["autoretract"],
                       coordinator=obj["settings"],
                       device=obj["device"]),
+        ConnectionSwitch(client=obj["client"],
+                         name=f"{name} Connection",
+                         coordinator=obj["settings"],
+                         device=obj["device"]),
     ])
 
     async def update_notifications() -> dict:

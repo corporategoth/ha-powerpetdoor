@@ -150,6 +150,49 @@ class PowerPetDoorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title=name, data=data, options=options)
 
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration of the integration."""
+        reconfigure_entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            host = user_input.get(CONF_HOST)
+            port = user_input.get(CONF_PORT, DEFAULT_PORT)
+            name = user_input.get(CONF_NAME, reconfigure_entry.data.get(CONF_NAME))
+
+            error = await validate_connection(host, port)
+            if error:
+                return self.async_show_form(
+                    step_id="reconfigure",
+                    data_schema=vol.Schema(get_input_schema(PP_SCHEMA, defaults=user_input))
+                        .extend(get_input_schema(PP_SCHEMA_ADV, defaults=user_input)),
+                    errors={"base": error},
+                )
+
+            # Update the config entry
+            new_data = {**reconfigure_entry.data, **user_input}
+            # Update unique_id if host/port changed
+            new_unique_id = f"{host}:{port}"
+
+            return self.async_update_reload_and_abort(
+                reconfigure_entry,
+                unique_id=new_unique_id,
+                title=name,
+                data=new_data,
+            )
+
+        # Pre-fill with current values
+        current_data = {**reconfigure_entry.data}
+        data_schema = vol.Schema(get_input_schema(PP_SCHEMA, defaults=current_data)) \
+            .extend(get_input_schema(PP_SCHEMA_ADV, defaults=current_data))
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=data_schema,
+        )
+
+
 class PowerPetDoorOptionsFlow(config_entries.OptionsFlow):
     """Handle a option config for power pet door integration."""
 
