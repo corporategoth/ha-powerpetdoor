@@ -19,7 +19,7 @@ from homeassistant.const import Platform
 from homeassistant.components.schedule import Schedule, DOMAIN as SCHEDULE_DOMAIN, LOGGER as SCHEDULE_LOGGER
 import homeassistant.helpers.config_validation as cv
 from .schema import PP_SCHEMA, PP_OPT_SCHEMA, PP_SCHEMA_ADV, get_validating_schema
-from .client import PowerPetDoorClient
+from powerpetdoor import PowerPetDoorClient
 from .const import (
     DOMAIN,
     CONF_NAME,

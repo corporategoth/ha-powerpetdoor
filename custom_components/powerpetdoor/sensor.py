@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
-from .client import PowerPetDoorClient
+from powerpetdoor import PowerPetDoorClient
 from homeassistant.const import (
     UnitOfTime,
     ATTR_SW_VERSION,

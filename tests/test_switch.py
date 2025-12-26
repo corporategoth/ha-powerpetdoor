@@ -28,7 +28,7 @@ from custom_components.powerpetdoor.switch import (
     SWITCHES,
     NOTIFICATION_SWITCHES,
 )
-from custom_components.powerpetdoor.client import make_bool
+from powerpetdoor import make_bool
 from custom_components.powerpetdoor.const import (
     CONFIG,
     CMD_ENABLE_INSIDE,

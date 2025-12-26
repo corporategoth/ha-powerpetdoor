@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.button import ButtonEntity
-from .client import PowerPetDoorClient
+from powerpetdoor import PowerPetDoorClient
 
 from .const import (
     DOMAIN,

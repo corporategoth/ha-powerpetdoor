@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.number import NumberEntity, NumberDeviceClass, NumberMode, DEFAULT_MIN_VALUE, DEFAULT_MAX_VALUE, DEFAULT_STEP
-from .client import PowerPetDoorClient
+from powerpetdoor import PowerPetDoorClient
 
 from homeassistant.const import UnitOfTime, UnitOfElectricPotential
 

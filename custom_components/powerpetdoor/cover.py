@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.cover import CoverEntity, CoverDeviceClass, CoverEntityFeature
-from .client import PowerPetDoorClient
+from powerpetdoor import PowerPetDoorClient
 
 from .const import (
     DOMAIN,

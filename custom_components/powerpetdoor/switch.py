@@ -17,7 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.components.switch import SwitchDeviceClass
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from .client import PowerPetDoorClient, make_bool
+from powerpetdoor import PowerPetDoorClient, make_bool
 
 from .const import (
     DOMAIN,
