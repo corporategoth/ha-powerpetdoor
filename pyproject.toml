@@ -12,7 +12,7 @@ requires-python = ">=3.12"
 # Runtime dependencies are managed by Home Assistant via manifest.json
 # These are just for reference/development
 dependencies = [
-    "pypowerpetdoor>=0.1.0",
+    "pypowerpetdoor>=0.3.0",
     "tzdata>=2024.1",
 ]
 
