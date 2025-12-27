@@ -11,7 +11,8 @@ from copy import deepcopy
 
 import pytest
 
-from custom_components.powerpetdoor.schedule import (
+# Import from the library
+from powerpetdoor import (
     week_0_mon_to_sun,
     week_0_sun_to_mon,
     validate_schedule_entry,
@@ -20,7 +21,7 @@ from custom_components.powerpetdoor.schedule import (
     compute_schedule_diff,
     schedule_template,
 )
-from custom_components.powerpetdoor.const import (
+from powerpetdoor.const import (
     FIELD_INDEX,
     FIELD_DAYSOFWEEK,
     FIELD_INSIDE,

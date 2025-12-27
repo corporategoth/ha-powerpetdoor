@@ -1,0 +1,6 @@
+<component name="CopyrightManager">
+  <copyright>
+    <option name="notice" value="Copyright (c) &amp;#36;originalComment.match(&quot;Copyright \(c\) (\d+)&quot;, 1, &quot;-&quot;, &quot;&amp;#36;today.year&quot;)&amp;#36;today.year Preston Elder&#10;&#10;This software is released under the MIT License.&#10;https://opensource.org/licenses/MIT" />
+    <option name="myName" value="MIT License" />
+  </copyright>
+</component>

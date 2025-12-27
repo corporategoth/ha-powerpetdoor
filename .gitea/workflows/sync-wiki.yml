@@ -1,0 +1,12 @@
+name: Sync Wiki to GitHub
+
+on:
+  wiki:
+
+jobs:
+  sync:
+    uses: neuromancy/workflows/.gitea/workflows/sync-github-wiki.yml@v1.1.0
+    secrets:
+      github_token: ${{ secrets.GH_PAT }}
+    with:
+      github_repo: "corporategoth/ha-powerpetdoor"

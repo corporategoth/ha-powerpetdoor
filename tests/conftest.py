@@ -31,6 +31,7 @@ try:
 except ImportError:
     pass
 
+# Import from local HA integration for HA-specific constants
 from custom_components.powerpetdoor.const import (
     DOMAIN,
     CONF_NAME,
@@ -43,11 +44,15 @@ from custom_components.powerpetdoor.const import (
     DEFAULT_RECONNECT_TIMEOUT,
     DEFAULT_KEEP_ALIVE_TIMEOUT,
     DEFAULT_REFRESH_TIMEOUT,
+)
+
+# Import from the library for protocol constants and client
+from powerpetdoor import PowerPetDoorClient
+from powerpetdoor.const import (
     PING,
     PONG,
     FIELD_SUCCESS,
 )
-from custom_components.powerpetdoor.client import PowerPetDoorClient
 
 
 # ============================================================================

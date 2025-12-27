@@ -14,13 +14,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.powerpetdoor.client import (
+# Import from the library
+from powerpetdoor import (
     PowerPetDoorClient,
     PrioritizedMessage,
     find_end,
     make_bool,
 )
-from custom_components.powerpetdoor.const import (
+from powerpetdoor.const import (
     PING,
     PONG,
     CONFIG,
