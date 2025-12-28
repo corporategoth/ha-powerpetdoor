@@ -461,6 +461,37 @@ async def async_setup_entry(hass: HomeAssistant,
 
     obj["client"].add_handlers(f"{name} Schedule", on_connect=schedule_coordinator.async_request_refresh)
 
+    # Real-time schedule update callbacks
+    def on_schedule_update(schedule_data: dict) -> None:
+        """Handle schedule add/update from device."""
+        current_data = list(schedule_coordinator.data or [])
+        index = schedule_data.get(FIELD_INDEX)
+        if index is not None:
+            # Find and update existing schedule, or add new
+            for i, sched in enumerate(current_data):
+                if sched.get(FIELD_INDEX) == index:
+                    current_data[i] = schedule_data
+                    break
+            else:
+                current_data.append(schedule_data)
+            # Keep sorted by index
+            current_data.sort(key=lambda s: s.get(FIELD_INDEX, 0))
+            schedule_coordinator.async_set_updated_data(current_data)
+            _LOGGER.debug("Real-time schedule update for index %d", index)
+
+    def on_schedule_delete(index: int) -> None:
+        """Handle schedule deletion from device."""
+        current_data = list(schedule_coordinator.data or [])
+        current_data = [s for s in current_data if s.get(FIELD_INDEX) != index]
+        schedule_coordinator.async_set_updated_data(current_data)
+        _LOGGER.debug("Real-time schedule delete for index %d", index)
+
+    obj["client"].add_listener(
+        name=f"{name} Schedule Callbacks",
+        schedule_update=on_schedule_update,
+        schedule_delete=on_schedule_delete,
+    )
+
     async_add_entities([
         PetDoorSchedule(client=obj["client"],
                         name=f"{name} Inside Schedule",
