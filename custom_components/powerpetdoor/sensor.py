@@ -47,8 +47,8 @@ from .const import (
     FIELD_POWER,
     FIELD_TOTAL_OPEN_CYCLES,
     FIELD_TOTAL_AUTO_RETRACTS,
-    FIELD_FW_VER,
-    FIELD_FW_REV,
+    FIELD_HW_VERSION,
+    FIELD_HW_REVISION,
     FIELD_FW_MAJOR,
     FIELD_FW_MINOR,
     FIELD_FW_PATCH,
@@ -129,7 +129,7 @@ class PetDoorLatency(CoordinatorEntity, SensorEntity):
         self.last_change = datetime.now(timezone.utc)
 
         if self.coordinator.data:
-            hw_version = "{0} rev {1}".format(self.coordinator.data[FIELD_FW_VER], self.coordinator.data[FIELD_FW_REV])
+            hw_version = "{0} rev {1}".format(self.coordinator.data[FIELD_HW_VERSION], self.coordinator.data[FIELD_HW_REVISION])
             sw_version = "{0}.{1}.{2}".format(self.coordinator.data[FIELD_FW_MAJOR],
                                               self.coordinator.data[FIELD_FW_MINOR],
                                               self.coordinator.data[FIELD_FW_PATCH])
