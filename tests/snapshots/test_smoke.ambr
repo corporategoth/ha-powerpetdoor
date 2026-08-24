@@ -1,19 +1,8 @@
 # serializer version: 1
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_battery_charging-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -21,19 +10,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <BinarySensorDeviceClass.BATTERY_CHARGING: 'battery_charging'>,
     'original_icon': None,
     'original_name': 'Battery charging',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'battery_charging',
     'unique_id': '192.0.2.10:3000-battery_charging',
@@ -56,19 +39,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_inside_schedule-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
@@ -76,19 +48,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Inside schedule',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'inside_schedule',
     'unique_id': '192.0.2.10:3000-inside_schedule',
@@ -116,19 +82,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_mains_power-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -136,19 +91,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <BinarySensorDeviceClass.PLUG: 'plug'>,
     'original_icon': None,
     'original_name': 'Mains power',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'mains_power',
     'unique_id': '192.0.2.10:3000-mains_power',
@@ -171,19 +120,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_outside_schedule-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
@@ -191,19 +129,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Outside schedule',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'outside_schedule',
     'unique_id': '192.0.2.10:3000-outside_schedule',
@@ -231,19 +163,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_key_set-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -251,19 +172,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Remote key set',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'remote_key',
     'unique_id': '192.0.2.10:3000-remote_key',
@@ -285,19 +200,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_paired-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -305,19 +209,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Remote paired',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'remote_id',
     'unique_id': '192.0.2.10:3000-remote_id',
@@ -339,19 +237,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_close-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
@@ -359,19 +246,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Close',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'close',
     'unique_id': '192.0.2.10:3000-close',
@@ -393,19 +274,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
@@ -413,19 +283,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Open',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'open',
     'unique_id': '192.0.2.10:3000-open',
@@ -447,19 +311,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open_and_auto_close-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
@@ -467,19 +320,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Open and auto-close',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'cycle',
     'unique_id': '192.0.2.10:3000-cycle',
@@ -501,19 +348,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_toggle-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
@@ -521,19 +357,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Toggle',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'toggle',
     'unique_id': '192.0.2.10:3000-toggle',
@@ -555,19 +385,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[cover][cover.power_pet_door_door-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'cover',
     'entity_category': None,
@@ -575,19 +394,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <CoverDeviceClass.SHUTTER: 'shutter'>,
     'original_icon': None,
     'original_name': 'Door',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': <CoverEntityFeature: 3>,
     'translation_key': 'door',
     'unique_id': '192.0.2.10:3000-door',
@@ -612,24 +425,13 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[number][number.power_pet_door_hold_open_time-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'max': 8.0,
       'min': 2.0,
       'mode': <NumberMode.SLIDER: 'slider'>,
       'step': 2.0,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'number',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -637,19 +439,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <NumberDeviceClass.DURATION: 'duration'>,
     'original_icon': None,
     'original_name': 'Hold open time',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'hold_open_time',
     'unique_id': '192.0.2.10:3000-hold_open_time',
@@ -677,24 +473,13 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[number][number.power_pet_door_sensor_trigger_voltage-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'max': 5.0,
       'min': 0.0,
       'mode': <NumberMode.BOX: 'box'>,
       'step': 0.001,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'number',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -702,19 +487,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <NumberDeviceClass.VOLTAGE: 'voltage'>,
     'original_icon': None,
     'original_name': 'Sensor trigger voltage',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'sensor_trigger_voltage',
     'unique_id': '192.0.2.10:3000-sensor_trigger_voltage',
@@ -742,24 +521,13 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[number][number.power_pet_door_sleep_sensor_trigger_voltage-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'max': 5.0,
       'min': 0.0,
       'mode': <NumberMode.BOX: 'box'>,
       'step': 0.001,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'number',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -767,19 +535,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <NumberDeviceClass.VOLTAGE: 'voltage'>,
     'original_icon': None,
     'original_name': 'Sleep sensor trigger voltage',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'sleep_sensor_trigger_voltage',
     'unique_id': '192.0.2.10:3000-sleep_sensor_trigger_voltage',
@@ -807,11 +569,6 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[select][select.power_pet_door_timezone-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'options': list([
         'Use Home Assistant timezone',
@@ -1415,13 +1172,7 @@
         'Zulu',
       ]),
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'select',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -1429,19 +1180,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Timezone',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'timezone',
     'unique_id': '192.0.2.10:3000-timezone',
@@ -2065,21 +1810,10 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_battery-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': None,
@@ -2087,19 +1821,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SensorDeviceClass.BATTERY: 'battery'>,
     'original_icon': None,
     'original_name': 'Battery',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'battery',
     'unique_id': '192.0.2.10:3000-battery',
@@ -2124,19 +1852,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_clock-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -2144,19 +1861,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Door clock',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'device_time',
     'unique_id': '192.0.2.10:3000-device_time',
@@ -2178,11 +1889,6 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_status-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'options': list([
         'idle',
@@ -2197,13 +1903,7 @@
         'unknown',
       ]),
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -2211,19 +1911,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SensorDeviceClass.ENUM: 'enum'>,
     'original_icon': None,
     'original_name': 'Door status',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'status',
     'unique_id': '192.0.2.10:3000-status',
@@ -2258,21 +1952,10 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_latency-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -2280,13 +1963,9 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
-      'sensor': dict({
+    'options': ReadOnlyDict({
+      'sensor': ReadOnlyDict({
         'suggested_display_precision': 0,
       }),
     }),
@@ -2294,8 +1973,6 @@
     'original_icon': None,
     'original_name': 'Latency',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'latency',
     'unique_id': '192.0.2.10:3000-latency',
@@ -2320,21 +1997,10 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_total_auto_retracts-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -2342,19 +2008,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Total auto-retracts',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'total_auto_retracts',
     'unique_id': '192.0.2.10:3000-total_auto_retracts',
@@ -2377,21 +2037,10 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_total_open_cycles-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
     }),
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -2399,19 +2048,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Total open cycles',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'total_open_cycles',
     'unique_id': '192.0.2.10:3000-total_open_cycles',
@@ -2434,19 +2077,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_auto_retract-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2454,19 +2086,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Auto retract',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'auto_retract',
     'unique_id': '192.0.2.10:3000-auto_retract',
@@ -2489,19 +2115,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_connection-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2509,19 +2124,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Connection',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'connection',
     'unique_id': '192.0.2.10:3000-connection',
@@ -2544,19 +2153,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_inside_sensor-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2564,19 +2162,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Inside sensor',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'inside_sensor',
     'unique_id': '192.0.2.10:3000-inside_sensor',
@@ -2599,19 +2191,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_inside_sensor_off-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2619,19 +2200,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify inside sensor off',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'notify_inside_off',
     'unique_id': '192.0.2.10:3000-notify_inside_off',
@@ -2654,19 +2229,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_inside_sensor_on-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2674,19 +2238,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify inside sensor on',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'notify_inside_on',
     'unique_id': '192.0.2.10:3000-notify_inside_on',
@@ -2709,19 +2267,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_low_battery-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2729,19 +2276,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify low battery',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'notify_low_battery',
     'unique_id': '192.0.2.10:3000-notify_low_battery',
@@ -2764,19 +2305,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_outside_sensor_off-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2784,19 +2314,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify outside sensor off',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'notify_outside_off',
     'unique_id': '192.0.2.10:3000-notify_outside_off',
@@ -2819,19 +2343,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_outside_sensor_on-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2839,19 +2352,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify outside sensor on',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'notify_outside_on',
     'unique_id': '192.0.2.10:3000-notify_outside_on',
@@ -2874,19 +2381,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_outside_safety_lock-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2894,19 +2390,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Outside safety lock',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'outside_safety_lock',
     'unique_id': '192.0.2.10:3000-outside_safety_lock',
@@ -2929,19 +2419,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_outside_sensor-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -2949,19 +2428,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Outside sensor',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'outside_sensor',
     'unique_id': '192.0.2.10:3000-outside_sensor',
@@ -2984,19 +2457,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_pet_proximity_keep_open-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -3004,19 +2466,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Pet proximity keep open',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'pet_proximity_keep_open',
     'unique_id': '192.0.2.10:3000-pet_proximity_keep_open',
@@ -3039,19 +2495,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_power-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': None,
@@ -3059,19 +2504,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Power',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'power',
     'unique_id': '192.0.2.10:3000-power',
@@ -3094,19 +2533,8 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_schedule_enabled-entry]
   dict({
-    '_cache': dict({
-    }),
-    'aliases': list([
-    ]),
-    'area_id': None,
     'capabilities': None,
-    'categories': dict({
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'created_at': <ANY>,
     'device_class': None,
-    'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': <EntityCategory.CONFIG: 'config'>,
@@ -3114,19 +2542,13 @@
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
-    'id': <ANY>,
-    'labels': list([
-    ]),
-    'modified_at': <ANY>,
     'name': None,
-    'options': dict({
+    'options': ReadOnlyDict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Schedule enabled',
     'platform': 'powerpetdoor',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'auto',
     'unique_id': '192.0.2.10:3000-auto',
