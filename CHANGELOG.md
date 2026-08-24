@@ -130,6 +130,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The first edit on a door with no schedule works.** The card synthesised
   an invalid `24:00`, so the very first change a new user made was always
   rejected.
+- **The `set_schedule` action's description now renders in the UI.** It
+  carried a JSON example inline, and Home Assistant reads `{...}` in any
+  translated string as a placeholder that must be an identifier - so the
+  whole description was rejected. The same example is still shown, from the
+  `example:` block in `services.yaml` where it belongs.
 
 ### Added
 
