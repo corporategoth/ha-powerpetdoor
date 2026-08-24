@@ -517,6 +517,7 @@ async def test_reconfigure_works_on_an_entry_that_never_finished_setup(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     probe_door: MagicMock,
+    mock_door: MagicMock,
 ) -> None:
     """The commonest reconfigure of all: fixing an address that never worked.
 
@@ -524,7 +525,15 @@ async def test_reconfigure_works_on_an_entry_that_never_finished_setup(
     and no entities, so there is nothing for the migration to move. It must
     still complete rather than fail on the missing device - this is the path
     a user takes after typing an octet wrong.
+
+    `mock_door` as well as `probe_door`, because the two are different doors
+    and this test needs both refused. `probe_door` is the throwaway the flow
+    dials; the coordinator builds its own when the successful reconfigure
+    RELOADS the entry, and that one is only unreachable if it is made so.
+    Left real it opens an actual socket, which HA 2026.8.3 surfaces as a
+    pytest-socket error attributed to a test that never mentions a network.
     """
+    mock_door.connect.side_effect = OSError("no route to host")
     mock_config_entry.add_to_hass(hass)
 
     result = await mock_config_entry.start_reconfigure_flow(hass)
@@ -537,6 +546,10 @@ async def test_reconfigure_works_on_an_entry_that_never_finished_setup(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert mock_config_entry.data[CONF_HOST] == NEW_HOST
+    # The premise, asserted rather than assumed: the new address is no more
+    # reachable than the old one, so the entry is still retrying and still
+    # has nothing in either registry for a later reconfigure to migrate.
+    assert mock_config_entry.state is config_entries.ConfigEntryState.SETUP_RETRY
 
 
 async def test_reconfigure_leaves_alone_a_unique_id_that_is_not_ours(

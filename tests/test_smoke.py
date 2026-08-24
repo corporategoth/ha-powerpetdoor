@@ -451,8 +451,7 @@ async def test_the_entity_surface_matches_its_snapshot(
 
     # Our own loop rather than `snapshot_platform`, so the entry is reduced to
     # `_SNAPSHOT_FIELDS` first - see the note there for why snapshotting a
-    # whole RegistryEntry cannot work across the supported HA range. The
-    # state is snapshotted whole, because that shape is stable.
+    # whole RegistryEntry cannot work across the supported HA range.
     entries = er.async_entries_for_config_entry(entity_registry, mock_config_entry.entry_id)
     assert entries
     assert len({entry.domain for entry in entries}) == 1, "one platform at a time"
@@ -460,6 +459,12 @@ async def test_the_entity_surface_matches_its_snapshot(
     for entry in entries:
         assert entry.disabled_by is None, "every entity must be enabled for the snapshot"
         surface = {field: getattr(entry, field) for field in _SNAPSHOT_FIELDS}
+        # `capabilities` keys became StrEnum members in HA 2026.8.3
+        # (`<NumberEntityCapabilityAttribute.MIN: 'min'>` where it used to be
+        # `'min'`). The key's VALUE is unchanged and is the thing worth
+        # pinning, so normalise the type and keep asserting the contents.
+        if surface["capabilities"] is not None:
+            surface["capabilities"] = {str(k): v for k, v in surface["capabilities"].items()}
         assert surface == snapshot(name=f"{entry.entity_id}-entry")
 
         state = hass.states.get(entry.entity_id)
