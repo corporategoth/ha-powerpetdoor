@@ -464,4 +464,16 @@ async def test_the_entity_surface_matches_its_snapshot(
 
         state = hass.states.get(entry.entity_id)
         assert state, f"no state for {entry.entity_id}"
-        assert state == snapshot(name=f"{entry.entity_id}-state")
+        # The VALUE only, not the attributes. State attributes are as
+        # version-variable as the registry entry was, in two ways at once:
+        # 2026.8.3 changed the attribute KEYS from plain strings to StrEnum
+        # members, so every key's repr changed, and it added derived
+        # attributes such as the cover's `is_closed`. Neither is something
+        # this integration decides.
+        #
+        # Nothing is lost. Everything this snapshot's docstring promises to
+        # catch - a device class changing, a unit or icon moving, an entity
+        # becoming enabled by default or disappearing - lives on the entry
+        # above, and the live attribute values are asserted far more
+        # precisely by the per-platform tests, one expected value at a time.
+        assert state.state == snapshot(name=f"{entry.entity_id}-state")
