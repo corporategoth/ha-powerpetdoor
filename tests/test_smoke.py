@@ -13,8 +13,9 @@ test-fanatic brief in .claude/analysis/PLAN.md.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
+import attr as attrs
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import Platform
@@ -23,7 +24,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from powerpetdoor import CommandError, Schedule, ScheduleTime
-from pytest_homeassistant_custom_component.common import MockConfigEntry, snapshot_platform
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.powerpetdoor.const import DOMAIN
@@ -363,6 +364,23 @@ async def test_the_schedule_summary_is_readable(
     assert state.attributes["schedule_count"] == 3
 
 
+#: Registry fields owned by Home Assistant, not by this integration, whose
+#: presence varies across the supported HA range. `object_id_base` is on
+#: current HA and absent on 2025.11.0. Excluding them keeps the snapshot a
+#: statement about this integration; everything it actually decides - name,
+#: translation key, unique_id, device class, category, unit, options,
+#: enabled-by-default - is still pinned.
+_HA_OWNED_REGISTRY_FIELDS = frozenset({"object_id_base"})
+
+#: Different on every run - a generated id, the entry and device ids, and the
+#: creation timestamps. Home Assistant's own snapshot extension replaces
+#: these with ANY for exactly this reason; taking the entry apart ourselves
+#: means doing it ourselves.
+_VOLATILE_REGISTRY_FIELDS = frozenset(
+    {"id", "config_entry_id", "config_subentry_id", "device_id", "created_at", "modified_at"}
+)
+
+
 @pytest.mark.parametrize(
     "platform",
     [
@@ -406,4 +424,31 @@ async def test_the_entity_surface_matches_its_snapshot(
         assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
         await hass.async_block_till_done()
 
-    await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
+    # Our own loop rather than `snapshot_platform`, for one reason: a
+    # RegistryEntry carries fields that belong to Home Assistant's registry
+    # rather than to this integration, and their SET changes between HA
+    # versions - `object_id_base` exists on current HA and not on 2025.11.0,
+    # our declared minimum. Snapshotting them pins the shape of HA rather
+    # than the shape of the integration, so the suite passed on the newest
+    # supported HA and failed on the oldest with a diff that said nothing
+    # about the code. The version matrix caught it; a single-version local
+    # run never could.
+    #
+    # Everything the integration actually decides is still snapshotted, and
+    # the state is snapshotted whole.
+    entries = er.async_entries_for_config_entry(entity_registry, mock_config_entry.entry_id)
+    assert entries
+    assert len({entry.domain for entry in entries}) == 1, "one platform at a time"
+
+    for entry in entries:
+        assert entry.disabled_by is None, "every entity must be enabled for the snapshot"
+        surface = {
+            key: (ANY if key in _VOLATILE_REGISTRY_FIELDS else value)
+            for key, value in attrs.asdict(entry).items()
+            if key not in _HA_OWNED_REGISTRY_FIELDS
+        }
+        assert surface == snapshot(name=f"{entry.entity_id}-entry")
+
+        state = hass.states.get(entry.entity_id)
+        assert state, f"no state for {entry.entity_id}"
+        assert state == snapshot(name=f"{entry.entity_id}-state")

@@ -1,12 +1,17 @@
 # serializer version: 1
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_battery_charging-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -17,10 +22,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Battery charging',
     'options': dict({
     }),
     'original_device_class': <BinarySensorDeviceClass.BATTERY_CHARGING: 'battery_charging'>,
@@ -50,13 +55,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_inside_schedule-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -67,10 +77,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Inside schedule',
     'options': dict({
     }),
     'original_device_class': None,
@@ -105,13 +115,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_mains_power-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -122,10 +137,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Mains power',
     'options': dict({
     }),
     'original_device_class': <BinarySensorDeviceClass.PLUG: 'plug'>,
@@ -155,13 +170,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_outside_schedule-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -172,10 +192,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Outside schedule',
     'options': dict({
     }),
     'original_device_class': None,
@@ -210,13 +230,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_key_set-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -227,10 +252,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Remote key set',
     'options': dict({
     }),
     'original_device_class': None,
@@ -259,13 +284,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_paired-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -276,10 +306,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Remote paired',
     'options': dict({
     }),
     'original_device_class': None,
@@ -308,13 +338,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_close-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -325,10 +360,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Close',
     'options': dict({
     }),
     'original_device_class': None,
@@ -357,13 +392,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -374,10 +414,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Open',
     'options': dict({
     }),
     'original_device_class': None,
@@ -406,13 +446,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open_and_auto_close-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -423,10 +468,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Open and auto-close',
     'options': dict({
     }),
     'original_device_class': None,
@@ -455,13 +500,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_toggle-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -472,10 +522,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Toggle',
     'options': dict({
     }),
     'original_device_class': None,
@@ -504,13 +554,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[cover][cover.power_pet_door_door-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -521,10 +576,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Door',
     'options': dict({
     }),
     'original_device_class': <CoverDeviceClass.SHUTTER: 'shutter'>,
@@ -556,9 +611,11 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[number][number.power_pet_door_hold_open_time-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'max': 8.0,
@@ -566,8 +623,11 @@
       'mode': <NumberMode.SLIDER: 'slider'>,
       'step': 2.0,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -578,10 +638,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Hold open time',
     'options': dict({
     }),
     'original_device_class': <NumberDeviceClass.DURATION: 'duration'>,
@@ -616,9 +676,11 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[number][number.power_pet_door_sensor_trigger_voltage-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'max': 5.0,
@@ -626,8 +688,11 @@
       'mode': <NumberMode.BOX: 'box'>,
       'step': 0.001,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -638,10 +703,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Sensor trigger voltage',
     'options': dict({
     }),
     'original_device_class': <NumberDeviceClass.VOLTAGE: 'voltage'>,
@@ -676,9 +741,11 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[number][number.power_pet_door_sleep_sensor_trigger_voltage-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'max': 5.0,
@@ -686,8 +753,11 @@
       'mode': <NumberMode.BOX: 'box'>,
       'step': 0.001,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -698,10 +768,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Sleep sensor trigger voltage',
     'options': dict({
     }),
     'original_device_class': <NumberDeviceClass.VOLTAGE: 'voltage'>,
@@ -736,9 +806,11 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[select][select.power_pet_door_timezone-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'options': list([
@@ -1343,8 +1415,11 @@
         'Zulu',
       ]),
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -1355,10 +1430,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Timezone',
     'options': dict({
     }),
     'original_device_class': None,
@@ -1989,15 +2064,20 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_battery-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2008,10 +2088,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Battery',
     'options': dict({
     }),
     'original_device_class': <SensorDeviceClass.BATTERY: 'battery'>,
@@ -2043,13 +2123,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_clock-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2060,10 +2145,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Door clock',
     'options': dict({
     }),
     'original_device_class': None,
@@ -2092,9 +2177,11 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_status-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'options': list([
@@ -2110,8 +2197,11 @@
         'unknown',
       ]),
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2122,10 +2212,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Door status',
     'options': dict({
     }),
     'original_device_class': <SensorDeviceClass.ENUM: 'enum'>,
@@ -2167,15 +2257,20 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_latency-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2186,10 +2281,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Latency',
     'options': dict({
       'sensor': dict({
         'suggested_display_precision': 0,
@@ -2224,15 +2319,20 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_total_auto_retracts-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2243,10 +2343,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Total auto-retracts',
     'options': dict({
     }),
     'original_device_class': None,
@@ -2276,15 +2376,20 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_total_open_cycles-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': dict({
       'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
     }),
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2295,10 +2400,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Total open cycles',
     'options': dict({
     }),
     'original_device_class': None,
@@ -2328,13 +2433,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_auto_retract-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2345,10 +2455,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Auto retract',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2378,13 +2488,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_connection-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2395,10 +2510,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Connection',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2428,13 +2543,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_inside_sensor-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2445,10 +2565,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Inside sensor',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2478,13 +2598,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_inside_sensor_off-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2495,10 +2620,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Notify inside sensor off',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2528,13 +2653,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_inside_sensor_on-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2545,10 +2675,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Notify inside sensor on',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2578,13 +2708,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_low_battery-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2595,10 +2730,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Notify low battery',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2628,13 +2763,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_outside_sensor_off-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2645,10 +2785,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Notify outside sensor off',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2678,13 +2818,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_notify_outside_sensor_on-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2695,10 +2840,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Notify outside sensor on',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2728,13 +2873,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_outside_safety_lock-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2745,10 +2895,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Outside safety lock',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2778,13 +2928,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_outside_sensor-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2795,10 +2950,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Outside sensor',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2828,13 +2983,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_pet_proximity_keep_open-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2845,10 +3005,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Pet proximity keep open',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2878,13 +3038,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_power-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2895,10 +3060,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Power',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
@@ -2928,13 +3093,18 @@
   })
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[switch][switch.power_pet_door_schedule_enabled-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': set({
+  dict({
+    '_cache': dict({
     }),
+    'aliases': list([
+    ]),
     'area_id': None,
     'capabilities': None,
+    'categories': dict({
+    }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
+    'created_at': <ANY>,
     'device_class': None,
     'device_id': <ANY>,
     'disabled_by': None,
@@ -2945,10 +3115,10 @@
     'hidden_by': None,
     'icon': None,
     'id': <ANY>,
-    'labels': set({
-    }),
+    'labels': list([
+    ]),
+    'modified_at': <ANY>,
     'name': None,
-    'object_id_base': 'Schedule enabled',
     'options': dict({
     }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
