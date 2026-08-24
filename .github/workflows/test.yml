@@ -344,10 +344,15 @@ jobs:
         run: |
           find coverage-data -name '.coverage.*' -exec cp {} . \; 2>/dev/null || true
           coverage combine
-          coverage xml
-          coverage html
-          coverage json
+          # Diagnostic first, and --fail-under=0 on every report command:
+          # `coverage xml` honours the configured fail_under just as
+          # `report` does, so a shortfall used to abort this step before it
+          # had said WHICH line was missing, and before the Codecov upload
+          # and the HTML artifact. The gate is the dedicated step below.
           coverage report --show-missing --fail-under=0
+          coverage xml --fail-under=0
+          coverage html --fail-under=0
+          coverage json --fail-under=0
       - name: Upload coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
