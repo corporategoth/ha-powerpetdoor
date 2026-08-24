@@ -3,185 +3,131 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Select entities for Power Pet Door."""
+"""Select entities for the Power Pet Door."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone as dt_timezone
 import logging
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.components.select import SelectEntity, SelectEntityDescription
 from homeassistant.const import EntityCategory
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.components.select import SelectEntity
-from powerpetdoor import PowerPetDoorClient
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from powerpetdoor import CommandError
 
-from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_NAME,
-    CONFIG,
-    STATE_LAST_CHANGE,
-    FIELD_POWER,
-    FIELD_TZ,
-    CMD_SET_TIMEZONE,
-)
+from .const import DOMAIN
+from .coordinator import PowerPetDoorConfigEntry, PowerPetDoorCoordinator
+from .entity import PowerPetDoorEntity
 from .tz_utils import (
+    HA_TIMEZONE_OPTION,
+    async_init_timezone_cache,
+    find_iana_for_posix,
     get_available_timezones,
     get_posix_tz_string,
-    find_iana_for_posix,
-    HA_TIMEZONE_OPTION,
 )
+
+PARALLEL_UPDATES = 1
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class PetDoorTimezone(CoordinatorEntity, SelectEntity):
-    """Select entity for Power Pet Door timezone configuration."""
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PowerPetDoorConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the Power Pet Door selects."""
+    # Built here rather than during entry setup: the timezone select is the
+    # only consumer and is disabled by default, so a user who never enables
+    # it never pays for the IANA scan. The entity reads the cache while
+    # constructing its option list, so it has to be warm before that.
+    await async_init_timezone_cache()
+    async_add_entities([PowerPetDoorTimezone(entry.runtime_data)])
 
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:map-clock-outline"
-    _attr_entity_registry_enabled_default = False
 
-    def __init__(self,
-                 hass: HomeAssistant,
-                 client: PowerPetDoorClient,
-                 name: str,
-                 coordinator: DataUpdateCoordinator,
-                 device: DeviceInfo | None = None) -> None:
-        super().__init__(coordinator)
-        self.hass = hass
-        self.client = client
+class PowerPetDoorTimezone(PowerPetDoorEntity, SelectEntity):
+    """The door's timezone.
 
-        self.last_change = None
-        self.power = True
-        self._current_posix: str | None = None
-        # Track the IANA timezone we selected (to display consistently)
-        self._selected_iana: str | None = None
+    The door stores a POSIX TZ string (`EST5EDT,M3.2.0,M11.1.0`), not an
+    IANA name, and that mapping is many-to-one: every US Eastern zone
+    produces the same POSIX string. So the selected IANA name is remembered
+    locally and only re-derived when the door reports something that no
+    longer matches it - otherwise picking "America/Toronto" would snap back
+    to "America/New_York" on the next refresh.
+    """
 
-        self._attr_name = name
-        self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}:{client.port}-timezone"
+    entity_description = SelectEntityDescription(
+        key="timezone",
+        translation_key="timezone",
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+    )
+
+    def __init__(self, coordinator: PowerPetDoorCoordinator) -> None:
+        """Initialise the timezone select."""
+        super().__init__(coordinator, self.entity_description.key)
         self._attr_options = get_available_timezones()
-
-        client.add_listener(
-            name=self.unique_id,
-            timezone_update=self.handle_timezone_update,
-            sensor_update={FIELD_POWER: self.handle_power_update}
-        )
-
-    @property
-    def available(self) -> bool:
-        return self.client.available and super().available and self.power
+        self._selected: str | None = None
 
     @property
     def current_option(self) -> str | None:
-        """Return the currently selected timezone."""
-        if self._current_posix is None:
-            # Try to get from coordinator data
-            if self.coordinator.data and FIELD_TZ in self.coordinator.data:
-                self._current_posix = self.coordinator.data[FIELD_TZ]
-
-        if not self._current_posix:
+        """The door's timezone as an IANA name where one can be found."""
+        posix = self.coordinator.door.timezone
+        if not posix:
             return None
 
-        # 1. If we previously selected a specific IANA timezone, check if it still matches
-        if self._selected_iana and self._selected_iana != HA_TIMEZONE_OPTION:
-            selected_posix = get_posix_tz_string(self._selected_iana)
-            if selected_posix == self._current_posix:
-                return self._selected_iana
+        # 1. What the user picked, if the door still agrees with it.
+        if self._selected and get_posix_tz_string(self._selected) == posix:
+            return self._selected
 
-        # 2. Check if Home Assistant's timezone matches the device's POSIX
-        #    (HA option is write-only, so display the actual HA timezone name)
-        ha_tz = self.hass.config.time_zone
-        ha_posix = get_posix_tz_string(ha_tz)
-        if ha_posix == self._current_posix:
-            return ha_tz
+        # 2. Home Assistant's own zone, if it matches. Reported by its real
+        #    name rather than as the "use Home Assistant timezone" option,
+        #    which is a write-only instruction and not a state.
+        ha_zone = self.hass.config.time_zone
+        if ha_zone and get_posix_tz_string(ha_zone) == posix:
+            return ha_zone
 
-        # 3. Fall back to reverse lookup from cache
-        iana_name = find_iana_for_posix(self._current_posix)
-        if iana_name:
-            return iana_name
+        # 3. Any IANA name that produces this POSIX string.
+        if (iana := find_iana_for_posix(posix)) is not None:
+            return iana
 
-        # If no match found, return the raw POSIX string
-        # (this handles edge cases where device has a custom timezone)
-        return self._current_posix
+        # 4. A custom or unrecognised POSIX string. Returned raw so the user
+        #    can at least see what the door holds; it will not be one of
+        #    `options`, which HA renders as an invalid selection - which is
+        #    accurate, because it is.
+        return posix
 
     @property
-    def extra_state_attributes(self) -> dict | None:
-        rv = {}
-        if self._current_posix:
-            rv["posix_tz"] = self._current_posix
-        if self.last_change:
-            rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
-        return rv
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.last_change = datetime.now(dt_timezone.utc)
-        if self.coordinator.data and FIELD_TZ in self.coordinator.data:
-            self._current_posix = self.coordinator.data[FIELD_TZ]
-        super()._handle_coordinator_update()
-
-    @callback
-    def handle_timezone_update(self, posix_tz: str) -> None:
-        """Handle timezone update from device."""
-        if posix_tz != self._current_posix:
-            self._current_posix = posix_tz
-            self.last_change = datetime.now(dt_timezone.utc)
-            self.async_write_ha_state()
-
-    @callback
-    def handle_power_update(self, state: bool) -> None:
-        self.power = state
-        if self.enabled:
-            self.async_schedule_update_ha_state()
+    def extra_state_attributes(self) -> dict[str, str]:
+        """Expose the raw POSIX string the door actually holds."""
+        return {"posix_tz": self.coordinator.door.timezone}
 
     async def async_select_option(self, option: str) -> None:
-        """Change the selected timezone."""
+        """Set the door's timezone."""
         if option == HA_TIMEZONE_OPTION:
-            # Use Home Assistant's configured timezone
-            ha_tz = self.hass.config.time_zone
-            posix_tz = get_posix_tz_string(ha_tz)
-            if not posix_tz:
-                _LOGGER.error("Could not get POSIX TZ for Home Assistant timezone: %s", ha_tz)
-                return
-            _LOGGER.info("Setting timezone to Home Assistant timezone: %s (%s)", ha_tz, posix_tz)
-            # Remember we selected the HA option
-            self._selected_iana = HA_TIMEZONE_OPTION
+            zone = self.hass.config.time_zone
+            selected: str | None = None
         else:
-            # Convert IANA name to POSIX string (from pre-built cache)
-            posix_tz = get_posix_tz_string(option)
-            if not posix_tz:
-                _LOGGER.error("Could not get POSIX TZ string for timezone: %s", option)
-                return
-            # Remember which IANA timezone was selected
-            self._selected_iana = option
+            zone = option
+            selected = option
 
-        # Send to device
-        self.client.send_message(CONFIG, CMD_SET_TIMEZONE, **{FIELD_TZ: posix_tz})
+        posix = get_posix_tz_string(zone) if zone else None
+        if not posix:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_timezone",
+                translation_placeholders={"timezone": zone or "unset"},
+            )
 
+        try:
+            await self.coordinator.door.set_timezone(posix)
+        except (CommandError, OSError, TimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
-async def async_setup_entry(hass: HomeAssistant,
-                            entry: ConfigEntry,
-                            async_add_entities: AddEntitiesCallback) -> None:
-    """Set up the Power Pet Door select entities."""
-
-    host = entry.data.get(CONF_HOST)
-    port = entry.data.get(CONF_PORT)
-    name = entry.data.get(CONF_NAME)
-    obj = hass.data[DOMAIN][f"{host}:{port}"]
-
-    async_add_entities([
-        PetDoorTimezone(
-            hass=hass,
-            client=obj["client"],
-            name=f"{name} Timezone",
-            coordinator=obj["settings"],
-            device=obj["device"]
-        ),
-    ])
+        self._selected = selected
+        self.coordinator.async_update_listeners()

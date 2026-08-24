@@ -1,0 +1,47 @@
+# HACS repository validation.
+#
+# This is the gate that decides whether the repository is admissible to the
+# HACS default list (brands, topics, description, releases, hacs.json shape,
+# directory layout). HACS runs the same action on their side when reviewing
+# and re-validating default repositories, so a failure here is a failure
+# there.
+#
+# Kept as its own workflow, not a job in test.yml - same reasoning as
+# hassfest.yml: it fails for reasons that have nothing to do with our code,
+# on a nightly cadence, and being able to see which of the three gates is
+# red without opening a run matters.
+#
+# Renamed from hcas.yml. That transposition was the subject of issue #2.
+name: HACS Validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  # HACS's rules change under us; nightly is how we find out.
+  schedule:
+    - cron: "0 0 * * *"
+
+# The action needs nothing from the token. HACS's own documented workflow
+# uses `permissions: {}`; contents:read is the smallest thing that still
+# lets the action read the repository it validates.
+permissions:
+  contents: read
+
+concurrency:
+  group: hacs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: HACS
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 15
+    steps:
+      # Pinned by SHA. HACS's docs show `hacs/action@main`; same argument as
+      # hassfest - Dependabot keeps the pin fresh, so there is no upside to
+      # tracking a moving branch.
+      - name: HACS Action
+        uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
+        with:
+          category: "integration"

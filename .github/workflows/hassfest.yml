@@ -1,0 +1,42 @@
+# Home Assistant's own manifest/brand validator.
+#
+# Deliberately a workflow of its own rather than a job inside test.yml: it
+# answers a different question (is this a well-formed *integration*, as
+# judged by HA core's own tooling) on a different cadence (nightly, because
+# hassfest's rules move when HA moves, not when this repo does). A green
+# test.yml with a red hassfest is a real and useful state to be able to see
+# at a glance.
+#
+# Renamed from hass.yml so the pair reads hassfest.yml / hacs.yml.
+name: Validate with hassfest
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  # hassfest can start failing with no commit here at all - a new HA release
+  # adds a manifest key, tightens brand rules, or deprecates an iot_class.
+  # The nightly run is what surfaces that before a user does.
+  schedule:
+    - cron: "0 0 * * *"
+
+# Validation reads the checkout and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: hassfest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: hassfest
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Pinned by SHA rather than @master. This action runs arbitrary code
+      # from a third-party repo against our checkout; @master means whatever
+      # landed upstream this morning. Dependabot moves this pin (see
+      # .github/dependabot.yml), so pinning costs nothing in staleness.
+      - uses: home-assistant/actions/hassfest@4b258cf2bf1668d8e0adcb6b2be96b6cda36f42f # v1.0.0

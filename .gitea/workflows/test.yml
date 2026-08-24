@@ -1,0 +1,435 @@
+# GENERATED FILE - do not edit. Run scripts/sync_gitea_workflow.py.
+#
+# A copy of .github/workflows/test.yml, byte-identical below this header.
+# tests/test_ci_gates.py asserts that, so the two cannot drift.
+#
+# WHY THE DUPLICATION IS NECESSARY (not obvious, and not the case for every
+# repo in this family - ostinato needs no .gitea copy):
+#
+# Gitea does not read both workflow directories. It walks a candidate list
+# and stops at the FIRST that exists - `.gitea/workflows`, then
+# `.github/workflows` (go-gitea/gitea, modules/actions/workflows.go,
+# `listWorkflowsInDirs`: `if err == nil { break }`).
+#
+# `sync-wiki.yml` uses `on: wiki`, a Gitea-only trigger, so it HAS to live
+# in `.gitea/workflows/`. That single file makes the directory exist, which
+# switches Gitea to it exclusively - and without this copy beside it, Gitea
+# would run the wiki sync and no tests whatsoever.
+#
+# A symlink does NOT work here: Gitea filters by filename suffix with no
+# type check, so it reads the symlink's blob - which is the target path -
+# and parses it as the workflow. The result is a workflow with no jobs that
+# silently runs nothing.
+#
+# The same mechanism is why hassfest.yml and hacs.yml deliberately have no
+# copy here: Gitea therefore never attempts them, which is what we want.
+# Both drive GitHub-hosted actions (home-assistant/actions/hassfest,
+# hacs/action) that expect a GitHub API and token, so on a Gitea runner they
+# would fail for reasons that have nothing to do with the code.
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  # Weekly unseeded fuzz exploration, and a full re-probe of the Home
+  # Assistant matrix (upstream moves without us committing anything).
+  schedule:
+    - cron: "17 4 * * 1"
+
+# Only one run per ref at a time. The CI host is a single shared act_runner,
+# so two concurrent runs of this workflow compete for host-level resources
+# (the action cache, etc.). Cancelling the older in-progress run when a new
+# commit arrives avoids those collisions and saves runner capacity.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Reference versions used for linting and single-version jobs.
+# REFERENCE_PYTHON must be the newest entry in .github/ha-matrix.json.
+# REFERENCE_NODE is the current Node Active LTS; it only affects the card's
+# test tooling, never what ships.
+env:
+  REFERENCE_PYTHON: "3.14"
+  REFERENCE_NODE: "24"
+
+jobs:
+  # Pre-warm the act_runner action cache sequentially to prevent race
+  # conditions. Without this, parallel matrix jobs all try to git-clone/pull
+  # the same action into the shared /data/act-cache/ directory
+  # simultaneously, corrupting checkouts.
+  cache-actions:
+    name: Cache Actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ env.REFERENCE_PYTHON }}
+      - uses: ./.github/actions/setup-node-with-retry
+        with:
+          node-version: ${{ env.REFERENCE_NODE }}
+
+  # The (CPython, Home Assistant) grid is measured, not declared - see
+  # scripts/ha_matrix.py. This job publishes the committed measurement so
+  # the unit-test job can fan out over it. Reading it here rather than
+  # hardcoding a matrix means adding a supported HA is a data change.
+  matrix:
+    name: Resolve matrix
+    needs: [cache-actions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      include: ${{ steps.read.outputs.include }}
+      minimum: ${{ steps.read.outputs.minimum }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: read
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, pathlib
+          data = json.loads(pathlib.Path(".github/ha-matrix.json").read_text())
+          include = data["include"]
+          if not include:
+              raise SystemExit("::error::.github/ha-matrix.json has no entries")
+          print("include=" + json.dumps(include))
+          print("minimum=" + data["minimum_homeassistant"])
+          EOF
+      - name: Show the grid
+        run: |
+          echo "Minimum Home Assistant: ${{ steps.read.outputs.minimum }}"
+          echo '${{ steps.read.outputs.include }}' | python3 -m json.tool
+
+  lint:
+    name: Lint
+    needs: [cache-actions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ env.REFERENCE_PYTHON }}
+      # The card is linted here rather than in the Node matrix. Linting is a
+      # property of the SOURCE, not of the runtime: running eslint once per
+      # Node version checks identical bytes three times and reports the same
+      # answer three times. The matrix is for behaviour.
+      - uses: ./.github/actions/setup-node-with-retry
+        with:
+          node-version: ${{ env.REFERENCE_NODE }}
+      # uv.lock is committed and carries a sha256 for every artifact.
+      # --locked fails loudly if the lock has drifted from pyproject.toml,
+      # so CI can never silently resolve a fresh (unpinned, unhashed)
+      # dependency set from PyPI.
+      - name: Install dependencies
+        run: uv sync --locked --all-extras && echo "$(pwd)/.venv/bin" >> $GITHUB_PATH && echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+      - name: Check linting
+        run: ruff check custom_components tests scripts
+      - name: Check formatting
+        run: ruff format --check custom_components tests scripts
+      - name: Check types
+        run: mypy custom_components
+      # Dangling translation_keys, orphaned locale entries, placeholder
+      # mismatches and unwrapped user-facing text all fail here. Missing
+      # translations do not: a locale legitimately lags the source between
+      # a string landing and a translator reaching it.
+      - name: Check translations
+        run: python scripts/check_translations.py --untranslated
+      - name: Check the card advertises a coherent version
+        run: python scripts/check_card_version.py --consistency-only
+      - name: Install the card's lint toolchain
+        run: npm ci --no-audit --no-fund
+      - name: Lint the card
+        run: npm run lint
+
+  # A user-visible change with no CHANGELOG entry leaves someone whose
+  # dashboard changed shape with nothing to tell them it was coming.
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # BASE_REF is passed via env, never interpolated into the script: a ref
+      # name is attacker-controllable on a fork PR and would otherwise be
+      # executed by the shell. On a push there is no base_ref, so diff against
+      # the commit's own parent - otherwise this job could never run on the
+      # direct-to-main pushes this project actually uses.
+      - name: CHANGELOG.md moves whenever the integration or the card does
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          # `HEAD^` inspects only the *tip* commit of a push, so a change in
+          # any earlier commit of a multi-commit push was missed.
+          # `github.event.before` is the ref's previous tip, i.e. the whole
+          # push. It is all-zeroes for a newly created branch, and can point
+          # at a commit this shallow clone lacks - both fall back to HEAD^.
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            base="origin/$BASE_REF"
+          elif [ -n "$PUSH_BEFORE" ] \
+            && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            base="$PUSH_BEFORE"
+          else
+            base="HEAD^"
+          fi
+          # An unresolvable base used to leave `changed` empty, so the job
+          # printed "OK: 0 file(s) changed" and exited 0 - a silent pass on a
+          # guard whose entire job is not to have one.
+          if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+            echo "::error::changelog guard cannot resolve base ref '$base'; refusing to pass."
+            exit 1
+          fi
+          if ! changed="$(git diff --name-only "$base"...HEAD 2>/dev/null)"; then
+            if ! changed="$(git diff --name-only "$base" HEAD)"; then
+              echo "::error::changelog guard could not diff '$base'..HEAD; refusing to pass."
+              exit 1
+            fi
+          fi
+          if echo "$changed" | grep -qE '^(custom_components/|www/)' \
+            && ! echo "$changed" | grep -q '^CHANGELOG\.md$'; then
+            echo "::error::the integration or the card changed but CHANGELOG.md did not."
+            echo "Add an entry under [Unreleased], or explain why the change is not user-visible."
+            echo "$changed" | grep -E '^(custom_components/|www/)'
+            exit 1
+          fi
+          echo "OK: $(echo "$changed" | grep -cE '^(custom_components/|www/)' || true) shipped file(s) changed"
+
+  # Every measured (CPython, Home Assistant) pair. Version-specific code
+  # paths are only exercised on some combinations, so coverage is combined
+  # across ALL of them before the 100% gate.
+  unit-tests:
+    name: ${{ matrix.name }}
+    needs: [matrix]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ matrix.python-version }}
+      # NOT `uv sync --locked` here, and deliberately so. The lock pins one
+      # pytest-homeassistant-custom-component per interpreter, which is the
+      # right thing for a developer's venv but would collapse this matrix to
+      # a single Home Assistant per Python. The whole point of the job is to
+      # test the *other* end of each interpreter's supported range, so the
+      # HA version is installed explicitly. The `lint` job keeps the lock
+      # honest.
+      - name: Install dependencies
+        env:
+          PHACC: ${{ matrix.phacc }}
+        run: |
+          uv venv --python "${{ matrix.python-version }}"
+          echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+          uv pip install "pytest-homeassistant-custom-component==${PHACC}"
+          uv pip install -r <(python3 -c "
+          import json,pathlib
+          m=json.loads(pathlib.Path('custom_components/powerpetdoor/manifest.json').read_text())
+          print('\n'.join(m['requirements']))
+          ")
+          uv pip install pytest-xdist pytest-timeout syrupy hypothesis
+      # The matrix file claims this pair pins this HA. If upstream ever
+      # repoints a phacc release, the tests would quietly run against a
+      # different Home Assistant than the one we report supporting.
+      - name: Verify the pinned Home Assistant matches the matrix
+        env:
+          EXPECTED: ${{ matrix.homeassistant }}
+        run: |
+          actual="$(python -c 'from homeassistant.const import __version__; print(__version__)')"
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "::error::matrix says HA $EXPECTED but phacc ${{ matrix.phacc }} installed $actual"
+            exit 1
+          fi
+          echo "OK: Home Assistant $actual"
+      - name: Run unit tests
+        run: pytest --ignore=tests/fuzz --tb=line -q --cov --cov-report=xml --cov-fail-under=0
+        env:
+          COVERAGE_FILE: .coverage.py${{ matrix.python-version }}-ha${{ matrix.homeassistant }}
+      - name: Upload coverage data
+        if: ${{ always() }}
+        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # untagged head
+        with:
+          name: coverage-py${{ matrix.python-version }}-ha${{ matrix.homeassistant }}
+          path: |
+            .coverage.py${{ matrix.python-version }}-ha${{ matrix.homeassistant }}
+            coverage.xml
+
+  # Runs on every push and PR: the property suite is fast and it is the half
+  # that finds the malformed frames a real door actually sends (see issue
+  # #16). Excluding it from PR CI would let property regressions merge green.
+  fuzz-tests:
+    name: Fuzz Tests
+    needs: [cache-actions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ env.REFERENCE_PYTHON }}
+      - name: Install dependencies
+        run: uv sync --locked --all-extras && echo "$(pwd)/.venv/bin" >> $GITHUB_PATH && echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+      # Push/PR runs are seeded so a failure is exactly reproducible from
+      # the log. A fixed seed with no persisted .hypothesis database means
+      # CI replays the same example set forever, though, so the weekly
+      # schedule run drops the seed and explores a fresh one - that is
+      # where new counterexamples actually come from.
+      - name: Run fuzz tests (seeded, reproducible)
+        if: ${{ github.event_name != 'schedule' }}
+        run: pytest tests/fuzz -v --hypothesis-seed=0
+      - name: Run fuzz tests (weekly, unseeded exploration)
+        if: ${{ github.event_name == 'schedule' }}
+        run: pytest tests/fuzz -v
+
+  # The Lovelace card. Browser JavaScript, tested under jsdom - there is no
+  # build step and nothing here is packaged, so the Node matrix only proves
+  # the card's *tests* are not themselves version-sensitive.
+  frontend-tests:
+    name: Card Tests (node${{ matrix.node-version }})
+    needs: [cache-actions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-with-retry
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install the test toolchain
+        run: npm ci --no-audit --no-fund
+      # No eslint here: see the Lint job. This matrix exists to prove the
+      # card's tests behave the same across Node versions.
+      - name: Run card tests
+        run: npm run test:ci
+      - name: Upload card coverage
+        if: ${{ always() && matrix.node-version == env.REFERENCE_NODE }}
+        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # untagged head
+        with:
+          name: coverage-frontend
+          path: tests/frontend/coverage/
+          if-no-files-found: ignore
+
+  # Simulator-driven end-to-end tests: a real protocol conversation against
+  # pypowerpetdoor's door simulator rather than a mock. Separated from the
+  # unit matrix because it is slower and because a failure here means
+  # something different - the integration and the library disagree.
+  integration-tests:
+    name: Simulator Integration
+    needs: [cache-actions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ env.REFERENCE_PYTHON }}
+      - name: Install dependencies
+        run: uv sync --locked --all-extras && echo "$(pwd)/.venv/bin" >> $GITHUB_PATH && echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+      - name: Run simulator integration tests
+        run: pytest tests/simulator -v --timeout=180
+
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [unit-tests]
+    if: ${{ always() }}
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ env.REFERENCE_PYTHON }}
+      - name: Install dependencies
+        run: uv sync --locked --all-extras && echo "$(pwd)/.venv/bin" >> $GITHUB_PATH && echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+      # One download step for every matrix entry, without hardcoding the
+      # grid: the artifacts are named coverage-*, so fetch them all.
+      - name: Download coverage data
+        uses: christopherhx/gitea-download-artifact@75635f32b4c1c41c4b3d64e8f85210112ed4c9c7 # v4
+        with:
+          pattern: coverage-py*
+          path: coverage-data
+          merge-multiple: true
+        continue-on-error: true
+      - name: Combine coverage
+        run: |
+          find coverage-data -name '.coverage.*' -exec cp {} . \; 2>/dev/null || true
+          coverage combine
+          coverage xml
+          coverage html
+          coverage json
+          coverage report --show-missing --fail-under=0
+      - name: Upload coverage to Codecov
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: coverage.xml
+          flags: python
+          fail_ci_if_error: false
+      - name: Upload coverage report
+        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # untagged head
+        with:
+          name: coverage-report
+          path: |
+            coverage_html/
+            coverage.json
+          if-no-files-found: ignore
+      - name: Generate gaps report
+        run: python scripts/generate_gaps_report.py
+      # Only on the forge that is the source of truth. The GitHub side is a
+      # push-mirror: a commit pushed there is overwritten by the next mirror
+      # sync, and the token it would need does not exist, so this step only
+      # ever produced a failed-step annotation on every GitHub run.
+      - name: Commit updated TESTING_GAPS.md
+        if: github.event_name == 'push' && !contains(github.server_url, 'github.com')
+        run: |
+          git config user.name "CI Bot"
+          git config user.email "ci@neuromancy.net"
+          git add tests/TESTING_GAPS.md
+          if ! git diff --cached --quiet; then
+            git commit -m "[skip ci] Update TESTING_GAPS.md from coverage report"
+            git push
+          fi
+        continue-on-error: true
+      # The real gate: pyproject's fail_under=100 applies here, on the
+      # coverage combined across every entry in the matrix.
+      - name: Enforce 100% coverage
+        run: coverage report --fail-under=100
+
+  # Upstream moves without us committing anything: a new Home Assistant
+  # release lands, a new CPython lands, or a phacc release is yanked. This
+  # re-measures the grid weekly and fails if the committed matrix has gone
+  # stale, so the supported range in the README is never a stale claim.
+  matrix-freshness:
+    name: Matrix Freshness
+    if: ${{ github.event_name == 'schedule' }}
+    needs: [cache-actions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-uv-with-retry
+        with:
+          python-version: ${{ env.REFERENCE_PYTHON }}
+      - name: Install dependencies
+        run: uv sync --locked --all-extras && echo "$(pwd)/.venv/bin" >> $GITHUB_PATH && echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+      - name: Re-probe the (python, Home Assistant) grid
+        run: python scripts/ha_matrix.py --check --quick

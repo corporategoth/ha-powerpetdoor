@@ -3,324 +3,203 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Tests for Power Pet Door cover entity."""
+"""The cover entity - the flap itself."""
+
 from __future__ import annotations
 
-import asyncio
-from datetime import timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
-# Skip all tests in this module if Home Assistant is not available
-pytest.importorskip("homeassistant")
-pytest.importorskip("pytest_homeassistant_custom_component")
-
+from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.core import HomeAssistant
-from homeassistant.components.cover import CoverDeviceClass, CoverEntityFeature
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.exceptions import HomeAssistantError
+from powerpetdoor import CommandError, DoorStatus
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.powerpetdoor.cover import PetDoor
-from custom_components.powerpetdoor.const import (
-    COMMAND,
-    CONFIG,
-    CMD_GET_DOOR_STATUS,
-    CMD_OPEN_AND_HOLD,
-    CMD_CLOSE,
-    DOOR_STATE_IDLE,
-    DOOR_STATE_CLOSED,
-    DOOR_STATE_HOLDING,
-    DOOR_STATE_KEEPUP,
-    DOOR_STATE_SLOWING,
-    DOOR_STATE_RISING,
-    DOOR_STATE_CLOSING_TOP_OPEN,
-    DOOR_STATE_CLOSING_MID_OPEN,
-    FIELD_DOOR_STATUS,
-    STATE_LAST_CHANGE,
+COVER = "cover.power_pet_door_door"
+
+#: Every door state, with the `is_closed`/`is_closing` the library derives
+#: from it and the position it reports, and the cover state that must
+#: result.
+#:
+#: The library's own rules, restated here as a table on purpose: this file
+#: tests what cover.py DERIVES (`is_opening`, which the facade does not
+#: expose), and that derivation is only meaningful against the two flags it
+#: sits beside. tests/simulator/ drives the same transitions through a real
+#: door, which is what checks the table itself is not fiction.
+STATES = [
+    (DoorStatus.IDLE, True, False, 0, "closed"),
+    (DoorStatus.CLOSED, True, False, 0, "closed"),
+    (DoorStatus.RISING, False, False, 33, "opening"),
+    (DoorStatus.SLOWING, False, False, 66, "opening"),
+    (DoorStatus.HOLDING, False, False, 100, "open"),
+    (DoorStatus.KEEPUP, False, False, 100, "open"),
+    # The motor has started and the flap has not moved, so the door is still
+    # fully open AND already closing. Omitting it let a mutation that reports
+    # CLOSING as *opening* - the flap visibly coming down while the cover says
+    # it is going up - pass the whole suite.
+    (DoorStatus.CLOSING, False, True, 100, "closing"),
+    (DoorStatus.CLOSING_TOP_OPEN, False, True, 66, "closing"),
+    (DoorStatus.CLOSING_MID_OPEN, False, True, 33, "closing"),
+    # A frame the door sent that the library could not parse. Neither open
+    # nor closed nor moving - issue #16 is a real report of exactly this
+    # kind of malformed frame, and the cover must not claim the flap is
+    # open because it happens not to be closed.
+    (DoorStatus.UNKNOWN, False, False, 0, "open"),
+]
+
+
+def push(hass: HomeAssistant, door: MagicMock, status: DoorStatus) -> None:
+    """Put the door double into `status`, with consistent derived flags."""
+    for candidate, is_closed, is_closing, position, _ in STATES:
+        if candidate is status:
+            door.status = status
+            door.is_closed = is_closed
+            door.is_closing = is_closing
+            door.is_open = status in (
+                DoorStatus.RISING,
+                DoorStatus.SLOWING,
+                DoorStatus.HOLDING,
+                DoorStatus.KEEPUP,
+            )
+            door.position = position
+            break
+    for callback in door._callbacks["on_status_change"]:
+        callback(status)
+
+
+@pytest.mark.parametrize(("status", "_c", "_g", "_p", "expected"), STATES)
+async def test_every_door_state_maps_to_one_cover_state(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    status: DoorStatus,
+    _c: bool,
+    _g: bool,
+    _p: int,
+    expected: str,
+) -> None:
+    """The whole state machine, one row at a time.
+
+    RISING and SLOWING are the rows this file exists for: the facade has no
+    `is_opening`, so cover.py derives it, and a door mid-rise that reported
+    "open" would make a wait-for-open automation continue while the flap was
+    still moving.
+    """
+    push(hass, mock_door, status)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(COVER).state == expected
+
+
+@pytest.mark.parametrize(("status", "_c", "_g", "position", "_e"), STATES)
+async def test_the_cover_reports_how_far_open_the_flap_is(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    status: DoorStatus,
+    _c: bool,
+    _g: bool,
+    position: int,
+    _e: str,
+) -> None:
+    """Position is what distinguishes a shutter from a plain door.
+
+    A dashboard slider and any position-aware automation read this, and it
+    is the only thing that separates SLOWING from RISING to a user.
+    """
+    push(hass, mock_door, status)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(COVER).attributes["current_position"] == position
+
+
+async def test_the_cover_offers_only_open_and_close(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """No SET_POSITION or STOP: the door has no command for either.
+
+    Advertising a feature the hardware lacks puts a slider on the dashboard
+    that silently does nothing.
+    """
+    features = hass.states.get(COVER).attributes["supported_features"]
+
+    assert features == CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
+
+
+async def test_the_cover_is_a_shutter(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """Pinned by literal: previous versions shipped SHUTTER too.
+
+    Changing the device class changes the icon, the wording a voice
+    assistant uses, and how existing dashboards render it.
+    """
+    assert hass.states.get(COVER).attributes["device_class"] == "shutter"
+
+
+async def test_opening_the_cover_holds_the_door_open(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """`open()`, never `cycle()`.
+
+    A cover wired to the timed open would report open and then go closed
+    with no command behind it, which no automation could reason about.
+    """
+    await hass.services.async_call("cover", "open_cover", {"entity_id": COVER}, blocking=True)
+
+    mock_door.open.assert_awaited_once()
+    mock_door.cycle.assert_not_awaited()
+
+
+async def test_closing_the_cover_closes_the_door(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """...and does not toggle, which would open a closed door."""
+    await hass.services.async_call("cover", "close_cover", {"entity_id": COVER}, blocking=True)
+
+    mock_door.close.assert_awaited_once()
+    mock_door.toggle.assert_not_awaited()
+
+
+@pytest.mark.parametrize(("service", "method"), [("open_cover", "open"), ("close_cover", "close")])
+@pytest.mark.parametrize(
+    "raised", [CommandError("obstructed"), OSError("reset"), TimeoutError("no answer")]
 )
+async def test_a_cover_command_the_door_refuses_is_reported(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    service: str,
+    method: str,
+    raised: Exception,
+) -> None:
+    """An obstructed or unreachable door says so rather than failing silently."""
+    getattr(mock_door, method).side_effect = raised
+
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call("cover", service, {"entity_id": COVER}, blocking=True)
+
+    assert err.value.translation_key == "command_failed"
 
 
-class TestPetDoorEntity:
-    """Tests for the PetDoor cover entity."""
+async def test_the_cover_is_unavailable_while_the_door_is_powered_off(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """A flap with no power to its motor has no meaningful state."""
+    mock_door.power = False
+    for callback in mock_door._callbacks["on_settings_change"]:
+        callback({})
+    await hass.async_block_till_done()
 
-    @pytest.fixture
-    def mock_coordinator(self, hass: HomeAssistant):
-        """Create a mock coordinator."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = DOOR_STATE_CLOSED
-        coordinator.async_request_refresh = AsyncMock()
-        coordinator.async_set_updated_data = MagicMock()
-        return coordinator
+    assert hass.states.get(COVER).state == "unavailable"
 
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = True
-        client.add_listener = MagicMock()
-        client.add_handlers = MagicMock()
-        client.send_message = MagicMock(return_value=asyncio.Future())
-        return client
 
-    @pytest.fixture
-    def pet_door(self, hass: HomeAssistant, mock_client, mock_coordinator):
-        """Create a PetDoor entity for testing."""
-        with patch.object(PetDoor, '__init__', lambda self, **kwargs: None):
-            door = PetDoor.__new__(PetDoor)
-            door.client = mock_client
-            door.coordinator = mock_coordinator
-            door.last_change = None
-            door.power = True
-            door._attr_name = "Test Door"
-            door._attr_unique_id = "192.168.1.100:3000-door"
-            door._attr_device_info = None
-            return door
-
-    # ==========================================================================
-    # Cover State Tests
-    # ==========================================================================
-
-    def test_is_closed_when_idle(self, pet_door, mock_coordinator):
-        """Test door is closed when state is IDLE."""
-        mock_coordinator.data = DOOR_STATE_IDLE
-        assert pet_door.is_closed is True
-
-    def test_is_closed_when_closed(self, pet_door, mock_coordinator):
-        """Test door is closed when state is CLOSED."""
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        assert pet_door.is_closed is True
-
-    def test_is_closed_when_holding(self, pet_door, mock_coordinator):
-        """Test door is not closed when state is HOLDING."""
-        mock_coordinator.data = DOOR_STATE_HOLDING
-        assert pet_door.is_closed is False
-
-    def test_is_closed_when_keepup(self, pet_door, mock_coordinator):
-        """Test door is not closed when state is KEEPUP."""
-        mock_coordinator.data = DOOR_STATE_KEEPUP
-        assert pet_door.is_closed is False
-
-    def test_is_closed_returns_none_when_no_data(self, pet_door, mock_coordinator):
-        """Test is_closed returns None when no data."""
-        mock_coordinator.data = None
-        assert pet_door.is_closed is None
-
-    # ==========================================================================
-    # Opening State Tests
-    # ==========================================================================
-
-    def test_is_opening_when_rising(self, pet_door, mock_coordinator):
-        """Test door is opening when state is RISING."""
-        mock_coordinator.data = DOOR_STATE_RISING
-        assert pet_door.is_opening is True
-
-    def test_is_opening_when_slowing(self, pet_door, mock_coordinator):
-        """Test door is opening when state is SLOWING."""
-        mock_coordinator.data = DOOR_STATE_SLOWING
-        assert pet_door.is_opening is True
-
-    def test_is_opening_when_closed(self, pet_door, mock_coordinator):
-        """Test door is not opening when closed."""
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        assert pet_door.is_opening is False
-
-    def test_is_opening_returns_none_when_no_data(self, pet_door, mock_coordinator):
-        """Test is_opening returns None when no data."""
-        mock_coordinator.data = None
-        assert pet_door.is_opening is None
-
-    # ==========================================================================
-    # Closing State Tests
-    # ==========================================================================
-
-    def test_is_closing_when_closing_top(self, pet_door, mock_coordinator):
-        """Test door is closing when state is CLOSING_TOP_OPEN."""
-        mock_coordinator.data = DOOR_STATE_CLOSING_TOP_OPEN
-        assert pet_door.is_closing is True
-
-    def test_is_closing_when_closing_mid(self, pet_door, mock_coordinator):
-        """Test door is closing when state is CLOSING_MID_OPEN."""
-        mock_coordinator.data = DOOR_STATE_CLOSING_MID_OPEN
-        assert pet_door.is_closing is True
-
-    def test_is_closing_when_open(self, pet_door, mock_coordinator):
-        """Test door is not closing when open."""
-        mock_coordinator.data = DOOR_STATE_KEEPUP
-        assert pet_door.is_closing is False
-
-    def test_is_closing_returns_none_when_no_data(self, pet_door, mock_coordinator):
-        """Test is_closing returns None when no data."""
-        mock_coordinator.data = None
-        assert pet_door.is_closing is None
-
-    # ==========================================================================
-    # Position Tests
-    # ==========================================================================
-
-    def test_position_0_when_closed(self, pet_door, mock_coordinator):
-        """Test position is 0 when door is closed."""
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        assert pet_door.current_cover_position == 0
-
-    def test_position_0_when_idle(self, pet_door, mock_coordinator):
-        """Test position is 0 when door is idle."""
-        mock_coordinator.data = DOOR_STATE_IDLE
-        assert pet_door.current_cover_position == 0
-
-    def test_position_100_when_holding(self, pet_door, mock_coordinator):
-        """Test position is 100 when door is holding."""
-        mock_coordinator.data = DOOR_STATE_HOLDING
-        assert pet_door.current_cover_position == 100
-
-    def test_position_100_when_keepup(self, pet_door, mock_coordinator):
-        """Test position is 100 when door is keep up."""
-        mock_coordinator.data = DOOR_STATE_KEEPUP
-        assert pet_door.current_cover_position == 100
-
-    def test_position_66_when_slowing(self, pet_door, mock_coordinator):
-        """Test position is 66 when door is slowing."""
-        mock_coordinator.data = DOOR_STATE_SLOWING
-        assert pet_door.current_cover_position == 66
-
-    def test_position_66_when_closing_top(self, pet_door, mock_coordinator):
-        """Test position is 66 when door is closing from top."""
-        mock_coordinator.data = DOOR_STATE_CLOSING_TOP_OPEN
-        assert pet_door.current_cover_position == 66
-
-    def test_position_33_when_rising(self, pet_door, mock_coordinator):
-        """Test position is 33 when door is rising."""
-        mock_coordinator.data = DOOR_STATE_RISING
-        assert pet_door.current_cover_position == 33
-
-    def test_position_33_when_closing_mid(self, pet_door, mock_coordinator):
-        """Test position is 33 when door is closing from mid."""
-        mock_coordinator.data = DOOR_STATE_CLOSING_MID_OPEN
-        assert pet_door.current_cover_position == 33
-
-    def test_position_none_when_no_data(self, pet_door, mock_coordinator):
-        """Test position is None when no data."""
-        mock_coordinator.data = None
-        assert pet_door.current_cover_position is None
-
-    # ==========================================================================
-    # Availability Tests
-    # ==========================================================================
-
-    def test_available_when_connected_and_powered(self, pet_door, mock_client, mock_coordinator):
-        """Test available when client connected and power on."""
-        mock_client.available = True
-        pet_door.power = True
-        mock_coordinator.last_update_success = True
-        # CoordinatorEntity.available checks coordinator state
-        with patch.object(type(pet_door).__bases__[0], 'available', True):
-            assert pet_door.available is True
-
-    def test_unavailable_when_disconnected(self, pet_door, mock_client, mock_coordinator):
-        """Test unavailable when client disconnected."""
-        mock_client.available = False
-        pet_door.power = True
-        with patch.object(type(pet_door).__bases__[0], 'available', True):
-            assert pet_door.available is False
-
-    def test_unavailable_when_power_off(self, pet_door, mock_client, mock_coordinator):
-        """Test unavailable when power is off."""
-        mock_client.available = True
-        pet_door.power = False
-        with patch.object(type(pet_door).__bases__[0], 'available', True):
-            assert pet_door.available is False
-
-    # ==========================================================================
-    # Command Tests
-    # ==========================================================================
-
-    @pytest.mark.asyncio
-    async def test_open_cover_sends_command(self, pet_door, mock_client):
-        """Test opening cover sends OPEN_AND_HOLD command."""
-        await pet_door.async_open_cover()
-        mock_client.send_message.assert_called_once_with(COMMAND, CMD_OPEN_AND_HOLD)
-
-    @pytest.mark.asyncio
-    async def test_close_cover_sends_command(self, pet_door, mock_client):
-        """Test closing cover sends CLOSE command."""
-        await pet_door.async_close_cover()
-        mock_client.send_message.assert_called_once_with(COMMAND, CMD_CLOSE)
-
-    @pytest.mark.asyncio
-    async def test_toggle_opens_when_closed(self, pet_door, mock_client, mock_coordinator):
-        """Test toggle opens door when closed."""
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        await pet_door.async_toggle()
-        mock_client.send_message.assert_called_once_with(COMMAND, CMD_OPEN_AND_HOLD)
-
-    @pytest.mark.asyncio
-    async def test_toggle_closes_when_open(self, pet_door, mock_client, mock_coordinator):
-        """Test toggle closes door when open."""
-        mock_coordinator.data = DOOR_STATE_HOLDING
-        await pet_door.async_toggle()
-        mock_client.send_message.assert_called_once_with(COMMAND, CMD_CLOSE)
-
-    # ==========================================================================
-    # Extra Attributes Tests
-    # ==========================================================================
-
-    def test_extra_attributes_includes_door_status(self, pet_door, mock_coordinator):
-        """Test extra attributes includes door status."""
-        mock_coordinator.data = DOOR_STATE_HOLDING
-        attrs = pet_door.extra_state_attributes
-        assert FIELD_DOOR_STATUS in attrs
-        assert attrs[FIELD_DOOR_STATUS] == DOOR_STATE_HOLDING
-
-    def test_extra_attributes_includes_last_change(self, pet_door, mock_coordinator):
-        """Test extra attributes includes last change when set."""
-        from datetime import datetime, timezone
-        pet_door.last_change = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        attrs = pet_door.extra_state_attributes
-        assert STATE_LAST_CHANGE in attrs
-        assert "2025-01-15" in attrs[STATE_LAST_CHANGE]
-
-    def test_extra_attributes_empty_when_no_data(self, pet_door, mock_coordinator):
-        """Test extra attributes empty when no data."""
-        mock_coordinator.data = None
-        pet_door.last_change = None
-        attrs = pet_door.extra_state_attributes
-        assert attrs == {}
-
-    # ==========================================================================
-    # Entity Properties Tests
-    # ==========================================================================
-
-    def test_device_class(self, pet_door):
-        """Test device class is SHUTTER."""
-        assert pet_door.device_class == CoverDeviceClass.SHUTTER
-
-    def test_supported_features(self, pet_door):
-        """Test supported features are OPEN and CLOSE."""
-        expected = CoverEntityFeature.CLOSE | CoverEntityFeature.OPEN
-        assert pet_door.supported_features == expected
-
-    # ==========================================================================
-    # State Update Tests
-    # ==========================================================================
-
-    def test_handle_state_update_changes_data(self, pet_door, mock_coordinator):
-        """Test handle_state_update updates coordinator data."""
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        pet_door.handle_state_update(DOOR_STATE_HOLDING)
-        mock_coordinator.async_set_updated_data.assert_called_once_with(DOOR_STATE_HOLDING)
-
-    def test_handle_state_update_ignores_same_state(self, pet_door, mock_coordinator):
-        """Test handle_state_update ignores same state."""
-        mock_coordinator.data = DOOR_STATE_CLOSED
-        pet_door.handle_state_update(DOOR_STATE_CLOSED)
-        mock_coordinator.async_set_updated_data.assert_not_called()
-
-    def test_handle_power_update_sets_power(self, pet_door):
-        """Test handle_power_update sets power state."""
-        pet_door.power = True
-        pet_door.async_schedule_update_ha_state = MagicMock()
-        pet_door.handle_power_update(False)
-        assert pet_door.power is False
-        pet_door.async_schedule_update_ha_state.assert_called_once()
+async def test_the_cover_is_available_on_a_powered_door(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """The other side of the gate."""
+    # A concrete state, not merely "not unavailable": an entity reporting
+    # `unknown` is exactly as broken to a user, and the old assertion
+    # passed for both.
+    assert hass.states.get(COVER).state == "closed"

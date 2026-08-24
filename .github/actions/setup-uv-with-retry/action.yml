@@ -1,0 +1,55 @@
+# Adapted from ostinato/.github/actions/setup-uv-with-retry/ (the canonical
+# retry pattern for the shared act_runner). This copy diverges deliberately:
+# the setup-uv action is pinned to a commit SHA per this repo's security policy.
+name: 'Setup uv (with retry)'
+description: >
+  Wraps astral-sh/setup-uv@v7 with up to 3 attempts to ride out the
+  act-runner action-cache race that happens when many matrix jobs read
+  /data/act-cache/<sha> concurrently.
+
+inputs:
+  python-version:
+    required: true
+    description: Python version for uv to install
+  enable-cache:
+    required: false
+    default: 'false'
+    description: >
+      Whether setup-uv should use the Actions cache service. Defaults to
+      OFF because Gitea's act_runner cache backend is slow to unreachable:
+      it made every job idle at setup and then time out, and because this
+      wrapper retries three times a single cache stall cost three stalls
+      plus 40s of sleeps. This project resolves 28 packages in about a
+      millisecond, so the cache never paid for itself even when it worked.
+
+runs:
+  using: composite
+  steps:
+    - id: try1
+      continue-on-error: true
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: ${{ inputs.enable-cache }}
+
+    - if: steps.try1.outcome == 'failure'
+      shell: bash
+      run: sleep 10
+
+    - if: steps.try1.outcome == 'failure'
+      id: try2
+      continue-on-error: true
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: ${{ inputs.enable-cache }}
+
+    - if: steps.try1.outcome == 'failure' && steps.try2.outcome == 'failure'
+      shell: bash
+      run: sleep 30
+
+    - if: steps.try1.outcome == 'failure' && steps.try2.outcome == 'failure'
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: ${{ inputs.enable-cache }}

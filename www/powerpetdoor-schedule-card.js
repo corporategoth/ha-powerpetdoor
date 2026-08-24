@@ -4,18 +4,155 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.6.0
+ * Power Pet Door Schedule Card v1.13.0
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+// How the end of the day is spelled in Home Assistant's schedule shape.
+//
+// The device's end-of-day is 24:00, which <input type="time"> and HA's HH:MM
+// format cannot express, so midnight stands in for it. The rule is
+// positional and applies throughout: midnight OPENING a window is the day's
+// first minute, midnight CLOSING one is its last.
+//
+// 23:59 is deliberately not special. The device is measured to accept and
+// preserve 24:00, so there is no need to read a literal 23:59 as anything
+// other than 23:59 - and a window that really does end there really does
+// leave the sensor off for that final minute.
+const ALL_DAY_END = '00:00';
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// ---------------------------------------------------------------------------
+// Translations
+//
+// Home Assistant's own translation machinery covers integrations, not custom
+// cards: there is no `strings.json` a card can register, and `hass.localize`
+// only resolves keys HA itself shipped. So a card that wants to be
+// translatable has to carry its own catalogue, which is what this is.
+//
+// English lives here as the fallback, so a missing language renders English
+// rather than a raw key. Add a language by adding a key to STRINGS; every
+// entry it omits falls through to `en`.
+//
+// scripts/check_translations.py reads this object and fails the build on a
+// `t()` call whose key is missing, or on user-facing prose that never
+// entered it.
+// ---------------------------------------------------------------------------
+
+const STRINGS = {
+  en: {
+    no_entity: 'Please define an entity',
+    load_failed: 'Failed to load schedule',
+    save_failed: 'Failed to save schedule',
+    inside_sensor: 'Inside Sensor',
+    outside_sensor: 'Outside Sensor',
+    always_active: 'Active 24/7 (no schedule set)',
+    no_windows: 'No window is open for this sensor',
+    active: 'Active',
+    inactive: 'Inactive',
+    am: 'AM',
+    pm: 'PM',
+    am_short: 'a',
+    pm_short: 'p',
+    summary: '{slots} time slot{slots_plural} across {days} day{days_plural}',
+    schedule_entity: 'Schedule Entity',
+    select_entity: 'Select a schedule entity...',
+    slot_color: 'Slot Color',
+    slot_color_hint: '(time slots)',
+    active_slot_color: 'Active Slot Color',
+    active_slot_color_hint: '(currently active time)',
+    removal_color: 'Removal Color',
+    removal_color_hint: '(when shrinking slots)',
+    color_placeholder: 'CSS color or variable',
+    color_swatch: 'swatch',
+    sensor: 'Sensor',
+    saved: 'Schedule saved',
+    to: 'to',
+    active_now: 'active now',
+    add_window: 'Add a window to',
+    loading: 'Loading schedule...',
+    hint: 'Click or drag to create. Drag edges to resize. Click slot to edit.',
+    hint_readonly: 'You have read-only access to this schedule.',
+    timers_disabled:
+      'Schedules are switched off on the door, so these windows are not being applied and both sensors stay live. Turn on the Schedule enabled switch to use them.',
+    reload: 'Reload from device',
+    from_label: 'From:',
+    to_label: 'To:',
+    delete: 'Delete',
+    cancel: 'Cancel',
+    save: 'Save',
+    reset: 'Reset',
+    end_before_start:
+      'That window does not cover any time. The end must be later than the start, and the door cannot schedule past midnight in one window - use 00:00 as the end to run to the end of the day, then add a second window on the next day.',
+    new_slot: 'New Time Slot',
+    edit_slot: 'Edit Time Slot',
+  },
+};
+
+/**
+ * Look up `key` for the user's language, falling back to English.
+ *
+ * `replacements` are substituted as `{name}`. Never throws: an unknown key
+ * returns the key itself, which is visible in the UI but does not blank the
+ * card the way an exception in a render path would.
+ */
+function t(hass, key, replacements) {
+  const language = (hass && hass.language) || 'en';
+  const table = STRINGS[language] || {};
+  let text = table[key] || STRINGS.en[key] || key;
+  if (replacements) {
+    for (const [name, value] of Object.entries(replacements)) {
+      text = text.split(`{${name}}`).join(String(value));
+    }
+  }
+  return text;
+}
 
 // Default colors
 const DEFAULT_SLOT_COLOR = 'var(--primary-color, #03a9f4)';
 const DEFAULT_ACTIVE_SLOT_COLOR = 'var(--warning-color, #ff9800)';
 const DEFAULT_REMOVAL_COLOR = 'var(--error-color, #f44336)';
+
+// ---------------------------------------------------------------------------
+// Interpolation safety
+//
+// The card builds its DOM with `innerHTML` on template literals, so every
+// interpolated value is parsed as HTML. Most are numbers this file computed
+// and are safe by construction; these two helpers exist for the values that
+// are NOT ours - an error string that carries the door's own words, and an
+// entity's name or id.
+//
+// The threat model in .claude/CLAUDE.md states the rule directly: the card
+// renders device-supplied text, and the door is a cheap embedded device
+// that has been observed to send malformed frames (issue #16).
+// ---------------------------------------------------------------------------
+
+/** Escape a value for use as HTML text or inside a double-quoted attribute. */
+function escapeHtml(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * A colour safe to interpolate into a `<style>` block.
+ *
+ * escapeHtml is no use here: a style block is CDATA, so `&lt;` is NOT
+ * decoded back to `<` and the escaping would merely corrupt the colour
+ * while `</style>` still ended the block. The only defence is to refuse the
+ * characters a colour never contains - so anything outside the CSS colour
+ * alphabet falls back to the default rather than reaching the stylesheet.
+ */
+function cssColor(value, fallback) {
+  const text = String(value === null || value === undefined ? '' : value).trim();
+  return text && /^[#a-zA-Z0-9(),.%\s_-]+$/.test(text) ? text : fallback;
+}
 
 class PowerPetDoorScheduleCard extends HTMLElement {
   constructor() {
@@ -24,14 +161,22 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._schedule = {};
+    this._kind = null;
+    // The door's master switch. Assumed on until the API says otherwise,
+    // so a card that never loaded does not accuse the user of a setting
+    // they have not made.
+    this._timersEnabled = true;
     this._loading = true;
     this._error = null;
     this._expanded = false;
     this._editingSlot = null;
     this._isNewSlot = false; // Track if editing a newly created slot
+    this._dialogError = null; // Why the last Save was refused, if it was
 
     // Drag state
     this._isDragging = false;
+    this._dragMoved = false;
+    this._materialised = false;
     this._dragType = null; // 'create', 'resize-top', 'resize-bottom'
     this._dragDay = null;
     this._dragStartMinutes = null;
@@ -58,6 +203,19 @@ class PowerPetDoorScheduleCard extends HTMLElement {
 
   disconnectedCallback() {
     this._stopCurrentTimeUpdates();
+    // A drag adds listeners to `document`, not to this element, so removing
+    // the card mid-drag (switching dashboard views, a config change) left
+    // them attached for the life of the page - pinning the card and its
+    // shadow DOM, and letting the next mouseup ANYWHERE run _handleMouseUp
+    // on a detached card, which for a resize writes a schedule to the door
+    // the user has already navigated away from.
+    this._releaseDragListeners();
+    this._isDragging = false;
+  }
+
+  _releaseDragListeners() {
+    document.removeEventListener('mousemove', this._handleMouseMove);
+    document.removeEventListener('mouseup', this._handleMouseUp);
   }
 
   _startCurrentTimeUpdates() {
@@ -97,11 +255,13 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       slot.classList.remove('active-now');
     });
 
-    const daySlots = this._schedule[currentDay] || [];
+    // _getEffectiveSchedule, not _schedule: the grid renders the implied
+    // all-day bars for a door with no schedule, and highlighting read from
+    // a different source meant those bars were never highlighted at all -
+    // contradicting the documented red-line behaviour.
+    const daySlots = this._getEffectiveSchedule()[currentDay] || [];
     daySlots.forEach((slot, index) => {
-      const startMin = this._parseTimeToMinutes(slot.from);
-      const endMin = this._parseTimeToMinutes(slot.to);
-      if (currentMinutes >= startMin && currentMinutes < endMin) {
+      if (this._slotCovers(slot, currentMinutes)) {
         const slotEl = this.shadowRoot?.querySelector(
           `.time-slot[data-day="${currentDay}"][data-index="${index}"]`
         );
@@ -122,22 +282,42 @@ class PowerPetDoorScheduleCard extends HTMLElement {
 
   setConfig(config) {
     if (!config.entity) {
-      throw new Error('Please define an entity');
+      throw new Error(t(this._hass, 'no_entity'));
     }
+    // Home Assistant REUSES the element when only the config changed - the
+    // card editor's live preview does it on every keystroke. Without
+    // discarding the loaded state, pointing a card at the other sensor left
+    // the previous sensor's schedule and title on screen, welded to the new
+    // entity's on/off state, and nothing ever refetched: `set hass` only
+    // reloads when the state OBJECT changes, which it does not for an
+    // entity that was already in `states`.
+    const changedEntity = this._config.entity && this._config.entity !== config.entity;
     this._config = config;
+    if (changedEntity) {
+      this._schedule = {};
+      this._kind = null;
+      this._timersEnabled = true;
+      this._error = null;
+      this._loading = true;
+      this._editingSlot = null;
+      this._isNewSlot = false;
+      this._materialised = false;
+      this._loadSchedule();
+      return;
+    }
     this.render();
   }
 
   _getSlotColor() {
-    return this._config.slot_color || DEFAULT_SLOT_COLOR;
+    return cssColor(this._config.slot_color, DEFAULT_SLOT_COLOR);
   }
 
   _getActiveSlotColor() {
-    return this._config.active_slot_color || DEFAULT_ACTIVE_SLOT_COLOR;
+    return cssColor(this._config.active_slot_color, DEFAULT_ACTIVE_SLOT_COLOR);
   }
 
   _getRemovalColor() {
-    return this._config.removal_color || DEFAULT_REMOVAL_COLOR;
+    return cssColor(this._config.removal_color, DEFAULT_REMOVAL_COLOR);
   }
 
   set hass(hass) {
@@ -155,31 +335,61 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   async _loadSchedule() {
     if (!this._hass || !this._config.entity) return;
 
+    // Two state changes in quick succession start two loads, and nothing
+    // says the first to be sent is the first to come back. Whichever
+    // resolved last used to win, so a stale reply could overwrite a fresh
+    // one and leave the card showing a schedule the door no longer has -
+    // the same symptom that made changing the card's entity look broken.
+    // Only the most recently STARTED load is allowed to publish.
+    const token = (this._loadToken = (this._loadToken || 0) + 1);
+
+    let schedule;
+    // `undefined` means "leave it alone": the attribute fallback below can
+    // supply a schedule but never a kind, and clearing it there would drop
+    // the card's title back to the generic "Sensor" on a transient failure.
+    let kind;
+    // Same "leave it alone" rule: the attribute fallback cannot supply it.
+    let timersEnabled;
+    let error = null;
     try {
       const result = await this._hass.callWS({
         type: 'powerpetdoor/schedule/get',
         entity_id: this._config.entity,
       });
-      this._schedule = result.schedule || {};
-      this._loading = false;
-      this._error = null;
+      schedule = result.schedule || {};
+      kind = result.kind || null;
+      timersEnabled = result.timers_enabled !== false;
     } catch (err) {
       // Fallback to entity state attributes
       const state = this._hass.states[this._config.entity];
       if (state && state.attributes && state.attributes.schedule) {
-        this._schedule = JSON.parse(JSON.stringify(state.attributes.schedule));
-        this._loading = false;
-        this._error = null;
+        schedule = JSON.parse(JSON.stringify(state.attributes.schedule));
       } else {
-        this._error = err.message || 'Failed to load schedule';
-        this._loading = false;
+        error = err.message || t(this._hass, 'load_failed');
       }
     }
+
+    if (token !== this._loadToken) return;
+
+    if (schedule !== undefined) this._schedule = schedule;
+    if (kind !== undefined) this._kind = kind;
+    if (timersEnabled !== undefined) this._timersEnabled = timersEnabled;
+    this._error = error;
+    this._loading = false;
     this.render();
   }
 
   async _saveSchedule() {
     if (!this._hass || !this._config.entity) return;
+
+    // Before the await, not after. `_materialised` records that Cancel
+    // still has an unscheduled door to restore; once the schedule is on its
+    // way to the door there is nothing left to undo. Clearing it after the
+    // round trip left a window in which opening a second dialog and
+    // cancelling wiped `_schedule` back to {}, and the card then reported
+    // "Active 24/7 (no schedule set)" for a door that had just been given
+    // one.
+    this._materialised = false;
 
     try {
       await this._hass.callWS({
@@ -187,17 +397,58 @@ class PowerPetDoorScheduleCard extends HTMLElement {
         entity_id: this._config.entity,
         schedule: this._schedule,
       });
+      this._notify(t(this._hass, 'saved'));
     } catch (err) {
-      alert('Failed to save schedule: ' + (err.message || err));
+      // Home Assistant's own toast, not alert(). alert() blocks the whole
+      // frontend thread, renders as a bare OS dialog in the Companion App,
+      // and - once a user ticks the browser's "prevent additional dialogs",
+      // which they will after seeing two - swallows every later failure
+      // entirely, so edits revert with no explanation at all.
+      this._notify(`${t(this._hass, 'save_failed')}: ${err.message || err}`);
       this._loadSchedule(); // Reload on failure
     }
   }
 
+  /** Raise a Home Assistant toast. */
+  _notify(message) {
+    this.dispatchEvent(new CustomEvent('hass-notification', {
+      detail: { message },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  /**
+   * A spoken description of one window: "Monday, 6:00 AM to 8:00 PM".
+   *
+   * The grid shows only the start time, and the end time lived in `title`,
+   * which never reaches a touch user and is not reliably announced. Without
+   * this a screen-reader user could not read the schedule at all.
+   */
+  _slotLabel(day, slot) {
+    const index = DAYS.indexOf(day);
+    const label = index >= 0 ? DAY_LABELS[index] : day;
+    // On THIS day, not merely at this time. The check took `day` and threw
+    // it away, so on a Wednesday afternoon every one of the seven days'
+    // windows announced itself as "active now" - while the visual
+    // highlight, which does filter by day, marked only Wednesday's. A
+    // screen-reader user was told the opposite of what the screen showed.
+    const now = new Date();
+    const active =
+      DAYS[now.getDay()] === day &&
+      this._slotCovers(slot, now.getHours() * 60 + now.getMinutes());
+    const when = `${label}, ${this._formatTime(slot.from)} ${t(this._hass, 'to')} ${this._formatTime(slot.to)}`;
+    return active ? `${when}, ${t(this._hass, 'active_now')}` : when;
+  }
+
   _getSensorType() {
-    const entityId = this._config.entity.toLowerCase();
-    if (entityId.includes('inside')) return 'Inside Sensor';
-    if (entityId.includes('outside')) return 'Outside Sensor';
-    return 'Sensor';
+    // From the API's `kind`, not by sniffing the entity id for the word
+    // "inside": a door named "Inside Porch" made the OUTSIDE schedule card
+    // announce itself as the inside sensor, so the user edited the wrong
+    // sensor's schedule believing it was the other.
+    if (this._kind === 'inside') return t(this._hass, 'inside_sensor');
+    if (this._kind === 'outside') return t(this._hass, 'outside_sensor');
+    return t(this._hass, 'sensor');
   }
 
   _isActive() {
@@ -211,10 +462,18 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   }
 
   _getEffectiveSchedule() {
-    // If no schedule is set, the sensor is active 24/7
-    // Return a schedule with all days having 00:00-24:00 slots
+    // If no schedule is set, the sensor is active 24/7.
+    //
+    // Spelled 00:00-23:59, which is how the device's own factory schedule
+    // spells it, and NOT 00:00-24:00 ("24:00" is not a valid time: <input
+    // type="time"> refuses it, so the dialog's To field rendered blank and
+    // Save was a dead button) nor 00:00-00:00 (00:00 is midnight at the
+    // START of a day, so as an end it reads as a window finishing before it
+    // begins - which the backend now refuses). This is the out-of-box
+    // state, so getting it wrong made the FIRST edit any new user tried
+    // fail.
     if (!this._hasSchedule()) {
-      const allDay = { from: '00:00', to: '24:00' };
+      const allDay = { from: '00:00', to: ALL_DAY_END };
       return {
         sunday: [allDay],
         monday: [allDay],
@@ -228,52 +487,74 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     return this._schedule;
   }
 
-  _ensureRealSlotExists(day, index) {
-    // If the schedule is empty (showing implied 24/7), materialize the slot
-    if (!this._hasSchedule()) {
-      // Create real 24/7 entries for all days
-      const allDay = { from: '00:00', to: '24:00' };
-      this._schedule = {
-        sunday: [{ ...allDay }],
-        monday: [{ ...allDay }],
-        tuesday: [{ ...allDay }],
-        wednesday: [{ ...allDay }],
-        thursday: [{ ...allDay }],
-        friday: [{ ...allDay }],
-        saturday: [{ ...allDay }],
-      };
-      return;
+  /**
+   * Turn the implied all-day schedule into real windows before editing one.
+   *
+   * A door with no schedule is enabled 24/7 and the grid draws that as seven
+   * all-day bars. Editing one of those has to write the other six days out
+   * too: saving a single window while the rest stayed absent would switch
+   * the sensor off for every day the user never touched.
+   *
+   * Once a real schedule exists there is nothing to materialise -
+   * `_getEffectiveSchedule()` returns `_schedule` itself, so a day missing
+   * from it has no implied window to copy from either.
+   */
+  /**
+   * Turn the implied "always on" schedule into real entries.
+   *
+   * A door with no schedule is on 24/7, and the grid draws seven implied
+   * all-day bars for it. Saving is wholesale - `apply_schedule` replaces
+   * this sensor's entries with exactly what the card sends - so a payload
+   * containing only the day the user touched switches the sensor OFF on
+   * the other six. That is the out-of-box path: every new user's first
+   * edit did it.
+   *
+   * `except` is the day being edited. Giving that day an all-day entry too
+   * is the opposite bug: the door ORs its entries, so the user's new
+   * restriction is swallowed by an all-day window sitting underneath it and
+   * nothing changes. Both failures are silent, and the card previously had
+   * one on the mouse path and the other on the keyboard path.
+   *
+   * Returns true if it materialised, so a Cancel can undo it.
+   */
+  _ensureRealSlotExists(except = null) {
+    if (this._hasSchedule()) return false;
+
+    // See _getEffectiveSchedule for why the end is 23:59.
+    const allDay = { from: '00:00', to: ALL_DAY_END };
+    this._schedule = {};
+    for (const day of DAYS) {
+      if (day !== except) this._schedule[day] = [{ ...allDay }];
     }
-    // If the specific day doesn't exist, create it from effective schedule
-    if (!this._schedule[day] || !this._schedule[day][index]) {
-      const effectiveSlot = this._getEffectiveSchedule()[day]?.[index];
-      if (effectiveSlot) {
-        if (!this._schedule[day]) {
-          this._schedule[day] = [];
-        }
-        this._schedule[day][index] = { ...effectiveSlot };
-      }
-    }
+    return true;
   }
 
   _getScheduleSummary() {
-    if (!this._hasSchedule()) return 'Active 24/7 (no schedule set)';
+    if (!this._hasSchedule()) return t(this._hass, 'always_active');
 
     let totalSlots = 0;
     let activeDays = 0;
-    for (const [day, slots] of Object.entries(this._schedule)) {
+    for (const slots of Object.values(this._schedule)) {
       if (slots && slots.length > 0) {
         totalSlots += slots.length;
         activeDays++;
       }
     }
-    return `${totalSlots} time slot${totalSlots !== 1 ? 's' : ''} across ${activeDays} day${activeDays !== 1 ? 's' : ''}`;
+    return t(this._hass, 'summary', {
+      slots: totalSlots,
+      slots_plural: totalSlots !== 1 ? 's' : '',
+      days: activeDays,
+      days_plural: activeDays !== 1 ? 's' : '',
+    });
   }
 
   _formatTime(time) {
     if (!time) return '';
     const [hours, minutes] = time.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
+    // Translated, because a 12-hour clock is not universal and neither are
+    // these two markers. They reach the user through every window's
+    // aria-label and the edit dialog's title.
+    const ampm = hours >= 12 ? t(this._hass, 'pm') : t(this._hass, 'am');
     const h = hours % 12 || 12;
     return `${h}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   }
@@ -281,7 +562,9 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   _formatTimeShort(time) {
     if (!time) return '';
     const [hours, minutes] = time.split(':').map(Number);
-    const ampm = hours >= 12 ? 'p' : 'a';
+    // The compact markers the grid uses, translated for the same reason as
+    // the long ones. Lower case is not universal either.
+    const ampm = hours >= 12 ? t(this._hass, 'pm_short') : t(this._hass, 'am_short');
     const h = hours % 12 || 12;
     return `${h}:${minutes.toString().padStart(2, '0')}${ampm}`;
   }
@@ -290,6 +573,19 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     if (!time) return 0;
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+  /**
+   * A window END as text, where 1440 is the end of the day.
+   *
+   * `_minutesToTime` clamps to 23:59 because that is the last real minute,
+   * which is right for a start and wrong for an end: a window dragged or
+   * clicked to the bottom of the column means "to the end of the day", and
+   * spelled 23:59 it is a minute short of it. Midnight is how Home
+   * Assistant's HH:MM shape says 24:00.
+   */
+  _endMinutesToTime(minutes) {
+    return minutes >= 1440 ? ALL_DAY_END : this._minutesToTime(minutes);
   }
 
   _minutesToTime(minutes) {
@@ -303,11 +599,66 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     return Math.round(minutes / interval) * interval;
   }
 
+  /**
+   * Minutes a window spans, treating end <= start as running past midnight.
+   *
+   * The backend produces these deliberately: `start == end` is the door's
+   * own spelling of all-day, and an overnight window ("let the cat out at
+   * 22:00, in at 06:00") is stored exactly that way. Subtracting naively
+   * gave a negative height that clamped to a 14px stub pinned at the start
+   * time, so an all-day or overnight window looked like a sliver.
+   */
+  /**
+   * A window's end in minutes, with 23:59 meaning the end of the day.
+   *
+   * The final minute is INSIDE the window: the device's factory schedule is
+   * 00:00-23:59 on all seven days, plainly meaning "always", so reading the
+   * end as exclusive switches the sensor off for exactly the minute 23:59.
+   * `schedule.py::_entry_spans` says the same thing on the Python side, and
+   * an all-day window is now spelled this way - so without this, a door
+   * with no schedule at all would have reported itself shut every night at
+   * 23:59.
+   */
+  _slotEndMinutes(slot) {
+    // Midnight is positional: opening a window it is the day's first minute,
+    // closing one it is the day's last. That is the only end that reaches
+    // past 23:59, because Home Assistant's HH:MM shape cannot write the
+    // device's 24:00.
+    const end = this._parseTimeToMinutes(slot.to);
+    return end === 0 ? 1440 : end;
+  }
+
+  _slotSpanMinutes(slot) {
+    const start = this._parseTimeToMinutes(slot.from);
+    const end = this._slotEndMinutes(slot);
+    // No wrapping. Measured against firmware 1.7.18: the schedule engine is
+    // `start <= now < end`, so a window whose end does not exceed its start
+    // matches no minute at all - not later that day, and not the next
+    // morning. The door stores it and never acts on it.
+    return end <= start ? 0 : end - start;
+  }
+
+  /** Whether `minutes` falls inside a window. Windows cannot cross midnight. */
+  _slotCovers(slot, minutes) {
+    const start = this._parseTimeToMinutes(slot.from);
+    const end = this._slotEndMinutes(slot);
+    return minutes >= start && minutes < end;
+  }
+
+  /**
+   * Where a window sits in its column, as a percentage.
+   *
+   * One rectangle per window, because a window cannot cross midnight: the
+   * device has no way to express "tomorrow", the write path refuses an end
+   * earlier than its start, and `to_ha_format` splits anything a door
+   * reports into separate same-day windows before the card ever sees it.
+   */
   _getSlotStyle(slot) {
-    const startMinutes = this._parseTimeToMinutes(slot.from);
-    const endMinutes = this._parseTimeToMinutes(slot.to);
-    const top = (startMinutes / 1440) * 100;
-    const height = Math.max(((endMinutes - startMinutes) / 1440) * 100, 1.5);
+    const start = this._parseTimeToMinutes(slot.from);
+    const top = (start / 1440) * 100;
+    // The 1.5% floor keeps a very short window clickable; see the comment
+    // on .time-slot's min-height.
+    const height = Math.max((this._slotSpanMinutes(slot) / 1440) * 100, 1.5);
     return `top: ${top}%; height: ${height}%;`;
   }
 
@@ -334,8 +685,10 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     // Don't open dialog if we were dragging
     if (this._isDragging) return;
 
-    // Materialize implied slots into real schedule if needed
-    this._ensureRealSlotExists(day, index);
+    // Materialize implied slots into real schedule if needed. Recorded so
+    // Cancel can undo it: a user who opens the editor on an unscheduled
+    // door and backs out must leave it unscheduled.
+    this._materialised = this._ensureRealSlotExists() || this._materialised;
 
     this._editingSlot = { day, index };
     this._isNewSlot = false;
@@ -343,6 +696,7 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   }
 
   _handleDayMouseDown(day, event) {
+    this._dragMoved = false;
     // Ignore if clicking on a slot (handled separately)
     if (event.target.closest('.time-slot')) return;
 
@@ -367,6 +721,7 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   }
 
   _handleSlotEdgeMouseDown(day, index, edge, event) {
+    this._dragMoved = false;
     event.stopPropagation();
     event.preventDefault();
 
@@ -376,8 +731,10 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     const rect = column.getBoundingClientRect();
     this._columnRects[day] = rect;
 
-    // Materialize implied slots into real schedule if needed
-    this._ensureRealSlotExists(day, index);
+    // Materialize implied slots into real schedule if needed. Recorded so
+    // Cancel can undo it: a user who opens the editor on an unscheduled
+    // door and backs out must leave it unscheduled.
+    this._materialised = this._ensureRealSlotExists() || this._materialised;
 
     const slot = this._schedule[day][index];
 
@@ -404,12 +761,15 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     if (!rect) return;
 
     const minutes = this._roundToInterval(this._yToMinutes(event.clientY, rect));
+    // Distinguishes a drag from a click that happened to land on an 8px
+    // resize edge; see _handleMouseUp.
+    if (minutes !== this._dragStartMinutes) this._dragMoved = true;
 
     if (this._dragType === 'create') {
       this._dragCurrentMinutes = minutes;
     } else if (this._dragType === 'resize-top') {
       const slot = this._schedule[this._dragDay][this._dragSlotIndex];
-      const bottomMinutes = this._parseTimeToMinutes(slot.to);
+      const bottomMinutes = this._slotEndMinutes(slot);
       this._dragCurrentMinutes = Math.min(minutes, bottomMinutes - 15);
     } else if (this._dragType === 'resize-bottom') {
       const slot = this._schedule[this._dragDay][this._dragSlotIndex];
@@ -420,11 +780,29 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     this._updateDragPreview();
   }
 
-  _handleMouseUp(event) {
-    document.removeEventListener('mousemove', this._handleMouseMove);
-    document.removeEventListener('mouseup', this._handleMouseUp);
+  _handleMouseUp(_event) {
+    this._releaseDragListeners();
 
     if (!this._isDragging) return;
+
+    // A slot under ~2 hours is ~14px tall and its two 8px resize edges
+    // leave a 6px band in the middle, so most clicks aimed at a slot land
+    // on an edge instead. That started a resize, and the immediate mouseup
+    // wrote the slot back unchanged - a WebSocket round trip and a
+    // schedule read on the door - then re-rendered, which destroyed the
+    // node before the pending click could reach _handleSlotClick. The user
+    // clicked their window and nothing happened, every time.
+    //
+    // A resize that never moved is a click. Drop it and let the click
+    // through, rather than saving an unchanged slot.
+    if (this._dragType !== 'create' && !this._dragMoved) {
+      this._hideDragPreview(this._dragDay);
+      this._isDragging = false;
+      this._dragType = null;
+      this._dragDay = null;
+      this._dragSlotIndex = null;
+      return;
+    }
 
     const day = this._dragDay;
     const startMin = this._dragStartMinutes;
@@ -440,26 +818,44 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       let finalEndMin = bottomMin;
 
       if (duration < 15) {
-        // Click to create: use the start position, add 15 minutes
-        finalStartMin = this._roundToInterval(startMin);
-        finalEndMin = Math.min(finalStartMin + 15, 1440);
+        // Click to create: use the start position, add 15 minutes.
+        //
+        // The start is pulled back off the bottom of the column first. A
+        // click on its last pixel rounds to 1440, and 1440 for both ends
+        // becomes 23:59-23:59 once `_minutesToTime` clamps them - which is
+        // start == end, the door's spelling of ALL DAY. The user asked for
+        // a quarter of an hour, got the sensor enabled around the clock,
+        // and saw it drawn as a sliver at the bottom of the day.
+        finalStartMin = Math.min(this._roundToInterval(startMin), 1425);
+        finalEndMin = finalStartMin + 15;
       }
 
       const startTime = this._minutesToTime(finalStartMin);
-      const endTime = this._minutesToTime(finalEndMin);
+      const endTime = this._endMinutesToTime(finalEndMin);
+
+      // Materialise the OTHER six days before adding this window, or the
+      // save - which is wholesale - switches the sensor off on every day
+      // the user never touched. `day` is excluded because an all-day entry
+      // beneath the new window would be OR'd with it and swallow the
+      // restriction entirely.
+      this._materialised = this._ensureRealSlotExists(day);
 
       if (!this._schedule[day]) {
         this._schedule[day] = [];
       }
 
-      this._schedule[day].push({ from: startTime, to: endTime });
+      const created = { from: startTime, to: endTime };
+      this._schedule[day].push(created);
       this._schedule[day].sort((a, b) =>
         this._parseTimeToMinutes(a.from) - this._parseTimeToMinutes(b.from)
       );
 
-      const sortedIndex = this._schedule[day].findIndex(
-        s => s.from === startTime && s.to === endTime
-      );
+      // indexOf on the object we just made, NOT findIndex by value. A drag
+      // that rounds into the same 15-minute bucket as an existing window
+      // produces two value-identical slots, and findIndex returned the
+      // FIRST - so the dialog then edited the pre-existing window and left
+      // the newly created duplicate behind untouched.
+      const sortedIndex = this._schedule[day].indexOf(created);
 
       // Reset drag state BEFORE opening dialog
       this._isDragging = false;
@@ -481,7 +877,7 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       if (this._dragType === 'resize-top') {
         slot.from = this._minutesToTime(this._dragCurrentMinutes);
       } else {
-        slot.to = this._minutesToTime(this._dragCurrentMinutes);
+        slot.to = this._endMinutesToTime(this._dragCurrentMinutes);
       }
       this._saveSchedule();
     }
@@ -496,6 +892,45 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     this._dragOriginalSlot = null;
 
     this.render();
+  }
+
+  _hideDragPreview(day = this._dragDay) {
+    const column = this.shadowRoot?.querySelector(`.day-column[data-day="${day}"]`);
+    if (!column) return;
+    for (const selector of ['.drag-preview', '.removal-preview', '.drag-time-display']) {
+      const element = column.querySelector(selector);
+      if (element) element.style.display = 'none';
+    }
+  }
+
+  /** Keyboard path for "add a window": create one, then open its editor. */
+  _createDefaultSlot(day) {
+    // No permission check here on purpose: the only caller is the
+    // day-column keydown listener, which _attachEventListeners only binds
+    // after its own `if (!this._canEdit()) return;`. A second check would
+    // be unreachable code that reads like a security boundary.
+    // Same rule as the mouse create path, and it has to be the same or the
+    // two input methods produce different schedules from identical input:
+    // every OTHER day keeps its implied all-day window (else saving - which
+    // is wholesale - switches the sensor off on days the user never
+    // touched), while THIS day gets only what the user asked for (else the
+    // door ORs an all-day entry with the new one and the restriction does
+    // nothing).
+    this._materialised = this._ensureRealSlotExists(day);
+    if (!this._schedule[day]) this._schedule[day] = [];
+    const slot = { from: '09:00', to: '17:00' };
+    this._schedule[day].push(slot);
+    this._schedule[day].sort((a, b) =>
+      this._parseTimeToMinutes(a.from) - this._parseTimeToMinutes(b.from)
+    );
+    this._isNewSlot = true;
+    this._editingSlot = { day, index: this._schedule[day].indexOf(slot) };
+    this.render();
+  }
+
+  /** Whether this user may change the schedule; the API requires admin. */
+  _canEdit() {
+    return this._hass?.user?.is_admin !== false;
   }
 
   _showDragPreview(day) {
@@ -594,16 +1029,44 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   }
 
   _handleSlotUpdate(day, index, from, to) {
-    if (from && to && from < to) {
-      this._schedule[day][index] = { from, to };
-      this._editingSlot = null;
-      this._isNewSlot = false;
-      this._saveSchedule();
+    if (!from || !to) return;
+
+    // The end is resolved first, so 22:00-00:00 means "to the end of the
+    // day" and passes, while 23:00-01:00 is refused. The device cannot
+    // express a window that runs into the next day at all - measured, an
+    // inverted window is stored verbatim and then never fires, on the day it
+    // names and on the day after - so the honest answer is to refuse it and
+    // say what to write instead.
+    //
+    // `<=`, so an end EQUAL to the start is refused as well: that is also an
+    // empty window on a real door, and it is the worst of the three to let
+    // through. The door takes it, the schedule sensor goes off with no next
+    // event to bring it back, and this card reads "Active 24/7 (no schedule
+    // set)" - because a schedule with no open windows looks exactly like no
+    // schedule. The pet is shut out and nothing says so.
+    //
+    // The door itself will not stop us: it accepts anything and simply does
+    // nothing with the nonsense. This is the only place it gets caught.
+    //
+    // Refused HERE rather than left to the backend so the user finds out
+    // with the dialog still open and their times still in it, instead of
+    // via a toast after the save has already been discarded.
+    if (this._slotEndMinutes({ to }) <= this._parseTimeToMinutes(from)) {
+      this._dialogError = t(this._hass, 'end_before_start');
       this.render();
+      return;
     }
+
+    this._dialogError = null;
+    this._schedule[day][index] = { from, to };
+    this._editingSlot = null;
+    this._isNewSlot = false;
+    this._saveSchedule();
+    this.render();
   }
 
   _closeDialog() {
+    this._dialogError = null;
     if (this._editingSlot && this._isNewSlot) {
       // Remove the newly created slot if user cancels
       const { day, index } = this._editingSlot;
@@ -614,23 +1077,93 @@ class PowerPetDoorScheduleCard extends HTMLElement {
         }
       }
     }
+    // Undo a materialisation this interaction performed but never saved.
+    // Without this, opening the editor on a door with no schedule and
+    // pressing Cancel left seven real all-day entries in `_schedule` - so
+    // the collapsed card reported "7 time slots across 7 days" for a door
+    // that has no schedule and received no write, and a later edit was
+    // built on top of entries the user never asked for.
+    if (this._materialised) {
+      this._schedule = {};
+      this._materialised = false;
+    }
     this._editingSlot = null;
     this._isNewSlot = false;
     this.render();
   }
 
+  /**
+   * Remember which element has focus, so render() can put it back.
+   *
+   * `render()` replaces the whole shadow root, which destroys the focused
+   * node - so every keyboard activation dropped focus to `<body>`. A
+   * keyboard user had to Tab all the way back in after each one, and since
+   * the dialog is the only route to editing, resizing or deleting, that
+   * toll was paid on every edit. It also defeated the native <dialog>'s
+   * focus restore, because showModal() recorded a previously-focused
+   * element that render() had already destroyed.
+   *
+   * Returns a selector rather than the node itself: the node will not
+   * survive. Null when nothing inside the card has focus, so the card can
+   * never STEAL focus it did not already hold.
+   */
+  _focusSelector() {
+    const active = this.shadowRoot?.activeElement;
+    if (!active) return null;
+    if (active.id) return `#${CSS.escape(active.id)}`;
+    if (!active.dataset.day) return null;
+    const base = `.${active.classList[0]}[data-day="${active.dataset.day}"]`;
+    return active.dataset.index === undefined
+      ? base
+      : `${base}[data-index="${active.dataset.index}"]`;
+  }
+
   render() {
     if (!this.shadowRoot) return;
+    const restoreFocusTo = this._focusSelector();
 
     const sensorType = this._getSensorType();
     const isActive = this._isActive();
-    const summary = this._getScheduleSummary();
+    // A failed load leaves _schedule empty, which _getScheduleSummary reads
+    // as "no schedule set" and reports as "Active 24/7". Collapsed, the card
+    // then read "Inactive - Active 24/7 (no schedule set)": a confident,
+    // self-contradictory claim that you had to expand the card to discover
+    // was wrong.
+    // ...and a THIRD cause, which that fix did not reach: a table that gates
+    // only the OTHER sensor. `to_ha_format` returns {} for this one, which is
+    // indistinguishable from "no schedule" - so the commonest asymmetric
+    // setup ("inside any time, outside only during the day") read
+    // "Inactive - Active 24/7 (no schedule set)" on the outside card all
+    // night. When the entity itself says the sensor is shut, say that
+    // instead of guessing from an empty window set.
+    const summary = this._loading
+      ? t(this._hass, 'loading')
+      : this._error
+        ? t(this._hass, 'load_failed')
+        : !isActive && !this._hasSchedule()
+          ? t(this._hass, 'no_windows')
+          : this._getScheduleSummary();
 
     // Get current time for the line
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const currentTimePct = (currentMinutes / 1440) * 100;
 
+    // The header below carries no aria-label deliberately. On a
+    // role="button", aria-label REPLACES the element's content for assistive
+    // tech, so the sensor name, the active state and the slot-count summary
+    // nested inside it were announced as nothing at all. The header's own
+    // text is a better label than any string we could write, and it stays
+    // correct as the schedule changes.
+    //
+    // The windows in the grid are the opposite case, and read-only ones get
+    // role="img". A window carries no text a screen reader can use - only a
+    // start time, and only when it is tall enough - so its aria-label is the
+    // whole of its meaning. On a non-admin's card there is nothing to
+    // activate, so the editable role="button" is wrong; but dropping the
+    // role entirely leaves a generic element, and ARIA ignores a label
+    // there, which silenced the grid completely for exactly the user who
+    // cannot see the schedule any other way.
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -723,6 +1256,22 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           align-items: center;
           justify-content: center;
         }
+        .day-column:focus-visible,
+        .header:focus-visible {
+          outline: 2px solid var(--primary-text-color, #212121);
+          outline-offset: -2px;
+        }
+        /* Outward, unlike the two above. A slot is filled with a colour the
+           user chooses, and the default green against --primary-text-color
+           on a dark theme is 2.8:1 - under WCAG 1.4.11's 3:1, so a keyboard
+           user could not see which window they were on. Offsetting the ring
+           outward lands it on the day column instead, where the pair is the
+           theme's own text-on-card contrast and is legible by construction
+           whatever slot colour is configured. */
+        .time-slot:focus-visible {
+          outline: 2px solid var(--primary-text-color, #212121);
+          outline-offset: 2px;
+        }
         .day-column {
           position: relative;
           height: 200px;
@@ -773,6 +1322,11 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           box-shadow: 0 0 8px ${this._getActiveSlotColor()};
         }
         .time-slot .time-range {
+          /* 9px white on --primary-color measures 2.65:1, and on
+             --warning-color 2.17:1; AA wants 4.5:1 and 9px is too small for
+             the large-text exemption. A shadow works against any colour the
+             user configures, which a fixed foreground would not. */
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -833,33 +1387,49 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           display: none;
           z-index: 20;
         }
+        /* Says the windows below are not in force. role="status" rather than
+           "alert": it is a standing condition the user chose, not an error,
+           so it should be announced without interrupting. */
+        .notice {
+          font-size: 12px;
+          margin-top: 8px;
+          padding: 8px;
+          border-radius: 4px;
+          background: var(--warning-color, #ffa726);
+          color: var(--text-primary-color, #fff);
+        }
         .hint {
           font-size: 11px;
           color: var(--secondary-text-color, #727272);
           margin-top: 8px;
           text-align: center;
         }
-        .hint a {
+        /* A real button that looks like a link, not a link wearing
+           role="button". With the role, a screen reader tells the user to
+           press Space - and on an <a> Space scrolls the dashboard instead,
+           so the one control the card offers a stuck user did nothing. */
+        .hint .link-button {
+          background: none;
+          border: none;
+          padding: 0;
+          font: inherit;
           color: ${this._getSlotColor()};
           cursor: pointer;
           text-decoration: none;
         }
-        .hint a:hover {
+        .hint .link-button:hover {
           text-decoration: underline;
         }
 
         /* Dialog styles */
         .dialog-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.5);
-          z-index: 999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          border: none;
+          padding: 0;
+          background: transparent;
+          max-width: 90vw;
+        }
+        .dialog-overlay::backdrop {
+          background: rgba(0, 0, 0, 0.5);
         }
         .edit-dialog {
           background: var(--card-background-color, white);
@@ -893,6 +1463,14 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           font-size: 14px;
           background: var(--card-background-color, white);
           color: var(--primary-text-color);
+        }
+        /* role="alert" carries this to a screen reader on its own, so the
+           user is told why Save did nothing whether or not they can see the
+           dialog. */
+        .dialog-error {
+          color: var(--error-color, #f44336);
+          font-size: 0.85em;
+          margin-bottom: 8px;
         }
         .dialog-buttons {
           display: flex;
@@ -931,12 +1509,13 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       </style>
 
       <ha-card>
-        <div class="header" id="header">
+        <div class="header" id="header" role="button" tabindex="0"
+             aria-expanded="${this._expanded}">
           <div class="header-left">
             <div class="status-indicator"></div>
             <div class="header-text">
               <div class="title">${sensorType}</div>
-              <div class="subtitle">${isActive ? 'Active' : 'Inactive'} · ${summary}</div>
+              <div class="subtitle">${t(this._hass, isActive ? 'active' : 'inactive')} · ${summary}</div>
             </div>
           </div>
           <svg class="expand-icon" width="24" height="24" viewBox="0 0 24 24">
@@ -946,9 +1525,9 @@ class PowerPetDoorScheduleCard extends HTMLElement {
 
         <div class="content">
           ${this._loading ? `
-            <div class="loading">Loading schedule...</div>
+            <div class="loading">${t(this._hass, 'loading')}</div>
           ` : this._error ? `
-            <div class="error">${this._error}</div>
+            <div class="error">${escapeHtml(this._error)}</div>
           ` : `
             <div class="schedule-grid">
               <!-- Time labels column -->
@@ -965,7 +1544,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
               ${DAYS.map((day, dayIndex) => `
                 <div style="display: flex; flex-direction: column;">
                   <div class="day-header">${DAY_SHORT[dayIndex]}</div>
-                  <div class="day-column" data-day="${day}">
+                  <div class="day-column" data-day="${day}"
+                       ${this._canEdit() ? `tabindex="0" role="button" aria-label="${t(this._hass, 'add_window')} ${DAY_LABELS[dayIndex]}"` : ''}>
                     ${[0, 6, 12, 18].map(h => `
                       <div class="hour-line major" style="top: ${(h / 24) * 100}%"></div>
                     `).join('')}
@@ -978,6 +1558,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
                            style="${this._getSlotStyle(slot)}"
                            data-day="${day}"
                            data-index="${slotIndex}"
+                           ${this._canEdit() ? 'tabindex="0" role="button"' : 'role="img"'}
+                           aria-label="${escapeHtml(this._slotLabel(day, slot))}"
                            title="${this._formatTime(slot.from)} - ${this._formatTime(slot.to)}">
                         <div class="slot-edge top" data-edge="top" data-day="${day}" data-index="${slotIndex}"></div>
                         <span class="time-range">${this._formatTimeShort(slot.from)}</span>
@@ -991,7 +1573,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
                 </div>
               `).join('')}
             </div>
-            <div class="hint">Click or drag to create. Drag edges to resize. Click slot to edit. <a id="refresh-link">Reload from device</a></div>
+            ${this._timersEnabled ? '' : `<div class="notice" role="status">${t(this._hass, 'timers_disabled')}</div>`}
+            <div class="hint">${this._canEdit() ? t(this._hass, 'hint') : t(this._hass, 'hint_readonly')} <button type="button" class="link-button" id="refresh-link">${t(this._hass, 'reload')}</button></div>
           `}
         </div>
       </ha-card>
@@ -1000,6 +1583,12 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     `;
 
     this._attachEventListeners();
+
+    // A slot the user just deleted simply will not match, which degrades to
+    // the old behaviour rather than throwing.
+    if (restoreFocusTo) {
+      this.shadowRoot.querySelector(restoreFocusTo)?.focus();
+    }
 
     // Update active slot highlight after render
     if (this._expanded) {
@@ -1016,25 +1605,33 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     const dayLabel = DAY_LABELS[dayIndex];
     const sensorType = this._getSensorType();
 
+    // A native <dialog>, opened with showModal(). That is where Escape,
+    // the focus trap, initial focus, focus restore on close and top-layer
+    // rendering all come from - for free, and correctly. Hand-rolling them
+    // on a <div> overlay is about the same amount of code and gets the
+    // focus behaviour subtly wrong; the previous version had none of it, so
+    // Escape did nothing and focus fell to <body> behind the scrim.
     return `
-      <div class="dialog-overlay" id="dialog-overlay">
+      <dialog class="dialog-overlay" id="dialog-overlay"
+              aria-labelledby="dialog-title">
         <div class="edit-dialog" id="edit-dialog">
-          <div class="dialog-title">${this._isNewSlot ? 'New Time Slot' : 'Edit Time Slot'} - ${sensorType} - ${dayLabel}</div>
+          <div class="dialog-title" id="dialog-title">${this._isNewSlot ? t(this._hass, 'new_slot') : t(this._hass, 'edit_slot')} - ${sensorType} - ${dayLabel}</div>
           <div class="dialog-row">
-            <label for="edit-from">From:</label>
-            <input type="time" id="edit-from" value="${slot.from}">
+            <label for="edit-from">${t(this._hass, 'from_label')}</label>
+            <input type="time" id="edit-from" value="${escapeHtml(slot.from)}">
           </div>
           <div class="dialog-row">
-            <label for="edit-to">To:</label>
-            <input type="time" id="edit-to" value="${slot.to}">
+            <label for="edit-to">${t(this._hass, 'to_label')}</label>
+            <input type="time" id="edit-to" value="${escapeHtml(slot.to)}">
           </div>
+          ${this._dialogError ? `<div class="dialog-error" id="dialog-error" role="alert">${escapeHtml(this._dialogError)}</div>` : ''}
           <div class="dialog-buttons">
-            ${!this._isNewSlot ? `<button class="delete-btn" id="dialog-delete">Delete</button>` : ''}
-            <button class="cancel-btn" id="dialog-cancel">Cancel</button>
-            <button class="save-btn" id="dialog-save">Save</button>
+            ${!this._isNewSlot ? `<button class="delete-btn" id="dialog-delete">${t(this._hass, 'delete')}</button>` : ''}
+            <button class="cancel-btn" id="dialog-cancel">${t(this._hass, 'cancel')}</button>
+            <button class="save-btn" id="dialog-save">${t(this._hass, 'save')}</button>
           </div>
         </div>
-      </div>
+      </dialog>
     `;
   }
 
@@ -1043,13 +1640,44 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     const header = this.shadowRoot.getElementById('header');
     if (header) {
       header.addEventListener('click', () => this._handleHeaderClick());
+      header.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this._handleHeaderClick();
+        }
+      });
     }
+
+    // Reading and reloading are available to everyone; only the editing
+    // listeners below are gated.
+    const refreshLink = this.shadowRoot.getElementById('refresh-link');
+    if (refreshLink) {
+      refreshLink.addEventListener('click', () => this._loadSchedule());
+    }
+
+    // Editing is admin-only: ws_update_schedule is @require_admin. Without
+    // this guard a non-admin household member got a fully interactive card,
+    // made a change, watched it apply, and then had it revert with an
+    // "unauthorized" toast - once per attempt, with nothing ever telling
+    // them the card is read-only for them. The hint line says so instead.
+    if (!this._canEdit()) return;
 
     // Day column mouse events for creating new slots
     this.shadowRoot.querySelectorAll('.day-column').forEach(col => {
       col.addEventListener('mousedown', (e) => {
         if (!e.target.classList.contains('slot-edge')) {
           this._handleDayMouseDown(col.dataset.day, e);
+        }
+      });
+      // Keyboard equivalent of click-to-create: a default 9-to-5 window the
+      // user then edits in the dialog. Dragging cannot be expressed with a
+      // key, so the created window has to have sensible bounds rather than
+      // depending on where a pointer was.
+      col.addEventListener('keydown', (e) => {
+        if (e.target !== col) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this._createDefaultSlot(col.dataset.day);
         }
       });
     });
@@ -1066,23 +1694,29 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       });
     });
 
-    // Time slot clicks for editing
+    // Time slot clicks for editing.
+    //
+    // Deliberately NOT excluding `.slot-edge`. A window under ~2 hours is
+    // 14px tall, and its two 8px edges leave a 6px band, so most clicks
+    // aimed at such a window land on an edge - and excluding them meant the
+    // click was swallowed and nothing opened. _handleMouseUp already drops
+    // a resize that never moved, so an edge click arrives here as a click.
     this.shadowRoot.querySelectorAll('.time-slot').forEach(slot => {
       slot.addEventListener('click', (e) => {
-        if (!e.target.classList.contains('slot-edge')) {
+        if (this._dragMoved) return;
+        this._handleSlotClick(slot.dataset.day, parseInt(slot.dataset.index), e);
+      });
+      // Enter/Space opens the edit dialog, which is what makes editing,
+      // RESIZING (via its time fields) and deleting reachable without a
+      // mouse - so no arrow-key resize gesture is needed.
+      slot.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
           this._handleSlotClick(slot.dataset.day, parseInt(slot.dataset.index), e);
         }
       });
     });
-
-    // Refresh link
-    const refreshLink = this.shadowRoot.getElementById('refresh-link');
-    if (refreshLink) {
-      refreshLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        this._loadSchedule();
-      });
-    }
 
     // Dialog events
     this._attachDialogListeners();
@@ -1098,6 +1732,14 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     const toInput = this.shadowRoot.getElementById('edit-to');
 
     if (dialogOverlay) {
+      // showModal(), not an `open` attribute: only the modal form puts the
+      // dialog in the top layer and activates Escape and the focus trap.
+      if (!dialogOverlay.open) dialogOverlay.showModal();
+      // Escape (and any other close) must run the same teardown Cancel does,
+      // or _editingSlot stays set and the card re-renders the dialog.
+      dialogOverlay.addEventListener('close', () => {
+        if (this._editingSlot) this._closeDialog();
+      });
       dialogOverlay.addEventListener('mousedown', (e) => {
         if (e.target === dialogOverlay) {
           e.preventDefault();
@@ -1152,6 +1794,34 @@ class PowerPetDoorScheduleCard extends HTMLElement {
 }
 
 // Card Editor
+// The three colours the card lets a user override, and everything the editor
+// needs to render and wire one: the config key it writes, the id prefix its
+// three controls share, its label and hint strings, and the colour the card
+// falls back to when the setting is absent.
+const COLOR_FIELDS = [
+  {
+    key: 'slot_color',
+    id: 'slot-color',
+    label: 'slot_color',
+    hint: 'slot_color_hint',
+    fallback: '#03a9f4',
+  },
+  {
+    key: 'active_slot_color',
+    id: 'active-color',
+    label: 'active_slot_color',
+    hint: 'active_slot_color_hint',
+    fallback: '#ff9800',
+  },
+  {
+    key: 'removal_color',
+    id: 'removal-color',
+    label: 'removal_color',
+    hint: 'removal_color_hint',
+    fallback: '#f44336',
+  },
+];
+
 class PowerPetDoorScheduleCardEditor extends HTMLElement {
   constructor() {
     super();
@@ -1180,8 +1850,15 @@ class PowerPetDoorScheduleCardEditor extends HTMLElement {
   render() {
     if (!this.shadowRoot || !this._hass) return;
 
+    // `binary_sensor.<door>_..._schedule`, NOT `schedule.` - that prefix is
+    // residue from the removed core-schedule design, and the integration
+    // has never created an entity in that domain. The dropdown was
+    // therefore always empty (or listed unrelated core schedule helpers,
+    // every one of which the API rejects), so the card could not be
+    // configured through the UI at all.
     const scheduleEntities = Object.keys(this._hass.states)
-      .filter(id => id.startsWith('schedule.'));
+      .filter(id => id.startsWith('binary_sensor.') && id.endsWith('_schedule'))
+      .sort();
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -1237,43 +1914,18 @@ class PowerPetDoorScheduleCardEditor extends HTMLElement {
       </style>
 
       <div class="row">
-        <label>Schedule Entity</label>
+        <label for="entity-select">${t(this._hass, 'schedule_entity')}</label>
         <select id="entity-select">
-          <option value="">Select a schedule entity...</option>
+          <option value="">${t(this._hass, 'select_entity')}</option>
           ${scheduleEntities.map(id => `
-            <option value="${id}" ${this._config.entity === id ? 'selected' : ''}>
-              ${this._hass.states[id]?.attributes?.friendly_name || id}
+            <option value="${escapeHtml(id)}" ${this._config.entity === id ? 'selected' : ''}>
+              ${escapeHtml(this._hass.states[id]?.attributes?.friendly_name || id)}
             </option>
           `).join('')}
         </select>
       </div>
 
-      <div class="row">
-        <label>Slot Color <span class="label-hint">(time slots)</span></label>
-        <div class="color-row">
-          <input type="color" id="slot-color-picker" value="${this._getColorValue(this._config.slot_color, '#03a9f4')}">
-          <input type="text" id="slot-color-text" placeholder="CSS color or variable" value="${this._config.slot_color || ''}">
-          <button class="reset-btn" id="slot-color-reset">Reset</button>
-        </div>
-      </div>
-
-      <div class="row">
-        <label>Active Slot Color <span class="label-hint">(currently active time)</span></label>
-        <div class="color-row">
-          <input type="color" id="active-color-picker" value="${this._getColorValue(this._config.active_slot_color, '#ff9800')}">
-          <input type="text" id="active-color-text" placeholder="CSS color or variable" value="${this._config.active_slot_color || ''}">
-          <button class="reset-btn" id="active-color-reset">Reset</button>
-        </div>
-      </div>
-
-      <div class="row">
-        <label>Removal Color <span class="label-hint">(when shrinking slots)</span></label>
-        <div class="color-row">
-          <input type="color" id="removal-color-picker" value="${this._getColorValue(this._config.removal_color, '#f44336')}">
-          <input type="text" id="removal-color-text" placeholder="CSS color or variable" value="${this._config.removal_color || ''}">
-          <button class="reset-btn" id="removal-color-reset">Reset</button>
-        </div>
-      </div>
+      ${COLOR_FIELDS.map(field => this._renderColorRow(field)).join('')}
     `;
 
     // Entity select
@@ -1282,53 +1934,52 @@ class PowerPetDoorScheduleCardEditor extends HTMLElement {
       this._fireConfigChanged();
     });
 
-    // Slot color
-    this.shadowRoot.getElementById('slot-color-picker').addEventListener('input', (e) => {
-      this._config = { ...this._config, slot_color: e.target.value };
-      this.shadowRoot.getElementById('slot-color-text').value = e.target.value;
-      this._fireConfigChanged();
-    });
-    this.shadowRoot.getElementById('slot-color-text').addEventListener('change', (e) => {
-      this._config = { ...this._config, slot_color: e.target.value || undefined };
-      this._fireConfigChanged();
-    });
-    this.shadowRoot.getElementById('slot-color-reset').addEventListener('click', () => {
-      delete this._config.slot_color;
-      this._fireConfigChanged();
-      this.render();
-    });
+    for (const field of COLOR_FIELDS) {
+      const picker = this.shadowRoot.getElementById(`${field.id}-picker`);
+      const text = this.shadowRoot.getElementById(`${field.id}-text`);
 
-    // Active slot color
-    this.shadowRoot.getElementById('active-color-picker').addEventListener('input', (e) => {
-      this._config = { ...this._config, active_slot_color: e.target.value };
-      this.shadowRoot.getElementById('active-color-text').value = e.target.value;
-      this._fireConfigChanged();
-    });
-    this.shadowRoot.getElementById('active-color-text').addEventListener('change', (e) => {
-      this._config = { ...this._config, active_slot_color: e.target.value || undefined };
-      this._fireConfigChanged();
-    });
-    this.shadowRoot.getElementById('active-color-reset').addEventListener('click', () => {
-      delete this._config.active_slot_color;
-      this._fireConfigChanged();
-      this.render();
-    });
+      picker.addEventListener('input', (e) => {
+        this._config = { ...this._config, [field.key]: e.target.value };
+        text.value = e.target.value;
+        this._fireConfigChanged();
+      });
+      text.addEventListener('change', (e) => {
+        this._config = { ...this._config, [field.key]: e.target.value || undefined };
+        this._fireConfigChanged();
+      });
+      this.shadowRoot.getElementById(`${field.id}-reset`).addEventListener('click', () => {
+        delete this._config[field.key];
+        this._fireConfigChanged();
+        this.render();
+      });
+    }
+  }
 
-    // Removal color
-    this.shadowRoot.getElementById('removal-color-picker').addEventListener('input', (e) => {
-      this._config = { ...this._config, removal_color: e.target.value };
-      this.shadowRoot.getElementById('removal-color-text').value = e.target.value;
-      this._fireConfigChanged();
-    });
-    this.shadowRoot.getElementById('removal-color-text').addEventListener('change', (e) => {
-      this._config = { ...this._config, removal_color: e.target.value || undefined };
-      this._fireConfigChanged();
-    });
-    this.shadowRoot.getElementById('removal-color-reset').addEventListener('click', () => {
-      delete this._config.removal_color;
-      this._fireConfigChanged();
-      this.render();
-    });
+  /** Render one colour setting: a swatch, a free-text field and a reset.
+   *
+   * Every control here needs a name of its own. The three rows used to be
+   * three copies of this markup whose only labelling was a <label> with no
+   * `for`, which names nothing - so the editor presented six unnamed fields
+   * and three buttons all called "Reset", and a screen reader user had no
+   * way to tell which colour any of them set.
+   */
+  _renderColorRow(field) {
+    const name = t(this._hass, field.label);
+    return `
+      <div class="row">
+        <label for="${field.id}-text">${name} <span class="label-hint">${t(this._hass, field.hint)}</span></label>
+        <div class="color-row">
+          <input type="color" id="${field.id}-picker"
+                 aria-label="${escapeHtml(`${name} ${t(this._hass, 'color_swatch')}`)}"
+                 value="${escapeHtml(this._getColorValue(this._config[field.key], field.fallback))}">
+          <input type="text" id="${field.id}-text"
+                 placeholder="${t(this._hass, 'color_placeholder')}"
+                 value="${escapeHtml(this._config[field.key] || '')}">
+          <button class="reset-btn" id="${field.id}-reset"
+                  aria-label="${escapeHtml(`${t(this._hass, 'reset')} ${name}`)}">${t(this._hass, 'reset')}</button>
+        </div>
+      </div>
+    `;
   }
 
   _getColorValue(configValue, defaultHex) {
@@ -1353,7 +2004,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.5.0 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.13.0 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );

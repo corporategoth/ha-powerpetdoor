@@ -3,515 +3,289 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Tests for Power Pet Door sensor entities."""
+"""Sensor entities: read-only values from the door."""
+
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+import json
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-
-# Skip all tests in this module if Home Assistant is not available
-pytest.importorskip("homeassistant")
-pytest.importorskip("pytest_homeassistant_custom_component")
-
 from homeassistant.core import HomeAssistant
-from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.const import EntityCategory, UnitOfTime, PERCENTAGE
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from powerpetdoor import BatteryInfo, DoorStatus
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.powerpetdoor.sensor import (
-    PetDoorLatency,
-    PetDoorBattery,
-    PetDoorStats,
-    STATS,
+BATTERY = "sensor.power_pet_door_battery"
+LATENCY = "sensor.power_pet_door_latency"
+STATUS = "sensor.power_pet_door_door_status"
+#: Relative to the repo root, so the gate reads the shipped file.
+STRINGS_PATH = "custom_components/powerpetdoor/strings.json"
+OPEN_CYCLES = "sensor.power_pet_door_total_open_cycles"
+AUTO_RETRACTS = "sensor.power_pet_door_total_auto_retracts"
+CLOCK = "sensor.power_pet_door_door_clock"
+
+
+@pytest.fixture(autouse=True)
+def _enable_all(entity_registry_enabled_by_default: None) -> None:
+    """Three of the six are disabled by default."""
+
+
+def push(door: MagicMock) -> None:
+    """Fire the door's settings-change callbacks, as a real push would."""
+    for callback in door._callbacks["on_settings_change"]:
+        callback({})
+
+
+async def test_the_battery_sensor_reports_the_charge_level(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """A fitted battery reports its percentage."""
+    mock_door.battery = BatteryInfo(percent=64, present=True, ac_present=True)
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(BATTERY).state == "64"
+
+
+async def test_a_door_with_no_battery_fitted_reports_no_reading(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """Not 0%, which is a flat battery and a different fact entirely.
+
+    A mains-only door reports 0 on the wire. Publishing that would show a
+    dead battery on every dashboard and fire every low-battery automation,
+    for a door that has no battery to be low.
+    """
+    mock_door.battery = BatteryInfo(percent=0, present=False, ac_present=True)
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(BATTERY).state == "unknown"
+
+
+async def test_a_genuinely_flat_fitted_battery_reports_zero(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """The other side of that boundary, and the one that matters most.
+
+    `present` is what decides, not the percentage - so a fitted battery at
+    0% must still publish 0 and set off the alarm it should.
+    """
+    mock_door.battery = BatteryInfo(percent=0, present=True, ac_present=False)
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(BATTERY).state == "0"
+
+
+async def test_the_battery_sensor_is_a_battery(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """Device class and unit, which drive the icon ladder and statistics."""
+    attributes = hass.states.get(BATTERY).attributes
+
+    assert attributes["device_class"] == "battery"
+    assert attributes["unit_of_measurement"] == "%"
+    assert attributes["state_class"] == "measurement"
+
+
+async def test_the_latency_sensor_reports_the_round_trip_in_milliseconds(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """Issue #18 was reported by users who disabled exactly this entity."""
+    # The library reports seconds; the sensor displays milliseconds.
+    mock_door.latency = 0.0475
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(LATENCY)
+    assert float(state.state) == 47.5
+    assert state.attributes["unit_of_measurement"] == "ms"
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (DoorStatus.IDLE, "idle"),
+        (DoorStatus.CLOSED, "closed"),
+        (DoorStatus.RISING, "rising"),
+        (DoorStatus.SLOWING, "slowing"),
+        (DoorStatus.HOLDING, "holding"),
+        (DoorStatus.KEEPUP, "keepup"),
+        (DoorStatus.CLOSING, "closing"),
+        (DoorStatus.CLOSING_TOP_OPEN, "closing_top_open"),
+        (DoorStatus.CLOSING_MID_OPEN, "closing_mid_open"),
+        (DoorStatus.UNKNOWN, "unknown"),
+    ],
 )
-from custom_components.powerpetdoor.const import (
-    CONF_HOST,
-    CONF_PORT,
-    STATE_LAST_CHANGE,
-    STATE_BATTERY_CHARGING,
-    STATE_BATTERY_DISCHARGING,
-    FIELD_BATTERY_PERCENT,
-    FIELD_BATTERY_PRESENT,
-    FIELD_AC_PRESENT,
-    FIELD_POWER,
-    FIELD_TOTAL_OPEN_CYCLES,
-    FIELD_FW_VER,
-    FIELD_FW_REV,
-    FIELD_FW_MAJOR,
-    FIELD_FW_MINOR,
-    FIELD_FW_PATCH,
+async def test_every_door_state_is_reported_by_its_own_name(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    status: DoorStatus,
+    expected: str,
+) -> None:
+    """Pinned by literal, one row per state.
+
+    These strings are enum options in `strings.json` and are what a template
+    or an automation compares against. HOLDING and KEEPUP both read as
+    "open" on the cover, so this sensor is the only place the difference is
+    visible - which is what a bug report needs.
+    """
+    mock_door.status = status
+    for callback in mock_door._callbacks["on_status_change"]:
+        callback(status)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(STATUS).state == expected
+
+
+async def test_the_status_sensor_declares_every_state_it_can_report(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """An ENUM sensor reporting a state it did not declare is invalid.
+
+    Home Assistant logs the state as invalid and long-term statistics drop
+    it, so a state added to the library and not to `options` silently
+    disappears from history.
+    """
+    options = hass.states.get(STATUS).attributes["options"]
+
+    assert set(options) == {status.name.lower() for status in DoorStatus}
+    assert "keepup" in options
+    assert "unknown" in options
+    # A real door reports THREE closing states, and "closing" - the motor
+    # starting before the flap moves - is the one that was missing from the
+    # library entirely. Every close produced an undeclared state.
+    assert {"closing", "closing_top_open", "closing_mid_open"} <= set(options)
+
+
+async def test_every_state_the_sensor_declares_has_a_translation(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """Options come from the library; the names come from us.
+
+    So a state added upstream appears in `options` automatically and is then
+    shown to the user as a raw key like `closing_top_open` unless someone
+    remembers `strings.json`. Deriving one side and hand-writing the other is
+    exactly the split that needs a gate, and this is it.
+    """
+    strings = json.loads((Path(__file__).parent.parent / STRINGS_PATH).read_text(encoding="utf-8"))
+    translated = strings["entity"]["sensor"]["status"]["state"]
+
+    assert set(hass.states.get(STATUS).attributes["options"]) == set(translated)
+
+
+@pytest.mark.parametrize(
+    ("entity_id", "prop", "value"),
+    [
+        (OPEN_CYCLES, "total_open_cycles", 4321),
+        (AUTO_RETRACTS, "total_auto_retracts", 17),
+    ],
 )
-
-
-# ============================================================================
-# PetDoorLatency Tests
-# ============================================================================
-
-class TestPetDoorLatency:
-    """Tests for PetDoorLatency sensor entity."""
-
-    @pytest.fixture
-    def mock_coordinator(self, hass: HomeAssistant):
-        """Create a mock coordinator."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = {
-            FIELD_FW_VER: "1.0",
-            FIELD_FW_REV: "A",
-            FIELD_FW_MAJOR: 2,
-            FIELD_FW_MINOR: 5,
-            FIELD_FW_PATCH: 0,
-        }
-        coordinator.async_request_refresh = AsyncMock()
-        coordinator.async_set_updated_data = MagicMock()
-        return coordinator
-
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = True
-        client.add_listener = MagicMock()
-        client.add_handlers = MagicMock()
-        client.send_message = MagicMock(return_value=asyncio.Future())
-        return client
-
-    @pytest.fixture
-    def latency_sensor(self, hass: HomeAssistant, mock_client, mock_coordinator):
-        """Create a latency sensor for testing."""
-        with patch.object(PetDoorLatency, '__init__', lambda self, **kwargs: None):
-            sensor = PetDoorLatency.__new__(PetDoorLatency)
-            sensor.hass = hass
-            sensor.client = mock_client
-            sensor.coordinator = mock_coordinator
-            sensor.last_change = None
-            sensor._attr_name = "Test Latency"
-            sensor._attr_unique_id = "192.168.1.100:3000-latency"
-            sensor._attr_device_info = {}
-            sensor._attr_native_value = None
-            return sensor
-
-    # ==========================================================================
-    # Entity Properties Tests
-    # ==========================================================================
-
-    def test_entity_category_is_diagnostic(self, latency_sensor):
-        """Test entity category is diagnostic."""
-        assert latency_sensor.entity_category == EntityCategory.DIAGNOSTIC
-
-    def test_state_class_is_measurement(self, latency_sensor):
-        """Test state class is measurement."""
-        assert latency_sensor.state_class == SensorStateClass.MEASUREMENT
-
-    def test_unit_is_milliseconds(self, latency_sensor):
-        """Test unit is milliseconds."""
-        assert latency_sensor.native_unit_of_measurement == UnitOfTime.MILLISECONDS
-
-    # ==========================================================================
-    # Icon Tests
-    # ==========================================================================
-
-    def test_icon_when_connected(self, latency_sensor, mock_client, mock_coordinator):
-        """Test icon when connected and data available."""
-        mock_client.available = True
-        with patch.object(type(latency_sensor).__bases__[0], 'available', True):
-            assert latency_sensor.icon == "mdi:lan-connect"
-
-    def test_icon_when_connected_pending(self, latency_sensor, mock_client, mock_coordinator):
-        """Test icon when connected but no data."""
-        mock_client.available = True
-        with patch.object(type(latency_sensor).__bases__[0], 'available', False):
-            assert latency_sensor.icon == "mdi:lan-pending"
-
-    def test_icon_when_disconnected(self, latency_sensor, mock_client):
-        """Test icon when disconnected."""
-        mock_client.available = False
-        assert latency_sensor.icon == "mdi:lan-disconnect"
-
-    # ==========================================================================
-    # Ping Callback Tests
-    # ==========================================================================
-
-    def test_on_ping_sets_native_value(self, latency_sensor):
-        """Test on_ping sets native value."""
-        latency_sensor.async_schedule_update_ha_state = MagicMock()
-        latency_sensor.on_ping(150)
-        assert latency_sensor._attr_native_value == 150
-        latency_sensor.async_schedule_update_ha_state.assert_called_once()
-
-    # ==========================================================================
-    # Extra Attributes Tests
-    # ==========================================================================
-
-    def test_extra_attributes_includes_host_port(self, latency_sensor, mock_client):
-        """Test extra attributes includes host and port."""
-        attrs = latency_sensor.extra_state_attributes
-        assert attrs[CONF_HOST] == "192.168.1.100"
-        assert attrs[CONF_PORT] == 3000
-
-    def test_extra_attributes_includes_last_change(self, latency_sensor):
-        """Test extra attributes includes last change when set."""
-        latency_sensor.last_change = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
-        attrs = latency_sensor.extra_state_attributes
-        assert STATE_LAST_CHANGE in attrs
-
-    # ==========================================================================
-    # Hardware Info Callback Tests
-    # ==========================================================================
-
-    def test_handle_hw_info_updates_data(self, latency_sensor, mock_coordinator):
-        """Test handle_hw_info updates coordinator when data differs."""
-        mock_coordinator.data = {FIELD_FW_VER: "1.0"}
-        new_info = {FIELD_FW_VER: "2.0"}
-        latency_sensor.handle_hw_info(new_info)
-        mock_coordinator.async_set_updated_data.assert_called_once_with(new_info)
-
-    def test_handle_hw_info_ignores_same_data(self, latency_sensor, mock_coordinator):
-        """Test handle_hw_info ignores same data."""
-        data = {FIELD_FW_VER: "1.0"}
-        mock_coordinator.data = data
-        latency_sensor.handle_hw_info(data)
-        mock_coordinator.async_set_updated_data.assert_not_called()
-
-
-# ============================================================================
-# PetDoorBattery Tests
-# ============================================================================
-
-class TestPetDoorBattery:
-    """Tests for PetDoorBattery sensor entity."""
-
-    @pytest.fixture
-    def mock_coordinator(self, hass: HomeAssistant):
-        """Create a mock coordinator with battery data."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = {
-            FIELD_BATTERY_PERCENT: 85,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: True,
-        }
-        coordinator.async_request_refresh = AsyncMock()
-        coordinator.async_set_updated_data = MagicMock()
-        return coordinator
-
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = True
-        client.add_listener = MagicMock()
-        client.add_handlers = MagicMock()
-        client.send_message = MagicMock(return_value=asyncio.Future())
-        return client
-
-    @pytest.fixture
-    def battery_sensor(self, hass: HomeAssistant, mock_client, mock_coordinator):
-        """Create a battery sensor for testing."""
-        with patch.object(PetDoorBattery, '__init__', lambda self, **kwargs: None):
-            sensor = PetDoorBattery.__new__(PetDoorBattery)
-            sensor.hass = hass
-            sensor.client = mock_client
-            sensor.coordinator = mock_coordinator
-            sensor.last_change = None
-            sensor._attr_name = "Test Battery"
-            sensor._attr_unique_id = "192.168.1.100:3000-battery"
-            sensor._attr_device_info = None
-            return sensor
-
-    # ==========================================================================
-    # Entity Properties Tests
-    # ==========================================================================
-
-    def test_device_class_is_battery(self, battery_sensor):
-        """Test device class is battery."""
-        assert battery_sensor.device_class == SensorDeviceClass.BATTERY
-
-    def test_unit_is_percentage(self, battery_sensor):
-        """Test unit is percentage."""
-        assert battery_sensor.native_unit_of_measurement == PERCENTAGE
-
-    # ==========================================================================
-    # Native Value Tests
-    # ==========================================================================
-
-    def test_native_value_returns_percent(self, battery_sensor, mock_coordinator):
-        """Test native_value returns battery percentage."""
-        mock_coordinator.data = {FIELD_BATTERY_PERCENT: 75}
-        assert battery_sensor.native_value == 75
-
-    def test_native_value_none_when_no_data(self, battery_sensor, mock_coordinator):
-        """Test native_value returns None when no data."""
-        mock_coordinator.data = None
-        assert battery_sensor.native_value is None
-
-    # ==========================================================================
-    # Battery Present Tests
-    # ==========================================================================
-
-    def test_battery_present_true(self, battery_sensor, mock_coordinator):
-        """Test battery_present returns True when present."""
-        mock_coordinator.data = {FIELD_BATTERY_PRESENT: True}
-        assert battery_sensor.battery_present is True
-
-    def test_battery_present_false(self, battery_sensor, mock_coordinator):
-        """Test battery_present returns False when not present."""
-        mock_coordinator.data = {FIELD_BATTERY_PRESENT: False}
-        assert battery_sensor.battery_present is False
-
-    # ==========================================================================
-    # AC Present Tests
-    # ==========================================================================
-
-    def test_ac_present_true(self, battery_sensor, mock_coordinator):
-        """Test ac_present returns True when AC connected."""
-        mock_coordinator.data = {FIELD_AC_PRESENT: True}
-        assert battery_sensor.ac_present is True
-
-    def test_ac_present_false(self, battery_sensor, mock_coordinator):
-        """Test ac_present returns False when AC not connected."""
-        mock_coordinator.data = {FIELD_AC_PRESENT: False}
-        assert battery_sensor.ac_present is False
-
-    # ==========================================================================
-    # Icon Tests (Battery Level)
-    # ==========================================================================
-
-    def test_icon_battery_unknown(self, battery_sensor, mock_coordinator):
-        """Test icon when battery level unknown."""
-        mock_coordinator.data = {FIELD_BATTERY_PERCENT: None, FIELD_BATTERY_PRESENT: True}
-        assert battery_sensor.icon == "mdi:battery-unknown"
-
-    def test_icon_battery_not_present(self, battery_sensor, mock_coordinator):
-        """Test icon when battery not present."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 50,
-            FIELD_BATTERY_PRESENT: False,
-            FIELD_AC_PRESENT: True,
-        }
-        assert battery_sensor.icon == "mdi:battery-off-outline"
-
-    def test_icon_battery_low_discharging(self, battery_sensor, mock_coordinator):
-        """Test icon when battery low and discharging."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 5,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: False,
-        }
-        assert battery_sensor.icon == "mdi:battery-outline"
-
-    def test_icon_battery_low_charging(self, battery_sensor, mock_coordinator):
-        """Test icon when battery low and charging."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 5,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: True,
-        }
-        assert battery_sensor.icon == "mdi:battery-charging"
-
-    def test_icon_battery_50_discharging(self, battery_sensor, mock_coordinator):
-        """Test icon when battery at 50% and discharging."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 55,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: False,
-        }
-        assert battery_sensor.icon == "mdi:battery-50"
-
-    def test_icon_battery_50_charging(self, battery_sensor, mock_coordinator):
-        """Test icon when battery at 50% and charging."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 55,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: True,
-        }
-        assert battery_sensor.icon == "mdi:battery-charging-50"
-
-    def test_icon_battery_full(self, battery_sensor, mock_coordinator):
-        """Test icon when battery full."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 100,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: False,
-        }
-        assert battery_sensor.icon == "mdi:battery"
-
-    # ==========================================================================
-    # Extra Attributes Tests
-    # ==========================================================================
-
-    def test_extra_attributes_charging_status(self, battery_sensor, mock_coordinator):
-        """Test extra attributes includes charging status."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 50,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: True,
-        }
-        with patch.object(type(battery_sensor).__bases__[0], 'available', True):
-            attrs = battery_sensor.extra_state_attributes
-        assert attrs[STATE_BATTERY_CHARGING] is True
-        assert attrs[STATE_BATTERY_DISCHARGING] is False
-
-    def test_extra_attributes_discharging_status(self, battery_sensor, mock_coordinator):
-        """Test extra attributes shows discharging when AC not present."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 50,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: False,
-        }
-        with patch.object(type(battery_sensor).__bases__[0], 'available', True):
-            attrs = battery_sensor.extra_state_attributes
-        assert attrs[STATE_BATTERY_CHARGING] is False
-        assert attrs[STATE_BATTERY_DISCHARGING] is True
-
-    def test_extra_attributes_not_charging_when_full(self, battery_sensor, mock_coordinator):
-        """Test extra attributes shows not charging when battery full."""
-        mock_coordinator.data = {
-            FIELD_BATTERY_PERCENT: 100,
-            FIELD_BATTERY_PRESENT: True,
-            FIELD_AC_PRESENT: True,
-        }
-        with patch.object(type(battery_sensor).__bases__[0], 'available', True):
-            attrs = battery_sensor.extra_state_attributes
-        assert attrs[STATE_BATTERY_CHARGING] is False
-
-    # ==========================================================================
-    # Callback Tests
-    # ==========================================================================
-
-    def test_handle_battery_update(self, battery_sensor, mock_coordinator):
-        """Test handle_battery_update updates coordinator."""
-        old_data = {FIELD_BATTERY_PERCENT: 50}
-        new_data = {FIELD_BATTERY_PERCENT: 60}
-        mock_coordinator.data = old_data
-        battery_sensor.handle_battery_update(new_data)
-        mock_coordinator.async_set_updated_data.assert_called_once_with(new_data)
-
-    def test_handle_battery_update_ignores_same(self, battery_sensor, mock_coordinator):
-        """Test handle_battery_update ignores same data."""
-        data = {FIELD_BATTERY_PERCENT: 50}
-        mock_coordinator.data = data
-        battery_sensor.handle_battery_update(data)
-        mock_coordinator.async_set_updated_data.assert_not_called()
-
-
-# ============================================================================
-# PetDoorStats Tests
-# ============================================================================
-
-class TestPetDoorStats:
-    """Tests for PetDoorStats sensor entity."""
-
-    @pytest.fixture
-    def mock_coordinator(self):
-        """Create a mock coordinator with stats data."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = {
-            FIELD_TOTAL_OPEN_CYCLES: 1234,
-        }
-        coordinator.async_set_updated_data = MagicMock()
-        return coordinator
-
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = True
-        client.add_listener = MagicMock()
-        return client
-
-    @pytest.fixture
-    def stats_sensor(self, mock_client, mock_coordinator):
-        """Create a stats sensor for testing."""
-        sensor = PetDoorStats(
-            client=mock_client,
-            name="Test Open Cycles",
-            sensor=STATS["open_cycles"],
-            coordinator=mock_coordinator,
-            device=None
-        )
-        sensor.power = True
-        return sensor
-
-    # ==========================================================================
-    # Native Value Tests
-    # ==========================================================================
-
-    def test_native_value_returns_count(self, stats_sensor, mock_coordinator):
-        """Test native_value returns stat count."""
-        mock_coordinator.data = {FIELD_TOTAL_OPEN_CYCLES: 500}
-        assert stats_sensor.native_value == 500
-
-    def test_native_value_none_when_no_data(self, stats_sensor, mock_coordinator):
-        """Test native_value returns None when no data."""
-        mock_coordinator.data = None
-        assert stats_sensor.native_value is None
-
-    # ==========================================================================
-    # Availability Tests
-    # ==========================================================================
-
-    def test_available_when_connected(self, stats_sensor, mock_client, mock_coordinator):
-        """Test available when client connected."""
-        mock_client.available = True
-        stats_sensor.power = True
-        with patch.object(type(stats_sensor).__bases__[0], 'available', True):
-            assert stats_sensor.available is True
-
-    def test_unavailable_when_power_off(self, stats_sensor, mock_client, mock_coordinator):
-        """Test unavailable when power off."""
-        mock_client.available = True
-        stats_sensor.power = False
-        with patch.object(type(stats_sensor).__bases__[0], 'available', True):
-            assert stats_sensor.available is False
-
-    # ==========================================================================
-    # Callback Tests
-    # ==========================================================================
-
-    def test_handle_state_update(self, stats_sensor, mock_coordinator):
-        """Test handle_state_update updates coordinator."""
-        mock_coordinator.data = {FIELD_TOTAL_OPEN_CYCLES: 100}
-        stats_sensor.handle_state_update(200)
-        mock_coordinator.async_set_updated_data.assert_called_once()
-        call_args = mock_coordinator.async_set_updated_data.call_args[0][0]
-        assert call_args[FIELD_TOTAL_OPEN_CYCLES] == 200
-
-    def test_handle_power_update(self, stats_sensor):
-        """Test handle_power_update updates power state."""
-        stats_sensor.power = True
-        stats_sensor.async_schedule_update_ha_state = MagicMock()
-        stats_sensor.handle_power_update(False)
-        assert stats_sensor.power is False
-        stats_sensor.async_schedule_update_ha_state.assert_called_once()
-
-
-# ============================================================================
-# Stats Configuration Tests
-# ============================================================================
-
-class TestStatsConfiguration:
-    """Tests for stats sensor configuration."""
-
-    def test_open_cycles_config(self):
-        """Test open cycles sensor configuration."""
-        sensor = STATS["open_cycles"]
-        assert sensor["field"] == FIELD_TOTAL_OPEN_CYCLES
-        assert sensor["icon"] == "mdi:reload"
-        assert sensor["class"] == "total_increasing"
-        assert sensor["category"] == EntityCategory.DIAGNOSTIC
-        assert sensor["disabled"] is True
-
-    def test_auto_retracts_config(self):
-        """Test auto retracts sensor configuration."""
-        sensor = STATS["auto_retracts"]
-        assert sensor["icon"] == "mdi:alert"
-        assert sensor["class"] == "total_increasing"
-        assert sensor["disabled"] is True
+async def test_the_lifetime_counters_report_their_own_totals(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    prop: str,
+    value: int,
+) -> None:
+    """Two counters that are easy to wire to each other."""
+    setattr(mock_door, prop, value)
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == str(value)
+
+
+@pytest.mark.parametrize("entity_id", [OPEN_CYCLES, AUTO_RETRACTS])
+async def test_the_lifetime_counters_are_total_increasing(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, entity_id: str
+) -> None:
+    """A door reset takes these back to zero without it being a real drop.
+
+    TOTAL_INCREASING is what tells the statistics engine to treat that as a
+    counter reset rather than as negative usage.
+    """
+    assert hass.states.get(entity_id).attributes["state_class"] == "total_increasing"
+
+
+async def test_the_door_clock_is_reported_as_the_door_spells_it(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """Not as a timestamp: the door's value carries no offset.
+
+    Presenting it as an absolute instant would be a guess, and its whole
+    value is spotting a door whose clock has drifted - which is exactly what
+    schedules go wrong on.
+    """
+    mock_door.device_time = "2026-08-23 12:00:00"
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(CLOCK)
+    assert state.state == "2026-08-23 12:00:00"
+    assert "device_class" not in state.attributes
+
+
+async def test_a_door_that_has_not_reported_its_clock_shows_nothing(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """An empty string is "not read yet", not a clock reading of "".
+
+    The library returns "" before the first `refresh_time`, and publishing
+    that would render as a blank value rather than as unknown.
+    """
+    mock_door.device_time = ""
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(CLOCK).state == "unknown"
+
+
+@pytest.mark.parametrize("entity_id", [BATTERY, LATENCY, STATUS, OPEN_CYCLES, AUTO_RETRACTS, CLOCK])
+async def test_every_sensor_stays_available_while_the_door_is_powered_off(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+) -> None:
+    """The door keeps answering while powered off, so these keep reporting.
+
+    Battery and latency in particular are MORE interesting with the motor
+    off, not less - a door powered down on a flat battery is precisely when
+    someone looks.
+    """
+    mock_door.power = False
+    push(mock_door)
+    await hass.async_block_till_done()
+
+    # The actual reading, not merely "not unavailable". An entity reporting
+    # `unknown` is exactly as broken to the user as one reporting
+    # `unavailable`, and this assertion used to pass for both - which is the
+    # very outcome the docstring above says must not happen.
+    state = hass.states.get(entity_id).state
+    assert state not in ("unavailable", "unknown")
+
+
+@pytest.mark.parametrize("entity_id", [BATTERY, LATENCY, STATUS, OPEN_CYCLES, AUTO_RETRACTS, CLOCK])
+async def test_every_sensor_goes_unavailable_when_the_door_is_unreachable(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+) -> None:
+    """The other side of availability: a lost door is not a stale reading.
+
+    Without this, a door that dropped off would keep showing the last
+    battery percentage it reported, indefinitely and with no sign it was
+    historic.
+    """
+    mock_door.connected = False
+    for callback in mock_door._callbacks["on_disconnect"]:
+        callback()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "unavailable"

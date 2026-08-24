@@ -1,0 +1,54 @@
+# Node counterpart to setup-uv-with-retry, for the Lovelace card's test and
+# lint toolchain. Same retry rationale: on the shared act_runner, parallel
+# matrix jobs read /data/act-cache/<sha> concurrently and the loser gets a
+# half-written checkout.
+#
+# Node is only ever used for *testing* www/powerpetdoor-schedule-card.js.
+# The card ships as plain browser JavaScript with no build step, so nothing
+# in this action's output reaches a user - it exists so jest and eslint can
+# run in CI.
+name: 'Setup Node (with retry)'
+description: >
+  Wraps actions/setup-node with up to 3 attempts to ride out the act-runner
+  action-cache race.
+
+inputs:
+  node-version:
+    required: true
+    description: Node.js version to install
+  cache-dependency-path:
+    required: false
+    default: ''
+    description: >
+      Path to a package-lock.json for npm caching. Left empty by default:
+      Gitea's act_runner cache backend is slow to unreachable, and this
+      toolchain installs in seconds, so the cache has never paid for itself.
+
+runs:
+  using: composite
+  steps:
+    - id: try1
+      continue-on-error: true
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - if: steps.try1.outcome == 'failure'
+      shell: bash
+      run: sleep 10
+
+    - if: steps.try1.outcome == 'failure'
+      id: try2
+      continue-on-error: true
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - if: steps.try1.outcome == 'failure' && steps.try2.outcome == 'failure'
+      shell: bash
+      run: sleep 30
+
+    - if: steps.try1.outcome == 'failure' && steps.try2.outcome == 'failure'
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: ${{ inputs.node-version }}

@@ -1,0 +1,171 @@
+# Pre-commit hooks for ha-powerpetdoor.
+#
+# Install (or re-install after editing this file):
+#   ./scripts/setup-dev.sh
+# which runs:
+#   pre-commit install
+#   pre-commit install --hook-type pre-push
+#
+# Run manually:
+#   pre-commit run --all-files
+#
+# Split by stage on purpose. The pre-commit stage holds only checks that
+# finish in about a second, because a hook slow enough to be worth skipping
+# gets skipped. The full suite - the part that actually gates correctness -
+# runs at pre-push, where a few tens of seconds is the right trade.
+#
+# This repo has two languages. The card in www/ is browser JavaScript, not
+# Node: no bundler, no modules, no transpile step. It is linted and tested
+# under jsdom, and the hooks below scope themselves with `files:` so a
+# Python-only commit never pays for the JS toolchain and vice versa.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Keep in step with the ruff floor in pyproject's dev group; a hook that
+    # formats differently from CI's `ruff format --check` turns every commit
+    # into a fight with the lint job.
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (custom_components)
+        entry: uv run mypy custom_components
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # The fast slice: everything except the simulator-driven end-to-end
+      # scenarios and the randomized fuzz suite. Real commit-time feedback
+      # without being slow enough to be worth skipping.
+      - id: pytest-fast
+        name: Fast tests
+        entry: uv run pytest --ignore=tests/fuzz --ignore=tests/simulator -q --tb=line
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # The real gate, at push time rather than commit time. Includes the
+      # 100% line+branch coverage requirement, and `--ignore=tests/fuzz`
+      # because that is what CI's unit matrix runs: the deterministic suite
+      # must never lean on randomized fuzz coverage to reach the gate.
+      - id: pytest-cov
+        name: Full suite + 100% coverage gate
+        entry: uv run pytest --ignore=tests/fuzz --cov -q
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+      # strings.json is the catalogue; translations/*.json are the
+      # translations. Orphaned keys and unwrapped user-facing text fail.
+      # Missing translations only warn, because a locale legitimately lags
+      # the source between a string landing and a translator reaching it.
+      # Regenerates translations/en.json in place - Home Assistant requires
+      # it to be a copy of strings.json, and there is no reason for a human
+      # to maintain that by hand.
+      - id: translation-catalog
+        name: Translation catalogue is current
+        entry: uv run python scripts/check_translations.py --write-en
+        language: system
+        files: ^custom_components/powerpetdoor/.*\.(py|json)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: translations
+        name: Translation coverage
+        entry: uv run python scripts/check_translations.py --untranslated
+        language: system
+        files: ^(custom_components/powerpetdoor/|www/).*\.(py|json|js)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # --- Frontend (www/powerpetdoor-schedule-card.js) -------------------
+      #
+      # Scoped with `files:` rather than `types: [javascript]` so that
+      # editing an unrelated .js (a fixture, say) does not drag in the npm
+      # toolchain. `language: system` because the toolchain is installed
+      # once by scripts/setup-dev.sh, not per-hook by pre-commit.
+
+      - id: eslint-card
+        name: Lint the Lovelace card
+        entry: npm run --silent lint
+        language: system
+        files: ^www/.*\.js$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: jest-card
+        name: Lovelace card tests
+        entry: npm test --silent
+        language: system
+        files: ^(www/|tests/frontend/|package\.json|eslint\.config\.js).*
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # The card advertises its own version in a banner comment and Home
+      # Assistant caches it aggressively by URL; shipping a changed card
+      # under an unchanged version is how a user ends up running stale code
+      # with no way to tell.
+      - id: card-version
+        name: Card version was bumped
+        entry: uv run python scripts/check_card_version.py
+        language: system
+        files: ^www/.*\.js$
+        pass_filenames: false
+        stages: [pre-push]
+
+      # The Gitea copy of the test workflow is generated, never hand-edited.
+      # It has to exist (Gitea reads only .gitea/workflows once that
+      # directory exists, and sync-wiki.yml forces it to), and a symlink
+      # does not work - Gitea would read the link target as the workflow
+      # body and see no jobs. Generating it removes the only reason the two
+      # could ever drift.
+      - id: gitea-workflow
+        name: Gitea workflow copy is current
+        entry: uv run python scripts/sync_gitea_workflow.py
+        language: system
+        files: ^\.(github|gitea)/workflows/test\.yml$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: dependency-freshness
+        name: Dependencies are current
+        entry: uv run python scripts/check_dependencies.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # The measured (python, HA) grid, not a declared one. Cheap mode: only
+      # asserts that each committed pair still resolves, which is what
+      # catches "upstream yanked the HA we claim to support". The full
+      # probe (which also runs the suite on each pair) is a manual/CI job.
+      - id: ha-matrix
+        name: Home Assistant matrix is current
+        entry: uv run python scripts/ha_matrix.py --check --quick
+        language: system
+        files: ^(pyproject\.toml|hacs\.json|custom_components/powerpetdoor/manifest\.json)$
+        pass_filenames: false
+        stages: [pre-push]

@@ -1,0 +1,58 @@
+# Dependency update automation.
+#
+# Everything this project depends on is pinned: workflow actions by commit
+# SHA, the build backend by exact version, and the whole resolved dependency
+# set by `uv.lock` (installed with `uv sync --locked`). Pinning without
+# automation just turns into staleness - this is what keeps the pins moving.
+#
+# NOT covered by this file, and therefore maintained by hand - see the
+# "Manually tracked pins" table in .claude/CLAUDE.md:
+#   - .gitea/workflows/*  (Dependabot has no Gitea support at all)
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    # `directories:` rather than `directory:`: the github-actions ecosystem
+    # scans a directory's workflows plus an `action.yml` *in that directory*
+    # and does not descend into composite actions in subdirectories
+    # (dependabot-core#7495, closed as not planned). Without the second
+    # entry the three `astral-sh/setup-uv` SHAs in the composite action
+    # would never be offered an update.
+    directories:
+      - "/"
+      - "/.github/actions/setup-uv-with-retry"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "deps"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+      runtime-dependencies:
+        dependency-type: "production"
+
+  # The Lovelace card's test toolchain (jest, eslint), whose package.json
+  # sits at the repo root. The card in www/ itself has NO dependencies: it
+  # is plain browser JavaScript with no build step, so nothing npm resolves
+  # here ever reaches a user. These are dev tools for CI only.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "deps"
+    groups:
+      frontend-dev:
+        patterns: ["*"]

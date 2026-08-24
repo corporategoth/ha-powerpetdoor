@@ -3,177 +3,75 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Constants for Power Pet Door integration."""
+"""Constants for the Power Pet Door integration.
 
-# Re-export all protocol constants from the library
-from powerpetdoor.const import (
-    # Timing
-    MINIMUM_TIME_BETWEEN_MSGS,
-    # Message types
-    COMMAND,
-    CONFIG,
-    PING,
-    PONG,
-    DOOR_STATUS,
-    # Fields
-    FIELD_POWER,
-    FIELD_INSIDE,
-    FIELD_OUTSIDE,
-    FIELD_AUTO,
-    FIELD_OUTSIDE_SENSOR_SAFETY_LOCK,
-    FIELD_CMD_LOCKOUT,
-    FIELD_AUTORETRACT,
-    FIELD_TOTAL_OPEN_CYCLES,
-    FIELD_TOTAL_AUTO_RETRACTS,
-    FIELD_SETTINGS,
-    FIELD_NOTIFICATIONS,
-    FIELD_TZ,
-    FIELD_SCHEDULE,
-    FIELD_SCHEDULES,
-    FIELD_INDEX,
-    FIELD_ENABLED,
-    FIELD_DAYSOFWEEK,
-    FIELD_INSIDE_PREFIX,
-    FIELD_OUTSIDE_PREFIX,
-    FIELD_START_TIME_SUFFIX,
-    FIELD_END_TIME_SUFFIX,
-    FIELD_HOUR,
-    FIELD_MINUTE,
-    FIELD_VOLTAGE,
-    FIELD_HOLD_TIME,
-    FIELD_HOLD_OPEN_TIME,
-    FIELD_SENSOR_TRIGGER_VOLTAGE,
-    FIELD_SLEEP_SENSOR_TRIGGER_VOLTAGE,
-    FIELD_DOOR_STATUS,
-    FIELD_SUCCESS,
-    FIELD_FWINFO,
-    FIELD_BATTERY_PERCENT,
-    FIELD_BATTERY_PRESENT,
-    FIELD_AC_PRESENT,
-    FIELD_HW_VERSION,
-    FIELD_HW_REVISION,
-    FIELD_FW_MAJOR,
-    FIELD_FW_MINOR,
-    FIELD_FW_PATCH,
-    FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
-    FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS,
-    FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS,
-    FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS,
-    FIELD_LOW_BATTERY_NOTIFICATIONS,
-    # Door states
-    DOOR_STATE_IDLE,
-    DOOR_STATE_CLOSED,
-    DOOR_STATE_HOLDING,
-    DOOR_STATE_KEEPUP,
-    DOOR_STATE_RISING,
-    DOOR_STATE_SLOWING,
-    DOOR_STATE_CLOSING_TOP_OPEN,
-    DOOR_STATE_CLOSING_MID_OPEN,
-    # Commands
-    CMD_OPEN,
-    CMD_OPEN_AND_HOLD,
-    CMD_CLOSE,
-    CMD_GET_SETTINGS,
-    CMD_GET_SENSORS,
-    CMD_GET_POWER,
-    CMD_GET_AUTO,
-    CMD_GET_OUTSIDE_SENSOR_SAFETY_LOCK,
-    CMD_GET_CMD_LOCKOUT,
-    CMD_GET_AUTORETRACT,
-    CMD_GET_DOOR_STATUS,
-    CMD_GET_DOOR_OPEN_STATS,
-    CMD_DISABLE_INSIDE,
-    CMD_ENABLE_INSIDE,
-    CMD_DISABLE_OUTSIDE,
-    CMD_ENABLE_OUTSIDE,
-    CMD_DISABLE_AUTO,
-    CMD_ENABLE_AUTO,
-    CMD_DISABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
-    CMD_ENABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
-    CMD_DISABLE_CMD_LOCKOUT,
-    CMD_ENABLE_CMD_LOCKOUT,
-    CMD_DISABLE_AUTORETRACT,
-    CMD_ENABLE_AUTORETRACT,
-    CMD_POWER_ON,
-    CMD_POWER_OFF,
-    CMD_GET_HW_INFO,
-    CMD_GET_DOOR_BATTERY,
-    CMD_HAS_REMOTE_ID,
-    CMD_HAS_REMOTE_KEY,
-    CMD_CHECK_RESET_REASON,
-    CMD_GET_NOTIFICATIONS,
-    CMD_SET_NOTIFICATIONS,
-    CMD_GET_HOLD_TIME,
-    CMD_SET_HOLD_TIME,
-    CMD_GET_TIMEZONE,
-    CMD_SET_TIMEZONE,
-    CMD_GET_SENSOR_TRIGGER_VOLTAGE,
-    CMD_SET_SENSOR_TRIGGER_VOLTAGE,
-    CMD_GET_SLEEP_SENSOR_TRIGGER_VOLTAGE,
-    CMD_SET_SLEEP_SENSOR_TRIGGER_VOLTAGE,
-    CMD_GET_SCHEDULE_LIST,
-    CMD_SET_SCHEDULE_LIST,
-    CMD_GET_SCHEDULE,
-    CMD_SET_SCHEDULE,
-    CMD_DELETE_SCHEDULE,
-    # Priorities
-    PRIORITY_CRITICAL,
-    PRIORITY_HIGH,
-    PRIORITY_MEDIUM,
-    PRIORITY_LOW,
-    COMMAND_PRIORITIES,
-)
+Deliberately short. Everything about the *protocol* - commands, field names,
+door states, priorities - lives in `pypowerpetdoor` and is reached through
+the `PowerPetDoor` facade, never re-exported here. The previous version of
+this file re-exported 90-odd library constants, which is what let entity
+code drift into speaking the wire protocol directly.
 
-# Import Home Assistant constants
-from homeassistant.const import (
-    CONF_NAME,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_ICON,
-    CONF_ID,
-    CONF_TIMEOUT,
-    ATTR_ENTITY_ID,
-)
+What belongs here: Home Assistant configuration keys, defaults, and the
+handful of names shared between platforms.
+"""
 
-# Home Assistant integration domain
-DOMAIN = "powerpetdoor"
+from __future__ import annotations
 
-# HA-specific configuration keys
-CONF_REFRESH = "refresh"
-CONF_UPDATE = "update"
-CONF_KEEP_ALIVE = "keep_alive"
-CONF_RECONNECT = "reconnect"
-CONF_HOLD_MIN = "hold_min"
-CONF_HOLD_MAX = "hold_max"
-CONF_HOLD_STEP = "hold_step"
+from typing import Final
 
-# HA-specific state attributes
-STATE_LAST_CHANGE = "last_change"
-STATE_BATTERY_CHARGING = "battery_charging"
-STATE_BATTERY_DISCHARGING = "battery_discharging"
+DOMAIN: Final = "powerpetdoor"
 
-# Default configuration values
-DEFAULT_NAME = "Power Pet Door"
-DEFAULT_PORT = 3000
-DEFAULT_CONNECT_TIMEOUT = 10.0
-DEFAULT_RECONNECT_TIMEOUT = 5.0
-DEFAULT_KEEP_ALIVE_TIMEOUT = 30.0
-DEFAULT_REFRESH_TIMEOUT = 300.0
+# Configuration keys. CONF_NAME/CONF_HOST/CONF_PORT/CONF_TIMEOUT come from
+# homeassistant.const and are imported where used rather than aliased here.
+CONF_KEEP_ALIVE: Final = "keep_alive"
+CONF_RECONNECT: Final = "reconnect"
+CONF_REFRESH: Final = "refresh"
+# NOTE: there is deliberately no CONF_UPDATE ("door position interval").
+# It existed while the cover polled its own position; the door pushes status
+# changes, so nothing reads it. It was still offered in the options form,
+# where a user could set it, watch the entry reload, and see no effect and
+# no error.
+CONF_HOLD_MIN: Final = "hold_min"
+CONF_HOLD_MAX: Final = "hold_max"
+CONF_HOLD_STEP: Final = "hold_step"
 
-# These values mirror the app. Though the actual value can be a MUCH broader range.
-DEFAULT_HOLD_MIN = 2
-DEFAULT_HOLD_MAX = 8
-DEFAULT_HOLD_STEP = 2
+# Defaults.
+DEFAULT_NAME: Final = "Power Pet Door"
+DEFAULT_PORT: Final = 3000
+DEFAULT_CONNECT_TIMEOUT: Final = 10.0
+DEFAULT_RECONNECT_TIMEOUT: Final = 5.0
+DEFAULT_KEEP_ALIVE_TIMEOUT: Final = 30.0
+DEFAULT_REFRESH_TIMEOUT: Final = 300.0
 
-# Service constants
-SERVICE_UPDATE_SCHEDULE = "update_schedule"
+# The door's own app exposes 2-8s in 2s steps. The hardware accepts a much
+# wider range, so these are the *defaults* for the number entity's bounds
+# and the user can widen them in the options flow.
+DEFAULT_HOLD_MIN: Final = 2.0
+DEFAULT_HOLD_MAX: Final = 8.0
+DEFAULT_HOLD_STEP: Final = 2.0
 
-# Attribute constants
-ATTR_SCHEDULE = "schedule"
-ATTR_SCHEDULE_ENTRIES = "schedule_entries"
-ATTR_SCHEDULE_COUNT = "schedule_count"
+# Device identity, as shown in the device registry.
+MANUFACTURER: Final = "High Tech Pet"
+MODEL: Final = "WiFi Power Pet Door"
 
-# Validation regexes
-ValidIpAddressRegex = r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-ValidHostnameRegex = r"^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
-ValidTZRegex = r"^$"
+# Extra state attributes shared across platforms.
+ATTR_SCHEDULE: Final = "schedule"
+ATTR_SCHEDULE_ENTRIES: Final = "schedule_entries"
+ATTR_SCHEDULE_COUNT: Final = "schedule_count"
+ATTR_NEXT_EVENT: Final = "next_event"
+
+# WebSocket command prefix. The Lovelace card in www/ is the other half of
+# this contract; changing these breaks every dashboard using the card, so
+# tests/frontend asserts the card sends exactly these.
+WS_SCHEDULE_LIST: Final = f"{DOMAIN}/schedule/list"
+WS_SCHEDULE_GET: Final = f"{DOMAIN}/schedule/get"
+WS_SCHEDULE_UPDATE: Final = f"{DOMAIN}/schedule/update"
+
+# The two schedule "kinds" the door supports. A schedule entry carries an
+# inside flag and an outside flag independently, so one entry can drive
+# both.
+SCHEDULE_INSIDE: Final = "inside"
+SCHEDULE_OUTSIDE: Final = "outside"
+
+# Actions.
+SERVICE_SET_SCHEDULE: Final = "set_schedule"

@@ -1,69 +1,228 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "data": {
-                    "name": "The friendly name of the Power Pet Door",
-                    "host": "The host of the Power Pet Door",
-                    "port": "The port for the Power Pet Door (default: 3000)",
-                    "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
-                    "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
-                    "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
-                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
-                    "update": "How often to update the current door position (seconds)"
-                }
-            },
-            "reconfigure": {
-                "data": {
-                    "name": "The friendly name of the Power Pet Door",
-                    "host": "The host of the Power Pet Door",
-                    "port": "The port for the Power Pet Door (default: 3000)",
-                    "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
-                    "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
-                    "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
-                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
-                    "update": "How often to update the current door position (seconds)"
-                },
-                "description": "Update the connection settings for your Power Pet Door.",
-                "title": "Reconfigure Power Pet Door"
-            }
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to your Power Pet Door",
+        "description": "Enter the address of the Power Pet Door on your network. The door must be on the same network as Home Assistant.",
+        "data": {
+          "name": "Name",
+          "host": "Host",
+          "port": "Port"
         },
-        "error": {
-            "connection_timed_out": "Timed out waiting for connection to remote host",
-            "connection_failed": "Could not connect to remote host",
-            "write_error": "Failed to send command to remote host",
-            "write_timed_out": "Timed out attempting to write to remote host",
-            "read_error": "Failed to receive response from remote host",
-            "read_timed_out": "Timed out attempting to read fromremote host",
-            "protocol_error": "Response from remote host does not match known protocol",
-            "ping_failed": "PING Command failed",
-            "invalid_response": "Invalid response to command received",
-            "bad_ping": "PING returned with different value"
+        "data_description": {
+          "name": "The name shown for this door in Home Assistant.",
+          "host": "The hostname or IP address of the door.",
+          "port": "The port the door listens on. Leave at 3000 unless you have changed it."
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Power Pet Door",
+        "description": "Update the address of an existing Power Pet Door, for example after changing its IP address.",
+        "data": {
+          "name": "Name",
+          "host": "Host",
+          "port": "Port"
+        },
+        "data_description": {
+          "name": "The name shown for this door in Home Assistant.",
+          "host": "The hostname or IP address of the door.",
+          "port": "The port the door listens on. Leave at 3000 unless you have changed it."
+        }
+      }
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "timeout": "How long to wait for a reply from the Power Pet Door after a command is issued (seconds)",
-                    "reconnect": "How long to wait before attempting to reconnect to the Power Pet Door after disconnection (seconds)",
-                    "keep_alive": "How often to send a PING to the Power Pet Door (seconds)",
-                    "refresh": "How often to request the current configuration of the Power Pet Door (seconds)",
-                    "update": "How often to update the current door position (seconds)"
-                }
-            }
-        },
-        "error": {
-            "connection_timed_out": "Timed out waiting for connection to remote host",
-            "connection_failed": "Could not connect to remote host",
-            "write_error": "Failed to send command to remote host",
-            "write_timed_out": "Timed out attempting to write to remote host",
-            "read_error": "Failed to receive response from remote host",
-            "read_timed_out": "Timed out attempting to read fromremote host",
-            "protocol_error": "Response from remote host does not match known protocol",
-            "ping_failed": "PING Command failed",
-            "invalid_response": "Invalid response to command received",
-            "bad_ping": "PING returned with different value"
-        }
+    "error": {
+      "cannot_connect": "Could not reach the door at that address.",
+      "timeout_connect": "The door did not answer in time.",
+      "invalid_response": "Something answered at that address, but it is not a Power Pet Door."
+    },
+    "abort": {
+      "already_configured": "This door is already set up.",
+      "reconfigure_successful": "The door's address has been updated."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Power Pet Door options",
+        "description": "Connection timings, and the range offered by the hold-open time control.",
+        "data": {
+          "timeout": "Command timeout",
+          "reconnect": "Reconnect delay",
+          "keep_alive": "Keepalive interval",
+          "refresh": "Refresh interval",
+          "hold_min": "Minimum hold-open time",
+          "hold_max": "Maximum hold-open time",
+          "hold_step": "Hold-open time step"
+        },
+        "data_description": {
+          "timeout": "How long to wait for the door to answer a command, in seconds.",
+          "reconnect": "How long to wait before reconnecting after the connection drops, in seconds.",
+          "keep_alive": "How often to ping the door to keep the connection alive, in seconds. Set to 0 to disable.",
+          "refresh": "How often to ask the door for its full state, in seconds. The door reports changes as they happen, so this is only a safety net.",
+          "hold_min": "The lowest value the hold-open time control offers, in seconds.",
+          "hold_max": "The highest value the hold-open time control offers, in seconds.",
+          "hold_step": "The increment between values on the hold-open time control, in seconds."
+        }
+      }
+    },
+    "error": {
+      "hold_range_inverted": "The minimum hold-open time must not be greater than the maximum."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "mains_power": {
+        "name": "Mains power"
+      },
+      "battery_charging": {
+        "name": "Battery charging"
+      },
+      "remote_id": {
+        "name": "Remote paired"
+      },
+      "remote_key": {
+        "name": "Remote key set"
+      },
+      "inside_schedule": {
+        "name": "Inside schedule"
+      },
+      "outside_schedule": {
+        "name": "Outside schedule"
+      }
+    },
+    "button": {
+      "open": {
+        "name": "Open"
+      },
+      "close": {
+        "name": "Close"
+      },
+      "cycle": {
+        "name": "Open and auto-close"
+      },
+      "toggle": {
+        "name": "Toggle"
+      }
+    },
+    "cover": {
+      "door": {
+        "name": "Door"
+      }
+    },
+    "number": {
+      "hold_open_time": {
+        "name": "Hold open time"
+      },
+      "sensor_trigger_voltage": {
+        "name": "Sensor trigger voltage"
+      },
+      "sleep_sensor_trigger_voltage": {
+        "name": "Sleep sensor trigger voltage"
+      }
+    },
+    "select": {
+      "timezone": {
+        "name": "Timezone"
+      }
+    },
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "latency": {
+        "name": "Latency"
+      },
+      "status": {
+        "name": "Door status",
+        "state": {
+          "idle": "Idle",
+          "closed": "Closed",
+          "rising": "Rising",
+          "slowing": "Slowing",
+          "holding": "Holding",
+          "keepup": "Held open",
+          "closing": "Closing",
+          "closing_top_open": "Closing from top",
+          "closing_mid_open": "Closing from middle",
+          "unknown": "Unknown"
+        }
+      },
+      "total_open_cycles": {
+        "name": "Total open cycles"
+      },
+      "total_auto_retracts": {
+        "name": "Total auto-retracts"
+      },
+      "device_time": {
+        "name": "Door clock"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Power"
+      },
+      "connection": {
+        "name": "Connection"
+      },
+      "inside_sensor": {
+        "name": "Inside sensor"
+      },
+      "outside_sensor": {
+        "name": "Outside sensor"
+      },
+      "auto": {
+        "name": "Schedule enabled"
+      },
+      "outside_safety_lock": {
+        "name": "Outside safety lock"
+      },
+      "auto_retract": {
+        "name": "Auto retract"
+      },
+      "pet_proximity_keep_open": {
+        "name": "Pet proximity keep open"
+      },
+      "notify_inside_on": {
+        "name": "Notify inside sensor on"
+      },
+      "notify_inside_off": {
+        "name": "Notify inside sensor off"
+      },
+      "notify_outside_on": {
+        "name": "Notify outside sensor on"
+      },
+      "notify_outside_off": {
+        "name": "Notify outside sensor off"
+      },
+      "notify_low_battery": {
+        "name": "Notify low battery"
+      }
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Replace the schedule for a Power Pet Door sensor. Targets the inside or outside schedule entity.",
+      "fields": {
+        "schedule": {
+          "name": "Schedule",
+          "description": "Days mapped to time windows, in Home Assistant's schedule format, for example {\"monday\": [{\"from\": \"06:00:00\", \"to\": \"20:00:00\"}]}. Days you omit are cleared."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "cannot_connect": {
+      "message": "Could not connect to the Power Pet Door at {host}:{port}."
+    },
+    "command_failed": {
+      "message": "The door did not accept the command: {error}"
+    },
+    "unknown_timezone": {
+      "message": "No POSIX timezone rule could be derived for {timezone}."
+    },
+    "schedule_update_failed": {
+      "message": "The door did not accept the new schedule: {error}"
+    }
+  }
 }

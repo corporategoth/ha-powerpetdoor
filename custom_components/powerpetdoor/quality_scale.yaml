@@ -1,0 +1,240 @@
+rules:
+  # Bronze
+  action-setup:
+    status: done
+    comment: >-
+      One action, `powerpetdoor.set_schedule`, registered as an ENTITY
+      service on the binary_sensor platform so it targets a specific
+      schedule entity and stays correct with two doors configured. It shares
+      `schedule.apply_schedule` with the WebSocket command the Lovelace card
+      uses, so the UI and an automation cannot drift into doing different
+      things to the door.
+  appropriate-polling:
+    status: done
+    comment: >-
+      The door pushes state changes, so the coordinator's interval is a
+      safety net rather than the update path. It defaults to 300s and is
+      user-configurable.
+  brands:
+    status: done
+    comment: >-
+      home-assistant/brands carries custom_integrations/powerpetdoor with
+      icon.png and logo.png, and brands.home-assistant.io/powerpetdoor/icon.png
+      serves. The optional @2x hDPI variants are not published yet - worth
+      adding, but not required for the rule.
+  config-flow-test-coverage:
+    status: done
+    comment: >-
+      tests/test_config_flow.py, 30 tests, config_flow.py at 100% line and
+      branch coverage. Covers the happy path, every error key in
+      strings.json reached by making the door behave that way rather than
+      by patching the message, the duplicate-unique-id abort, the
+      reconfigure flow including the wrong-door abort, and the options flow
+      including the inverted hold-range rejection.
+  config-flow: done
+  dependency-transparency: done
+  docs-actions:
+    status: done
+    comment: docs/schedules.md documents `set_schedule` with a worked automation.
+  docs-high-level-description:
+    status: done
+    comment: README.md opens with what the integration is and does.
+  docs-installation-instructions:
+    status: done
+    comment: docs/installation.md, HACS and manual.
+  docs-removal-instructions:
+    status: done
+    comment: docs/installation.md has a removal section.
+  entity-event-setup:
+    status: done
+    comment: >-
+      The door facade's callbacks are registered once in the coordinator's
+      __init__ and torn down with the connection in async_shutdown, so no
+      entity subscribes to anything itself.
+  entity-unique-id:
+    status: done
+    comment: >-
+      "<host>:<port>-<key>", assigned by the shared PowerPetDoorEntity base
+      so a platform cannot omit one.
+  has-entity-name:
+    status: done
+    comment: >-
+      Set on the base class. No entity sets _attr_name;
+      scripts/check_translations.py --untranslated fails the build if one
+      does.
+  runtime-data:
+    status: done
+    comment: >-
+      PowerPetDoorConfigEntry is ConfigEntry[PowerPetDoorCoordinator]. There
+      is no hass.data[DOMAIN] state.
+  test-before-configure:
+    status: done
+    comment: The config flow connects with the library before creating the entry.
+  test-before-setup:
+    status: done
+    comment: >-
+      async_setup_entry connects first and raises ConfigEntryNotReady with a
+      translated message if the door is unreachable.
+  unique-config-entry:
+    status: done
+    comment: unique_id is host:port; the flow aborts on a duplicate.
+
+  # Silver
+  action-exceptions:
+    status: done
+    comment: >-
+      Every command path raises HomeAssistantError with a translation key.
+      The timezone select raises ServiceValidationError for bad input, since
+      that is the user's mistake rather than a device failure.
+  config-entry-unloading:
+    status: done
+    comment: >-
+      Platforms are unloaded and the connection closed through
+      entry.async_on_unload(coordinator.async_shutdown).
+  docs-configuration-parameters:
+    status: done
+    comment: docs/installation.md tabulates every option.
+  docs-installation-parameters:
+    status: done
+    comment: docs/installation.md tabulates the setup fields.
+  entity-unavailable:
+    status: done
+    comment: >-
+      PowerPetDoorEntity.available follows the connection.
+      PowerPetDoorPoweredEntity additionally follows door.power, for the
+      entities whose function genuinely stops when the motor is off. The
+      connection switch deliberately stays available: it is both the report
+      of the outage and the control that ends it.
+  integration-owner: done
+  log-when-unavailable:
+    status: done
+    comment: >-
+      DataUpdateCoordinator's own once-per-outage logging; the coordinator
+      raises UpdateFailed rather than logging per-refresh.
+  parallel-updates:
+    status: done
+    comment: >-
+      Declared in every platform module. 1 for the platforms that write to
+      the door, 0 for the read-only ones.
+  reauthentication-flow:
+    status: exempt
+    comment: >-
+      The door's protocol has no authentication of any kind - there are no
+      credentials that can become invalid.
+  test-coverage:
+    status: done
+    comment: >-
+      100% line AND branch across custom_components/powerpetdoor, enforced
+      by pyproject's fail_under=100 and by the coverage-report job. Reached
+      WITHOUT tests/fuzz, which is what CI's unit matrix runs, so the
+      deterministic suite never leans on randomised coverage. No
+      `# pragma: no cover` anywhere in the tree. Includes a simulator suite
+      that drives every entity against pypowerpetdoor's real door simulator
+      over a real socket, in both directions.
+
+  # Gold
+  devices:
+    status: done
+    comment: One device per config entry, created from the shared entity base.
+  diagnostics:
+    status: done
+    comment: >-
+      diagnostics.py dumps the full door state. The host is redacted:
+      diagnostics get pasted into public issue trackers.
+  discovery:
+    status: exempt
+    comment: >-
+      The door announces itself on no discovery protocol - no mDNS, SSDP or
+      DHCP hostname pattern. It is a bare TCP listener on port 3000, so
+      there is nothing to discover it by.
+  discovery-update-info:
+    status: exempt
+    comment: Not discoverable; see `discovery`.
+  docs-data-update:
+    status: done
+    comment: docs/entities.md and README explain that the door pushes state and the interval is a safety net.
+  docs-examples:
+    status: done
+    comment: docs/schedules.md carries automation examples.
+  docs-known-limitations:
+    status: done
+    comment: docs/troubleshooting.md has a Known limitations section.
+  docs-supported-devices:
+    status: done
+    comment: README states WiFi Power Pet Door models; docs/installation.md notes Bluetooth-only doors cannot work.
+  docs-supported-functions:
+    status: done
+    comment: docs/entities.md documents every entity.
+  docs-troubleshooting:
+    status: done
+    comment: docs/troubleshooting.md.
+  docs-use-cases:
+    status: done
+    comment: README and docs/schedules.md show what it is for.
+  dynamic-devices:
+    status: exempt
+    comment: One config entry is one door; there are no sub-devices to add.
+  entity-category:
+    status: done
+    comment: >-
+      Configuration switches, the connection switch, numbers and the
+      timezone select are CONFIG; latency, door status, statistics, the door
+      clock, mains power and the remote sensors are DIAGNOSTIC. The cover,
+      the power switch, the schedule sensors and the battery are primary.
+  entity-device-class:
+    status: done
+    comment: >-
+      Set wherever one exists and is accurate. The cover is SHUTTER rather
+      than DOOR because the flap is motor-driven with intermediate
+      positions, and that is what previous versions shipped.
+  entity-disabled-by-default:
+    status: done
+    comment: >-
+      Statistics, the notification toggles, the trigger voltages, the remote
+      binary sensors, the door clock and the timezone select are all
+      disabled by default - they are diagnostic or rarely changed.
+  entity-translations:
+    status: done
+    comment: >-
+      Every entity has a translation_key resolved against strings.json;
+      scripts/check_translations.py fails on a dangling one.
+  exception-translations:
+    status: done
+    comment: >-
+      Every raised HomeAssistantError/ServiceValidationError carries
+      translation_domain and translation_key.
+  icon-translations:
+    status: done
+    comment: >-
+      icons.json, including state-dependent icons for the toggles. No entity
+      implements an `icon` property.
+  reconfiguration-flow:
+    status: done
+    comment: >-
+      async_step_reconfigure moves a door to a new address and aborts if the
+      new address is a different door.
+  repair-issues:
+    status: exempt
+    comment: >-
+      Nothing the user can be asked to repair: the door needs no
+      credentials, and unreachability is already reported through
+      ConfigEntryNotReady and entity availability.
+  stale-devices:
+    status: exempt
+    comment: One device per entry; removing the entry removes the device.
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: pypowerpetdoor is asyncio-native throughout.
+  inject-websession:
+    status: exempt
+    comment: >-
+      The door speaks a line-oriented JSON protocol over a raw TCP socket.
+      There is no HTTP anywhere, so there is no session to inject.
+  strict-typing:
+    status: done
+    comment: >-
+      mypy runs over custom_components with disallow_untyped_defs and
+      disallow_incomplete_defs. pypowerpetdoor ships py.typed, so the
+      library side is genuinely checked rather than Any.

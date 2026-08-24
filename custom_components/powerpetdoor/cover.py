@@ -3,177 +3,107 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Cover entity for Power Pet Door."""
+"""Cover entity for the Power Pet Door."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from typing import Any
 
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.components.cover import CoverEntity, CoverDeviceClass, CoverEntityFeature
-from powerpetdoor import PowerPetDoorClient
-
-from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_NAME,
-    CONF_UPDATE,
-    COMMAND,
-    CONFIG,
-    DOOR_STATE_IDLE,
-    DOOR_STATE_CLOSED,
-    DOOR_STATE_HOLDING,
-    DOOR_STATE_KEEPUP,
-    DOOR_STATE_SLOWING,
-    DOOR_STATE_RISING,
-    DOOR_STATE_CLOSING_TOP_OPEN,
-    DOOR_STATE_CLOSING_MID_OPEN,
-    CMD_GET_DOOR_STATUS,
-    CMD_OPEN_AND_HOLD,
-    CMD_CLOSE,
-    STATE_LAST_CHANGE,
-    FIELD_DOOR_STATUS,
-    FIELD_POWER,
+from homeassistant.components.cover import (
+    CoverDeviceClass,
+    CoverEntity,
+    CoverEntityDescription,
+    CoverEntityFeature,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from powerpetdoor import CommandError, DoorStatus
 
-import logging
+from .const import DOMAIN
+from .coordinator import PowerPetDoorConfigEntry, PowerPetDoorCoordinator
+from .entity import PowerPetDoorPoweredEntity
 
-_LOGGER = logging.getLogger(__name__)
+PARALLEL_UPDATES = 1
 
-class PetDoor(CoordinatorEntity, CoverEntity):
-    _attr_device_class = CoverDeviceClass.SHUTTER
-    _attr_supported_features = (CoverEntityFeature.CLOSE | CoverEntityFeature.OPEN)
-    _attr_position = None
+#: Door states that mean the flap is on its way up. The facade exposes
+#: `is_closing` but not `is_opening`, so this is derived here - and derived
+#: from the enum rather than from raw strings, so a renamed state is a
+#: NameError at import rather than a cover that silently never reports
+#: opening.
+_OPENING_STATES = frozenset({DoorStatus.RISING, DoorStatus.SLOWING})
 
-    def __init__(self,
-                 hass: HomeAssistant,
-                 client: PowerPetDoorClient,
-                 name: str,
-                 device: DeviceInfo | None = None,
-                 update_interval: float | None = None) -> None:
-        coordinator = DataUpdateCoordinator(
-            hass=hass,
-            logger=_LOGGER,
-            name=name,
-            update_method=self.update_method,
-            update_interval=timedelta(seconds=update_interval) if update_interval else None)
 
-        super().__init__(coordinator)
-        self.client = client
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PowerPetDoorConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the Power Pet Door cover."""
+    async_add_entities([PowerPetDoorCover(entry.runtime_data)])
 
-        self.last_change = None
-        self.power = True
 
-        self._attr_name = name
-        self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}:{client.port}-door"
+class PowerPetDoorCover(PowerPetDoorPoweredEntity, CoverEntity):
+    """The pet door flap itself."""
 
-        client.add_listener(name=self.unique_id,
-                            door_status_update=self.handle_state_update,
-                            sensor_update={FIELD_POWER: self.handle_power_update})
-        self.client.add_handlers(name, on_connect=self.coordinator.async_request_refresh)
+    entity_description = CoverEntityDescription(
+        key="door",
+        translation_key="door",
+        # SHUTTER, not DOOR: the flap is driven vertically by a motor and
+        # reports intermediate positions, which is what a shutter is. This
+        # also matches what previous versions shipped, so existing
+        # dashboards and voice assistants keep behaving the same way.
+        device_class=CoverDeviceClass.SHUTTER,
+    )
+    _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
-    async def update_method(self) -> str:
-        _LOGGER.debug("Requesting update of door status")
-        future = self.client.send_message(CONFIG, CMD_GET_DOOR_STATUS, notify=True)
-        return await future
-
-    @property
-    def available(self) -> bool:
-        return (self.client.available and super().available and self.power)
+    def __init__(self, coordinator: PowerPetDoorCoordinator) -> None:
+        """Initialise the cover."""
+        super().__init__(coordinator, self.entity_description.key)
 
     @property
     def current_cover_position(self) -> int | None:
-        if self.coordinator.data is None:
-            return None
-        elif self.coordinator.data in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED):
-            return 0
-        elif self.coordinator.data in (DOOR_STATE_HOLDING, DOOR_STATE_KEEPUP):
-            return 100
-        elif self.coordinator.data in (DOOR_STATE_SLOWING, DOOR_STATE_CLOSING_TOP_OPEN):
-            return 66
-        elif self.coordinator.data in (DOOR_STATE_RISING, DOOR_STATE_CLOSING_MID_OPEN):
-            return 33
+        """How far open the flap is, 0-100."""
+        return self.coordinator.door.position
 
     @property
-    def is_opening(self) -> bool | None:
-        """Return True if entity is on."""
-        if self.coordinator.data is None:
-            return None
-        return (self.coordinator.data in (DOOR_STATE_RISING, DOOR_STATE_SLOWING))
+    def is_closed(self) -> bool:
+        """Whether the flap is fully down."""
+        return self.coordinator.door.is_closed
 
     @property
-    def is_closing(self) -> bool | None:
-        """Return True if entity is on."""
-        if self.coordinator.data is None:
-            return None
-        return (self.coordinator.data in (DOOR_STATE_CLOSING_TOP_OPEN, DOOR_STATE_CLOSING_MID_OPEN))
+    def is_closing(self) -> bool:
+        """Whether the flap is on its way down."""
+        return self.coordinator.door.is_closing
 
     @property
-    def is_closed(self) -> bool | None:
-        """Return True if entity is on."""
-        if self.coordinator.data is None:
-            return None
-        return (self.coordinator.data in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED))
-
-    @property
-    def extra_state_attributes(self) -> dict | None:
-        rv = {}
-        if self.coordinator.data:
-            rv[FIELD_DOOR_STATUS] = self.coordinator.data
-        if self.last_change:
-            rv[STATE_LAST_CHANGE] = self.last_change.isoformat()
-        return rv
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.last_change = datetime.now(timezone.utc)
-        super()._handle_coordinator_update()
-
-    @callback
-    def handle_state_update(self, state: str) -> None:
-        if state != self.coordinator.data:
-            self.coordinator.async_set_updated_data(state)
-
-    @callback
-    def handle_power_update(self, state: bool) -> None:
-        self.power = state
-        self.async_schedule_update_ha_state()
+    def is_opening(self) -> bool:
+        """Whether the flap is on its way up."""
+        return self.coordinator.door.status in _OPENING_STATES
 
     async def async_open_cover(self, **kwargs: Any) -> None:
-        """Open the cover."""
-        self.client.send_message(COMMAND, CMD_OPEN_AND_HOLD)
+        """Open the flap and hold it open.
+
+        `open()`, which since pypowerpetdoor 0.4.1 means "open and stay
+        open". A cover that closed itself on a hold timer would report open
+        and then go closed with no command behind it, which no automation
+        could reason about. The timed open is the "Open and auto-close"
+        button instead.
+        """
+        await self._async_command(self.coordinator.door.open())
 
     async def async_close_cover(self, **kwargs: Any) -> None:
-        """Open the cover."""
-        self.client.send_message(COMMAND, CMD_CLOSE)
+        """Close the flap."""
+        await self._async_command(self.coordinator.door.close())
 
-    async def async_toggle(self, **kwargs: Any) -> None:
-        """Toggle the entity."""
-        if self.is_closed:
-            await self.async_open_cover(**kwargs)
-        else:
-            await self.async_close_cover(**kwargs)
-
-# Right now this can be an alias for the above
-async def async_setup_entry(hass: HomeAssistant,
-                            entry: ConfigEntry,
-                            async_add_entities: AddEntitiesCallback) -> None:
-
-    host = entry.data.get(CONF_HOST)
-    port = entry.data.get(CONF_PORT)
-    name = entry.data.get(CONF_NAME)
-    obj = hass.data[DOMAIN][f"{host}:{port}"]
-
-    async_add_entities([
-        PetDoor(hass=hass,
-                client=obj["client"],
-                name=f"{name} Door",
-                device=obj["device"],
-                update_interval=entry.options.get(CONF_UPDATE))
-    ])
+    async def _async_command(self, awaitable: Any) -> None:
+        """Await a door command, surfacing failures to the user."""
+        try:
+            await awaitable
+        except (CommandError, OSError, TimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        self.coordinator.async_update_listeners()

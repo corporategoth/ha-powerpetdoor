@@ -3,94 +3,104 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Button entities for Power Pet Door."""
+"""Button entities for the Power Pet Door."""
 
 from __future__ import annotations
 
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
-from homeassistant.components.button import ButtonEntity
-from powerpetdoor import PowerPetDoorClient
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
-from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_NAME,
-    COMMAND,
-    DOOR_STATE_IDLE,
-    DOOR_STATE_CLOSED,
-    DOOR_STATE_KEEPUP,
-    DOOR_STATE_HOLDING,
-    CMD_OPEN,
-    CMD_CLOSE,
-    FIELD_POWER,
+from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from powerpetdoor import CommandError, PowerPetDoor
+
+from .const import DOMAIN
+from .coordinator import PowerPetDoorConfigEntry, PowerPetDoorCoordinator
+from .entity import PowerPetDoorPoweredEntity
+
+PARALLEL_UPDATES = 1
+
+
+@dataclass(frozen=True, kw_only=True)
+class PowerPetDoorButtonDescription(ButtonEntityDescription):
+    """Describes one Power Pet Door button."""
+
+    press_fn: Callable[[PowerPetDoor], Awaitable[None]]
+
+
+BUTTONS: tuple[PowerPetDoorButtonDescription, ...] = (
+    # Opens and STAYS open until something closes it. Since pypowerpetdoor
+    # 0.4.1 that is what `open()` means - it sends OPEN_AND_HOLD and parks
+    # the door in KEEPUP. (Before 0.4.1, `open()` was the timed open and
+    # `open_and_hold()` was this; the library renamed them so the obvious
+    # call is the one that does the obvious thing.)
+    PowerPetDoorButtonDescription(
+        key="open",
+        translation_key="open",
+        press_fn=lambda door: door.open(),
+    ),
+    PowerPetDoorButtonDescription(
+        key="close",
+        translation_key="close",
+        press_fn=lambda door: door.close(),
+    ),
+    # The timed open: the door rises, sits in HOLDING for the configured
+    # hold time, then closes itself - exactly what a pet triggering a sensor
+    # gets. Distinct from `open()` since 0.4.1; they send different commands
+    # (OPEN vs OPEN_AND_HOLD), so these two buttons are genuinely different
+    # and neither is redundant.
+    PowerPetDoorButtonDescription(
+        key="cycle",
+        translation_key="cycle",
+        press_fn=lambda door: door.cycle(),
+    ),
+    # Open if closed, close if open, do nothing mid-travel. The old
+    # integration had exactly one button whose behaviour depended on the
+    # door's state and called it "Cycle"; that is a toggle, and conflating
+    # the two made automations non-deterministic. They are separate here and
+    # each does one thing.
+    PowerPetDoorButtonDescription(
+        key="toggle",
+        translation_key="toggle",
+        press_fn=lambda door: door.toggle(),
+    ),
 )
 
-import logging
 
-_LOGGER = logging.getLogger(__name__)
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PowerPetDoorConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the Power Pet Door buttons."""
+    coordinator = entry.runtime_data
+    async_add_entities(PowerPetDoorButton(coordinator, description) for description in BUTTONS)
 
-class PetDoorButton(ButtonEntity):
-    _attr_should_poll = False
 
-    def __init__(self,
-                 client: PowerPetDoorClient,
-                 name: str,
-                 device: DeviceInfo | None = None) -> None:
-        self.client = client
+class PowerPetDoorButton(PowerPetDoorPoweredEntity, ButtonEntity):
+    """A button that sends one door command."""
 
-        self.last_state = None
-        self.power = True
+    entity_description: PowerPetDoorButtonDescription
 
-        self._attr_name = name
-        self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}:{client.port}-button"
+    def __init__(
+        self,
+        coordinator: PowerPetDoorCoordinator,
+        description: PowerPetDoorButtonDescription,
+    ) -> None:
+        """Initialise the button."""
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
 
-        client.add_listener(name=self.unique_id, door_status_update=self.handle_state_update, sensor_update={FIELD_POWER: self.handle_power_update})
-
-    @property
-    def available(self) -> bool:
-        return self.client.available and self.power
-
-    def handle_state_update(self, state: str) -> None:
-        self.last_state = state
-        self.async_schedule_update_ha_state()
-
-    @callback
-    def handle_power_update(self, state: bool) -> None:
-        self.power = state
-        self.async_schedule_update_ha_state()
-
-    @property
-    def icon(self) -> str | None:
-        return "mdi:dog-side"
-
-    async def press(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
-        return self.client.run_coroutine_threadsafe(self.async_press(**kwargs)).result()
-
-    async def async_press(self, **kwargs: Any) -> None:
-        """Open the cover."""
-        if self.last_state in (DOOR_STATE_IDLE, DOOR_STATE_CLOSED):
-            self.client.send_message(COMMAND, CMD_OPEN)
-        if self.last_state in (DOOR_STATE_KEEPUP, DOOR_STATE_HOLDING):
-            self.client.send_message(COMMAND, CMD_CLOSE)
-
-# Right now this can be an alias for the above
-async def async_setup_entry(hass: HomeAssistant,
-                            entry: ConfigEntry,
-                            async_add_entities: AddEntitiesCallback) -> None:
-
-    host = entry.data.get(CONF_HOST)
-    port = entry.data.get(CONF_PORT)
-    name = entry.data.get(CONF_NAME)
-    obj = hass.data[DOMAIN][f"{host}:{port}"]
-
-    async_add_entities([
-        PetDoorButton(client=obj["client"],
-                      name=f"{name} Cycle",
-                      device=obj["device"]),
-    ])
+    async def async_press(self) -> None:
+        """Send the command."""
+        try:
+            await self.entity_description.press_fn(self.coordinator.door)
+        except (CommandError, OSError, TimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        self.coordinator.async_update_listeners()

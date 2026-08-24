@@ -3,442 +3,407 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Pytest configuration and fixtures for Power Pet Door tests."""
+"""Fixtures for the Power Pet Door tests.
+
+Two ways to get a door, and they answer different questions:
+
+* `mock_door` - an in-memory double of `powerpetdoor.PowerPetDoor`. Fast,
+  and lets a test put the door in a state a real one would take a long time
+  to reach (flat battery, mid-travel, 40 schedules).
+* `simulated_door` - pypowerpetdoor's **real** simulator, on a real socket.
+  The simulator is not written here and is not mocked: it ships in the
+  library (`powerpetdoor.simulator`) and speaks the actual wire protocol, so
+  a test using it exercises framing, timing and the library's own parsing.
+  This is the fixture that catches the integration and the library
+  disagreeing, which no mock ever can.
+"""
+
 from __future__ import annotations
 
-import asyncio
-import json
-import time
-from typing import Any, Callable
+from collections.abc import AsyncGenerator, Callable, Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_TIMEOUT
+from homeassistant.core import HomeAssistant
+from powerpetdoor import BatteryInfo, DoorStatus, NotificationSettings, PowerPetDoor
+from powerpetdoor.simulator.server import DoorSimulator
+from powerpetdoor.simulator.state import DoorSimulatorState, DoorTimingConfig
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
+from syrupy.assertion import SnapshotAssertion
 
-# Try to import Home Assistant - these are optional for standalone tests
-try:
-    from homeassistant.core import HomeAssistant
-    from homeassistant.const import CONF_HOST, CONF_PORT
-    HAS_HOMEASSISTANT = True
-except ImportError:
-    HAS_HOMEASSISTANT = False
-    CONF_HOST = "host"
-    CONF_PORT = "port"
-
-# Only load HA test plugin if available
-try:
-    import pytest_homeassistant_custom_component
-    pytest_plugins = "pytest_homeassistant_custom_component"
-except ImportError:
-    pass
-
-# Import from local HA integration for HA-specific constants
 from custom_components.powerpetdoor.const import (
-    DOMAIN,
-    CONF_NAME,
-    CONF_TIMEOUT,
-    CONF_RECONNECT,
+    CONF_HOLD_MAX,
+    CONF_HOLD_MIN,
+    CONF_HOLD_STEP,
     CONF_KEEP_ALIVE,
+    CONF_RECONNECT,
     CONF_REFRESH,
-    DEFAULT_PORT,
-    DEFAULT_CONNECT_TIMEOUT,
-    DEFAULT_RECONNECT_TIMEOUT,
-    DEFAULT_KEEP_ALIVE_TIMEOUT,
-    DEFAULT_REFRESH_TIMEOUT,
+    DOMAIN,
 )
 
-# Import from the library for protocol constants and client
-from powerpetdoor import PowerPetDoorClient
-from powerpetdoor.const import (
-    PING,
-    PONG,
-    FIELD_SUCCESS,
-)
+TEST_HOST = "192.0.2.10"
+TEST_PORT = 3000
 
 
-# ============================================================================
-# Mock Transport and Protocol
-# ============================================================================
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(
+    enable_custom_integrations: None,
+) -> Generator[None]:
+    """Load custom_components/ in every test.
 
-class MockTransport:
-    """Mock asyncio transport for network simulation."""
-
-    def __init__(self):
-        self.written_data: list[bytes] = []
-        self._closing = False
-        self._closed = False
-
-    def write(self, data: bytes) -> None:
-        """Record written data."""
-        self.written_data.append(data)
-
-    def is_closing(self) -> bool:
-        """Return whether transport is closing."""
-        return self._closing
-
-    def close(self) -> None:
-        """Mark transport as closing."""
-        self._closing = True
-
-    def get_written_messages(self) -> list[dict]:
-        """Parse and return all written JSON messages."""
-        messages = []
-        for data in self.written_data:
-            try:
-                messages.append(json.loads(data.decode('ascii')))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                pass
-        return messages
-
-    def get_last_message(self) -> dict | None:
-        """Get the last written JSON message."""
-        messages = self.get_written_messages()
-        return messages[-1] if messages else None
-
-    def clear(self) -> None:
-        """Clear recorded data."""
-        self.written_data.clear()
-
-
-class MockDeviceProtocol:
-    """Helper to simulate Power Pet Door device responses."""
-
-    def __init__(self, client: PowerPetDoorClient):
-        self.client = client
-        self._auto_respond = True
-        self._response_delay = 0.0
-
-    async def send_response(self, response: dict) -> None:
-        """Simulate device sending a response."""
-        if self._response_delay > 0:
-            await asyncio.sleep(self._response_delay)
-        json_data = json.dumps(response).encode('ascii')
-        self.client.data_received(json_data)
-
-    def send_response_sync(self, response: dict) -> None:
-        """Synchronously send a response (for non-async contexts)."""
-        json_data = json.dumps(response).encode('ascii')
-        self.client.data_received(json_data)
-
-    def respond_to_ping(self, msg_id: int, ping_value: str) -> None:
-        """Send PONG response to a PING."""
-        self.send_response_sync({
-            FIELD_SUCCESS: "true",
-            "CMD": PONG,
-            PONG: ping_value,
-            "msgId": msg_id
-        })
-
-    def respond_success(self, msg_id: int, cmd: str, **extra) -> None:
-        """Send a generic success response."""
-        response = {
-            FIELD_SUCCESS: "true",
-            "CMD": cmd,
-            "msgId": msg_id,
-            **extra
-        }
-        self.send_response_sync(response)
-
-    def respond_failure(self, msg_id: int, cmd: str, error: str = "error") -> None:
-        """Send a generic failure response."""
-        self.send_response_sync({
-            FIELD_SUCCESS: "false",
-            "CMD": cmd,
-            "msgId": msg_id,
-            "error": error
-        })
-
-
-# ============================================================================
-# Mock Device Responses
-# ============================================================================
-
-MOCK_DOOR_STATUS = {
-    "door_status": "DOOR_CLOSED",
-}
-
-MOCK_SETTINGS = {
-    "inside": True,
-    "outside": True,
-    "auto": False,
-    "power": True,
-}
-
-MOCK_SENSORS = {
-    "inside_active": True,
-    "outside_active": True,
-    "auto_active": False,
-}
-
-MOCK_DOOR_BATTERY = {
-    "batteryPercent": 85,
-    "isDischarging": False,
-    "isCharging": True,
-}
-
-MOCK_HARDWARE = {
-    "hwVersion": "1.0",
-    "fwVersion": "2.5.0",
-}
-
-MOCK_SCHEDULE_LIST = [0, 1, 2]
-
-MOCK_SCHEDULE_ENTRY = {
-    "index": 0,
-    "daysOfWeek": [1, 1, 1, 1, 1, 0, 0],  # Mon-Fri
-    "inside": True,
-    "outside": False,
-    "enabled": True,
-    "in_start_time": {"hour": 6, "min": 0},
-    "in_end_time": {"hour": 20, "min": 0},
-    "out_start_time": {"hour": 0, "min": 0},
-    "out_end_time": {"hour": 0, "min": 0},
-}
-
-
-def create_mock_response(cmd: str, msg_id: int, **extra) -> dict:
-    """Factory function to create mock device responses."""
-    responses = {
-        "DOOR_STATUS": {**MOCK_DOOR_STATUS, "CMD": "DOOR_STATUS"},
-        "GET_SETTINGS": {**MOCK_SETTINGS, "CMD": "GET_SETTINGS"},
-        "GET_SENSORS": {**MOCK_SENSORS, "CMD": "GET_SENSORS"},
-        "DOOR_BATTERY": {**MOCK_DOOR_BATTERY, "CMD": "DOOR_BATTERY"},
-        "GET_HW_INFO": {**MOCK_HARDWARE, "CMD": "GET_HW_INFO"},
-        "GET_SCHEDULE_LIST": {"schedules": MOCK_SCHEDULE_LIST, "CMD": "GET_SCHEDULE_LIST"},
-        "GET_SCHEDULE": {**MOCK_SCHEDULE_ENTRY, "CMD": "GET_SCHEDULE"},
-    }
-
-    base_response = responses.get(cmd, {"CMD": cmd})
-    return {
-        FIELD_SUCCESS: "true",
-        "msgId": msg_id,
-        **base_response,
-        **extra
-    }
-
-
-# ============================================================================
-# Client Fixtures
-# ============================================================================
-
-@pytest.fixture
-def mock_transport() -> MockTransport:
-    """Create a mock transport."""
-    return MockTransport()
-
-
-@pytest.fixture
-def event_loop():
-    """Create an event loop for async tests."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
-def client_config() -> dict:
-    """Default client configuration."""
-    return {
-        "host": "192.168.1.100",
-        "port": 3000,
-        "timeout": 5.0,
-        "reconnect": 1.0,  # Fast reconnect for tests
-        "keepalive": 30.0,
-    }
-
-
-@pytest.fixture
-async def mock_client(event_loop, mock_transport, client_config) -> tuple[PowerPetDoorClient, MockTransport, MockDeviceProtocol]:
-    """Create a PowerPetDoorClient with mocked transport.
-
-    Returns:
-        Tuple of (client, transport, device_protocol)
+    Home Assistant refuses to load custom integrations in tests unless this
+    fixture is requested; autouse so no test can forget and then fail with a
+    confusing "integration not found".
     """
-    client = PowerPetDoorClient(
-        host=client_config["host"],
-        port=client_config["port"],
-        timeout=client_config["timeout"],
-        reconnect=client_config["reconnect"],
-        keepalive=client_config["keepalive"],
-        loop=event_loop
+    yield
+
+
+@pytest.fixture
+def mock_config_entry() -> MockConfigEntry:
+    """A config entry for a door at TEST_HOST."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Power Pet Door",
+        unique_id=f"{TEST_HOST}:{TEST_PORT}",
+        data={CONF_HOST: TEST_HOST, CONF_PORT: TEST_PORT, CONF_NAME: "Power Pet Door"},
+        options={
+            CONF_TIMEOUT: 5.0,
+            CONF_RECONNECT: 5.0,
+            CONF_KEEP_ALIVE: 30.0,
+            CONF_REFRESH: 300.0,
+            CONF_HOLD_MIN: 2.0,
+            CONF_HOLD_MAX: 8.0,
+            CONF_HOLD_STEP: 2.0,
+        },
     )
 
-    # Simulate connection established
-    client._transport = mock_transport
-    client.connection_made(mock_transport)
 
-    # Create device protocol helper
-    device = MockDeviceProtocol(client)
+def _build_mock_door() -> MagicMock:
+    """A `PowerPetDoor` double with a plausible, fully-populated state.
 
-    yield client, mock_transport, device
+    `spec=PowerPetDoor` on purpose: it makes a typo in a property name, or a
+    property the library later removes, an AttributeError in the test rather
+    than a silently-passing mock. That is the failure mode that lets an
+    integration keep "working" against an API that no longer exists.
+    """
+    door = MagicMock(spec=PowerPetDoor)
 
-    # Cleanup: stop the client to cancel background tasks
-    client.stop()
+    door.host = TEST_HOST
+    door.port = TEST_PORT
+    door.connected = True
+    # SECONDS, as `PowerPetDoor.latency` documents and `_on_ping`
+    # implements (`latency_ms / 1000.0`). 0.012 is a 12 ms LAN round
+    # trip. The old value of 12.0 encoded the same unit confusion the
+    # sensor did, which is why `spec=PowerPetDoor` could not catch it.
+    door.latency = 0.012
 
-    # Cancel any remaining tasks created by this client
-    if hasattr(client, '_keepalive') and client._keepalive and not client._keepalive.done():
-        client._keepalive.cancel()
-        try:
-            await client._keepalive
-        except asyncio.CancelledError:
-            pass
+    door.status = DoorStatus.CLOSED
+    door.is_open = False
+    door.is_closed = True
+    door.is_closing = False
+    door.position = 0
 
-    if hasattr(client, '_check_receipt') and client._check_receipt and not client._check_receipt.done():
-        client._check_receipt.cancel()
-        try:
-            await client._check_receipt
-        except asyncio.CancelledError:
-            pass
+    door.power = True
+    door.inside_sensor = True
+    door.outside_sensor = True
+    door.auto = True
+    door.safety_lock = False
+    door.autoretract = True
+    door.pet_proximity_keep_open = False
 
-    # Allow any pending tasks to complete
-    await asyncio.sleep(0)
+    door.hold_time = 4.0
+    door.sensor_trigger_voltage = 1500
+    door.sleep_sensor_trigger_voltage = 900
+    door.timezone = "EST5EDT,M3.2.0,M11.1.0"
+    door.device_time = "2026-08-23 12:00:00"
+
+    door.battery = BatteryInfo(percent=87, present=True, ac_present=True)
+    door.notifications = NotificationSettings()
+    door.firmware_version = "1.7.18"
+    door.hardware_version = "3 rev 1"
+    door.hardware_info = {}
+    door.total_open_cycles = 1234
+    door.total_auto_retracts = 5
+    door.has_remote_id = False
+    door.has_remote_key = False
+    door.schedules = []
+
+    # Callback registration: capture the callbacks so a test can fire them
+    # and assert that a push from the door reaches the entities.
+    door._callbacks = {}
+
+    def _register(name: str) -> Callable[[Callable[..., None]], None]:
+        def register(callback: Callable[..., None]) -> None:
+            door._callbacks.setdefault(name, []).append(callback)
+
+        return register
+
+    for hook in (
+        "on_status_change",
+        "on_settings_change",
+        "on_schedule_change",
+        "on_connect",
+        "on_disconnect",
+    ):
+        setattr(door, hook, MagicMock(side_effect=_register(hook)))
+
+    for coroutine in (
+        "connect",
+        "disconnect",
+        "refresh",
+        "refresh_settings",
+        "refresh_status",
+        "refresh_battery",
+        "refresh_stats",
+        "refresh_schedules",
+        "refresh_hardware_info",
+        "refresh_remote_info",
+        "refresh_time",
+        "open",
+        "close",
+        "toggle",
+        "cycle",
+        "set_power",
+        "set_inside_sensor",
+        "set_outside_sensor",
+        "set_auto",
+        "set_safety_lock",
+        "set_autoretract",
+        "set_pet_proximity_keep_open",
+        "set_hold_time",
+        "set_sensor_trigger_voltage",
+        "set_sleep_sensor_trigger_voltage",
+        "set_timezone",
+        "set_notifications",
+        "set_schedule",
+        "delete_schedule",
+        "get_schedule",
+    ):
+        setattr(door, coroutine, AsyncMock())
+
+    door.refresh_schedules.return_value = []
+    return door
 
 
 @pytest.fixture
-def disconnected_client(event_loop, client_config) -> PowerPetDoorClient:
-    """Create a PowerPetDoorClient without a connection."""
-    client = PowerPetDoorClient(
-        host=client_config["host"],
-        port=client_config["port"],
-        timeout=client_config["timeout"],
-        reconnect=client_config["reconnect"],
-        keepalive=client_config["keepalive"],
-        loop=event_loop
+def mock_door() -> Generator[MagicMock]:
+    """Patch the coordinator's `PowerPetDoor` with a double.
+
+    The double takes its address FROM the constructor call rather than
+    holding TEST_HOST for the life of the test. That sounds cosmetic and is
+    not: every entity unique_id and the device registry identifier derive
+    from `coordinator.device_identifier`, which is `door.host:door.port`. A
+    double whose address never moved made those constant no matter what the
+    integration actually built, so a reconfigure that renamed every entity
+    in the registry was indistinguishable from one that renamed none - and
+    the same blind spot hid the latency unit error.
+    """
+    door = _build_mock_door()
+
+    def _construct(**kwargs: Any) -> MagicMock:
+        door.host = kwargs["host"]
+        door.port = kwargs["port"]
+        return door
+
+    with patch("custom_components.powerpetdoor.coordinator.PowerPetDoor", side_effect=_construct):
+        yield door
+
+
+@pytest.fixture
+async def setup_integration(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_door: MagicMock
+) -> MockConfigEntry:
+    """A fully set-up config entry backed by `mock_door`."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    return mock_config_entry
+
+
+# ---------------------------------------------------------------------------
+# The real simulator
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def simulator_timing() -> DoorTimingConfig:
+    """Door motion fast enough for a test to wait for it honestly.
+
+    Real timings are seconds per phase. Compressing them lets a test await
+    an actual state transition instead of sleeping and hoping, which is what
+    the async-determinism rule in .claude/CLAUDE.md is about.
+    """
+    return DoorTimingConfig(
+        rise_time=0.1,
+        default_hold_time=1,
+        slowing_time=0.05,
+        closing_top_time=0.05,
+        closing_mid_time=0.05,
+        sensor_retrigger_window=0.1,
     )
-    return client
-
-
-# ============================================================================
-# Home Assistant Fixtures (only available if HA is installed)
-# ============================================================================
-
-if HAS_HOMEASSISTANT:
-    @pytest.fixture
-    def mock_config_entry(hass: HomeAssistant):
-        """Create a mock config entry."""
-        from homeassistant.config_entries import ConfigEntry
-        from pytest_homeassistant_custom_component.common import MockConfigEntry
-
-        entry = MockConfigEntry(
-            domain=DOMAIN,
-            title="Power Pet Door",
-            data={
-                CONF_NAME: "Power Pet Door",
-                CONF_HOST: "192.168.1.100",
-                CONF_PORT: DEFAULT_PORT,
-                CONF_TIMEOUT: DEFAULT_CONNECT_TIMEOUT,
-                CONF_RECONNECT: DEFAULT_RECONNECT_TIMEOUT,
-                CONF_KEEP_ALIVE: DEFAULT_KEEP_ALIVE_TIMEOUT,
-                CONF_REFRESH: DEFAULT_REFRESH_TIMEOUT,
-            },
-            unique_id="192.168.1.100:3000",
-        )
-        entry.add_to_hass(hass)
-        return entry
 
 
 @pytest.fixture
-def mock_setup_entry():
-    """Mock the async_setup_entry function."""
+async def simulated_door(
+    simulator_timing: DoorTimingConfig,
+) -> AsyncGenerator[DoorSimulator]:
+    """Pypowerpetdoor's real door simulator, on an ephemeral port.
+
+    Port 0 so concurrent test workers cannot collide; the caller reads the
+    assigned port from `simulator.server.sockets[0].getsockname()[1]`.
+    """
+    simulator = DoorSimulator(
+        port=0, state=DoorSimulatorState(timing=simulator_timing, hold_time=1)
+    )
+    await simulator.start()
+    yield simulator
+    await simulator.stop()
+
+
+@pytest.fixture
+def simulated_port(simulated_door: DoorSimulator) -> int:
+    """The port the running simulator bound to."""
+    port: int = simulated_door.server.sockets[0].getsockname()[1]
+    return port
+
+
+@pytest.fixture
+async def simulated_entry(
+    hass: HomeAssistant, simulated_port: int
+) -> AsyncGenerator[MockConfigEntry]:
+    """A config entry set up against the real simulator, no mocks involved."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Power Pet Door",
+        unique_id=f"127.0.0.1:{simulated_port}",
+        data={CONF_HOST: "127.0.0.1", CONF_PORT: simulated_port, CONF_NAME: "Power Pet Door"},
+        options={
+            CONF_TIMEOUT: 5.0,
+            CONF_RECONNECT: 1.0,
+            # 0 disables the keepalive; a ping every 30s would otherwise
+            # leave a pending task at teardown.
+            CONF_KEEP_ALIVE: 0,
+            CONF_REFRESH: 300.0,
+            CONF_HOLD_MIN: 2.0,
+            CONF_HOLD_MAX: 8.0,
+            CONF_HOLD_STEP: 2.0,
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    yield entry
+
+    # Unload BEFORE the simulator fixture stops its server. Without this the
+    # simulator shuts down under a still-connected client, the library sees
+    # the drop as an outage and starts its reconnect backoff, and the test
+    # ends with a pending task and an ERROR line in every teardown.
+    if entry.state is ConfigEntryState.LOADED:
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+
+SECOND_HOST = "192.0.2.20"
+
+
+@pytest.fixture
+def second_config_entry() -> MockConfigEntry:
+    """A config entry for a SECOND door, at a different address."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Back Door",
+        unique_id=f"{SECOND_HOST}:{TEST_PORT}",
+        data={CONF_HOST: SECOND_HOST, CONF_PORT: TEST_PORT, CONF_NAME: "Back Door"},
+        options={
+            CONF_TIMEOUT: 5.0,
+            CONF_RECONNECT: 5.0,
+            CONF_KEEP_ALIVE: 30.0,
+            CONF_REFRESH: 300.0,
+            # Deliberately DIFFERENT from the first door's, so a test can
+            # tell whether per-entry options leak between doors. They used
+            # to: the hold-open bounds were written into a module-level
+            # table, so whichever door set up last won for both.
+            CONF_HOLD_MIN: 1.0,
+            CONF_HOLD_MAX: 30.0,
+            CONF_HOLD_STEP: 0.5,
+        },
+    )
+
+
+@pytest.fixture
+async def two_doors(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    second_config_entry: MockConfigEntry,
+) -> AsyncGenerator[tuple[MockConfigEntry, MagicMock, MockConfigEntry, MagicMock]]:
+    """Two independently-backed doors set up at once.
+
+    Each entry gets its OWN door double, so a test can change one and assert
+    the other did not move. Issue #9 and PR #11 were both this: two doors
+    sharing state and listeners.
+    """
+    first_door = _build_mock_door()
+    second_door = _build_mock_door()
+    second_door.host = SECOND_HOST
+
+    # Keyed by host, NOT by call order. Home Assistant sets up every entry of
+    # an integration together once the component loads, so the order the
+    # coordinators are constructed in is not something a test should depend
+    # on - and a test that silently handed the doubles out backwards would
+    # "pass" while asserting the opposite of what it reads.
+    doors = {TEST_HOST: first_door, SECOND_HOST: second_door}
+
     with patch(
-        "custom_components.powerpetdoor.async_setup_entry",
-        return_value=True
-    ) as mock_setup:
-        yield mock_setup
+        "custom_components.powerpetdoor.coordinator.PowerPetDoor",
+        side_effect=lambda **kwargs: doors[kwargs["host"]],
+    ):
+        mock_config_entry.add_to_hass(hass)
+        second_config_entry.add_to_hass(hass)
+        # Setting up the first loads the component, which loads every entry
+        # it owns - so the second may already be LOADED by the time this
+        # returns. Setting it up again raises OperationNotAllowed.
+        assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+        if second_config_entry.state is not ConfigEntryState.LOADED:
+            assert await hass.config_entries.async_setup(second_config_entry.entry_id)
+            await hass.async_block_till_done()
+        yield mock_config_entry, first_door, second_config_entry, second_door
 
 
 @pytest.fixture
-def mock_connection():
-    """Mock the network connection for config flow validation."""
-    async def mock_open_connection(host, port):
-        reader = AsyncMock()
-        writer = MagicMock()
+def entity_registry_enabled_by_default() -> Generator[None]:
+    """Force every entity to be registered enabled.
 
-        # Mock the PING/PONG exchange
-        ping_response = json.dumps({
-            FIELD_SUCCESS: "true",
-            "CMD": PONG,
-            PONG: str(round(time.time() * 1000)),
-        }).encode('ascii') + b'}'
+    Home Assistant core ships this fixture; pytest-homeassistant-custom-component
+    does not re-export it, so it is defined here the same way core defines it.
 
-        reader.readuntil = AsyncMock(return_value=ping_response)
-        writer.write = MagicMock()
-        writer.drain = AsyncMock()
-        writer.close = MagicMock()
-        writer.wait_closed = AsyncMock()
-
-        return reader, writer
-
-    with patch("asyncio.open_connection", side_effect=mock_open_connection):
-        yield
-
-
-@pytest.fixture
-def mock_connection_timeout():
-    """Mock a connection timeout."""
+    Needed by the snapshot tests: `snapshot_platform` refuses to run unless
+    every entity is enabled, and this integration disables a dozen
+    diagnostic and rarely-changed entities by default. Without it the
+    snapshots would only ever cover what a fresh install shows, leaving the
+    disabled half unpinned - which is exactly the half nobody looks at.
+    Whether each entity is disabled by default is itself recorded in the
+    snapshot, so nothing is lost by forcing them on here.
+    """
     with patch(
-        "asyncio.open_connection",
-        side_effect=asyncio.TimeoutError()
+        "homeassistant.helpers.entity.Entity.entity_registry_enabled_default",
+        return_value=True,
     ):
         yield
 
 
 @pytest.fixture
-def mock_connection_refused():
-    """Mock a connection refused error."""
-    with patch(
-        "asyncio.open_connection",
-        side_effect=ConnectionRefusedError()
-    ):
-        yield
+def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
+    """Serialise Home Assistant objects deterministically.
 
-
-# ============================================================================
-# Utility Fixtures
-# ============================================================================
-
-@pytest.fixture
-def callback_tracker() -> dict[str, list]:
-    """Track callback invocations."""
-    return {
-        "calls": [],
-        "args": [],
-    }
-
-
-@pytest.fixture
-def make_callback(callback_tracker):
-    """Factory to create tracked callbacks."""
-    def factory(name: str = "callback"):
-        def callback(*args, **kwargs):
-            callback_tracker["calls"].append(name)
-            callback_tracker["args"].append((args, kwargs))
-        return callback
-    return factory
-
-
-@pytest.fixture
-def make_async_callback(callback_tracker):
-    """Factory to create tracked async callbacks."""
-    def factory(name: str = "async_callback"):
-        async def callback(*args, **kwargs):
-            callback_tracker["calls"].append(name)
-            callback_tracker["args"].append((args, kwargs))
-        return callback
-    return factory
-
-
-# ============================================================================
-# Snapshot Extension (for syrupy)
-# ============================================================================
-
-try:
-    from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
-    from syrupy.assertion import SnapshotAssertion
-
-    @pytest.fixture
-    def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
-        """Return snapshot assertion fixture with the Home Assistant extension."""
-        return snapshot.use_extension(HomeAssistantSnapshotExtension)
-except ImportError:
-    # Syrupy not installed, skip snapshot fixture
-    pass
+    Overrides syrupy's default. A `RegistryEntry` carries `created_at`,
+    `modified_at`, a generated `id` and a `device_id` - all different on
+    every run - so a raw snapshot of one can never match twice. Home
+    Assistant ships this extension to normalise them, and core's own tests
+    apply it exactly like this.
+    """
+    return snapshot.use_extension(HomeAssistantSnapshotExtension)

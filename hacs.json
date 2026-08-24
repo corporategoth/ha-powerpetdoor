@@ -1,6 +1,7 @@
 {
-    "name": "Power Pet Door",
-    "content_in_root": false,
-    "render_readme": true,
-    "filename": "powerpetdoor-schedule-card.js"
+  "name": "Power Pet Door",
+  "content_in_root": false,
+  "render_readme": true,
+  "homeassistant": "2025.4.0",
+  "filename": "powerpetdoor-schedule-card.js"
 }

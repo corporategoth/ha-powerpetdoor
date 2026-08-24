@@ -1,0 +1,21 @@
+set_schedule:
+  # The Lovelace card edits schedules over the WebSocket API, which only a
+  # browser can call. Without this action an automation could not do
+  # something the UI can - the "no hidden APIs" principle - so a user could
+  # not, say, switch to a winter schedule on a date.
+  target:
+    entity:
+      integration: powerpetdoor
+      domain: binary_sensor
+  fields:
+    schedule:
+      required: true
+      example:
+        monday:
+          - from: "06:00:00"
+            to: "20:00:00"
+        saturday:
+          - from: "08:00:00"
+            to: "22:00:00"
+      selector:
+        object:

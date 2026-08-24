@@ -1,0 +1,43 @@
+{
+  "name": "ha-powerpetdoor-frontend",
+  "description": "Browser-side tests for the Power Pet Door Lovelace card",
+  "private": true,
+  "comment": [
+    "The card under test is NOT a Node module. www/powerpetdoor-schedule-card.js",
+    "is a plain browser script that defines two custom elements and calls",
+    "customElements.define at the bottom. There is no bundler, no import/export,",
+    "and no transpile step - what is checked in is byte-for-byte what the browser",
+    "loads. So this package exists only to hold the test toolchain; it never",
+    "builds or packages the card.",
+    "",
+    "It lives at the repo ROOT rather than beside the tests because ESLint 9's",
+    "flat config ignores any file outside its config's base path, and Node",
+    "resolves plugins upward from the config file. With both under",
+    "tests/frontend/, eslint linted zero files and still exited 0.",
+    "",
+    "No `version` field on purpose. This package is private and never",
+    "published, so a version here would be a THIRD number that matches",
+    "nothing: the integration is versioned in manifest.json (0.5.0) and the",
+    "card carries its own in its header and console banner (1.8.0, enforced",
+    "by scripts/check_card_version.py). It previously read 1.0.0, inherited",
+    "from the template this was copied from, which was simply confusing."
+  ],
+  "scripts": {
+    "test": "jest --config tests/frontend/jest.config.js",
+    "test:watch": "jest --config tests/frontend/jest.config.js --watch",
+    "test:coverage": "jest --config tests/frontend/jest.config.js --coverage",
+    "test:ci": "jest --config tests/frontend/jest.config.js --ci --coverage --reporters=default --reporters=jest-junit",
+    "lint": "eslint www --max-warnings=0",
+    "lint:fix": "eslint www --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-junit": "^16.0.0"
+  }
+}

@@ -5,7 +5,10 @@ on:
 
 jobs:
   sync:
-    uses: neuromancy/workflows/.gitea/workflows/sync-github-wiki.yml@v1.1.0
+    # The ONLY `uses:` in this repository that receives a secret, and the one
+    # pin Dependabot cannot see (it has no Gitea support). Tracked by hand -
+    # see the "Manually tracked pins" table in .claude/CLAUDE.md.
+    uses: neuromancy/workflows/.gitea/workflows/sync-github-wiki.yml@5d9eb7fbdc4212eea790375b2ec82f421a30037a # v1.1.0
     secrets:
       github_token: ${{ secrets.GH_PAT }}
     with:

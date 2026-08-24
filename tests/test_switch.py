@@ -3,532 +3,382 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Tests for Power Pet Door switch entities."""
+"""Switch entities: every toggle, its polarity, and its availability gate."""
+
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
-# Skip all tests in this module if Home Assistant is not available
-pytest.importorskip("homeassistant")
-pytest.importorskip("pytest_homeassistant_custom_component")
-
 from homeassistant.core import HomeAssistant
-from homeassistant.components.switch import SwitchDeviceClass
-from homeassistant.const import EntityCategory
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.exceptions import HomeAssistantError
+from powerpetdoor import CommandError, NotificationSettings
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.powerpetdoor.switch import (
-    PetDoorSwitch,
-    PetDoorNotificationSwitch,
-    ConnectionSwitch,
-    SWITCHES,
-    NOTIFICATION_SWITCHES,
+#: Every plain switch: entity_id, the door property it reads, the door
+#: method it writes, and whether the door being powered off hides it.
+#:
+#: Listed exhaustively rather than derived from SWITCHES, because deriving
+#: it would make the table agree with the code by construction and prove
+#: nothing. Entity ids in particular are a contract with the user's
+#: dashboard - "switch.power_pet_door_schedule_enabled" is what an
+#: automation names, and it is NOT the same string as its key, `auto`.
+SWITCHES = [
+    ("switch.power_pet_door_power", "power", "set_power", False),
+    ("switch.power_pet_door_inside_sensor", "inside_sensor", "set_inside_sensor", True),
+    ("switch.power_pet_door_outside_sensor", "outside_sensor", "set_outside_sensor", True),
+    ("switch.power_pet_door_schedule_enabled", "auto", "set_auto", True),
+    ("switch.power_pet_door_outside_safety_lock", "safety_lock", "set_safety_lock", True),
+    ("switch.power_pet_door_auto_retract", "autoretract", "set_autoretract", True),
+    (
+        "switch.power_pet_door_pet_proximity_keep_open",
+        "pet_proximity_keep_open",
+        "set_pet_proximity_keep_open",
+        True,
+    ),
+]
+
+#: The five notification toggles. They share one door method taking keyword
+#: arguments, so each row names its own keyword - wiring two of them to the
+#: same keyword is the mistake this table exists to catch.
+NOTIFICATION_SWITCHES = [
+    ("switch.power_pet_door_notify_inside_sensor_on", "inside_on"),
+    ("switch.power_pet_door_notify_inside_sensor_off", "inside_off"),
+    ("switch.power_pet_door_notify_outside_sensor_on", "outside_on"),
+    ("switch.power_pet_door_notify_outside_sensor_off", "outside_off"),
+    ("switch.power_pet_door_notify_low_battery", "low_battery"),
+]
+
+
+@pytest.fixture(autouse=True)
+def _enable_all(entity_registry_enabled_by_default: None) -> None:
+    """Most of these switches are diagnostic and off by default."""
+
+
+# ---------------------------------------------------------------------------
+# Reading
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("entity_id", "prop", "_method", "_gated"), SWITCHES)
+async def test_each_switch_reports_the_door_setting_it_controls(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    prop: str,
+    _method: str,
+    _gated: bool,
+) -> None:
+    """Both states, so an inverted `value_fn` cannot pass.
+
+    Asserting only "on" would pass for a switch wired to the wrong property
+    as long as that property happened to be True too - which, with seven
+    booleans on one door, it usually is.
+    """
+    setattr(mock_door, prop, True)
+    async_push(hass, mock_door)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "on"
+
+    setattr(mock_door, prop, False)
+    async_push(hass, mock_door)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "off"
+
+
+@pytest.mark.parametrize(("entity_id", "field"), NOTIFICATION_SWITCHES)
+async def test_each_notification_switch_reads_its_own_field(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    field: str,
+) -> None:
+    """Exactly one of the five is on, and it is the right one.
+
+    The five settings arrive as one object, so a switch reading the wrong
+    attribute of it is invisible unless the other four are known to be off.
+    """
+    mock_door.notifications = NotificationSettings(**{field: True})
+    async_push(hass, mock_door)
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == "on"
+    others = [row[0] for row in NOTIFICATION_SWITCHES if row[0] != entity_id]
+    assert [hass.states.get(other).state for other in others] == ["off"] * 4
+
+
+# ---------------------------------------------------------------------------
+# Writing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("entity_id", "_prop", "method", "_gated"), SWITCHES)
+@pytest.mark.parametrize(("service", "expected"), [("turn_on", True), ("turn_off", False)])
+async def test_each_switch_sends_the_right_value_to_the_door(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    _prop: str,
+    method: str,
+    _gated: bool,
+    service: str,
+    expected: bool,
+) -> None:
+    """Turn on sends True and turn off sends False, per switch.
+
+    The argument is the assertion. A switch that called its setter with a
+    constant, or with the value inverted, satisfies "the method was called"
+    and would ship - and for `pet_proximity_keep_open`, whose wire form IS
+    inverted, that is a mistake with real history.
+    """
+    await hass.services.async_call("switch", service, {"entity_id": entity_id}, blocking=True)
+
+    getattr(mock_door, method).assert_awaited_once_with(expected)
+
+
+@pytest.mark.parametrize(("entity_id", "field"), NOTIFICATION_SWITCHES)
+@pytest.mark.parametrize(("service", "expected"), [("turn_on", True), ("turn_off", False)])
+async def test_each_notification_switch_sets_only_its_own_keyword(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    field: str,
+    service: str,
+    expected: bool,
+) -> None:
+    """One keyword, and no others - the door merges what it is sent.
+
+    Sending a second keyword would overwrite a setting the user did not
+    touch, so "exactly these kwargs" is the assertion rather than "contains".
+    """
+    await hass.services.async_call("switch", service, {"entity_id": entity_id}, blocking=True)
+
+    mock_door.set_notifications.assert_awaited_once_with(**{field: expected})
+
+
+async def test_a_switch_writes_its_new_state_without_waiting_for_the_door(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """The toggle does not spring back under the user's finger.
+
+    The door echoes a change as a push, but not always instantly. Without
+    the local update the switch shows its old value until the echo lands,
+    which reads as "my tap did nothing".
+    """
+    mock_door.inside_sensor = True
+    assert hass.states.get("switch.power_pet_door_inside_sensor").state == "on"
+
+    # The door has NOT pushed anything back; only the cached property moved,
+    # exactly as the library updates it on a successful write.
+    mock_door.inside_sensor = False
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": "switch.power_pet_door_inside_sensor"}, blocking=True
+    )
+
+    assert hass.states.get("switch.power_pet_door_inside_sensor").state == "off"
+
+
+@pytest.mark.parametrize(("entity_id", "_prop", "method", "_gated"), SWITCHES)
+@pytest.mark.parametrize(
+    "raised", [CommandError("door said no"), OSError("reset"), TimeoutError("no answer")]
 )
-from powerpetdoor import make_bool
-from custom_components.powerpetdoor.const import (
-    CONFIG,
-    CMD_ENABLE_INSIDE,
-    CMD_DISABLE_INSIDE,
-    CMD_ENABLE_OUTSIDE,
-    CMD_DISABLE_OUTSIDE,
-    CMD_POWER_ON,
-    CMD_POWER_OFF,
-    CMD_ENABLE_AUTO,
-    CMD_DISABLE_AUTO,
-    CMD_ENABLE_CMD_LOCKOUT,
-    CMD_DISABLE_CMD_LOCKOUT,
-    CMD_SET_NOTIFICATIONS,
-    FIELD_INSIDE,
-    FIELD_OUTSIDE,
-    FIELD_POWER,
-    FIELD_AUTO,
-    FIELD_CMD_LOCKOUT,
-    FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
-    STATE_LAST_CHANGE,
+async def test_a_switch_reports_a_door_that_refuses(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    _prop: str,
+    method: str,
+    _gated: bool,
+    raised: Exception,
+) -> None:
+    """A refused write raises a translated error, not a silent no-op.
+
+    Silence here is the worst outcome: the user believes the door is locked
+    when it is not.
+    """
+    getattr(mock_door, method).side_effect = raised
+
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=True)
+
+    assert err.value.translation_key == "command_failed"
+
+
+async def test_a_notification_switch_reports_a_door_that_refuses(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """The notification switches share one setter and one error path."""
+    mock_door.set_notifications.side_effect = CommandError("nope")
+
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            "switch",
+            "turn_on",
+            {"entity_id": "switch.power_pet_door_notify_low_battery"},
+            blocking=True,
+        )
+
+    assert err.value.translation_key == "command_failed"
+
+
+# ---------------------------------------------------------------------------
+# Availability - which switches survive the door being powered off
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("entity_id", "_prop", "_method", "gated"), SWITCHES)
+async def test_powering_the_door_off_hides_only_the_motor_dependent_switches(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    _prop: str,
+    _method: str,
+    gated: bool,
+) -> None:
+    """The power switch itself must NOT be gated on power.
+
+    Previous versions hid every entity behind `door.power`, which removed
+    the very switch needed to turn it back on. `gated` is asserted per row
+    rather than as a blanket rule, so both sides of the distinction are
+    covered by the same test.
+    """
+    mock_door.power = False
+    async_push(hass, mock_door)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id).state
+    if gated:
+        assert state == "unavailable"
+    else:
+        # A real on/off, not merely "not unavailable" - `unknown` would have
+        # satisfied that and is just as broken to the user.
+        assert state in ("on", "off")
+
+
+@pytest.mark.parametrize(("entity_id", "_field"), NOTIFICATION_SWITCHES)
+async def test_the_notification_switches_survive_the_door_being_powered_off(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    entity_id: str,
+    _field: str,
+) -> None:
+    """The door still remembers these while powered down.
+
+    They are configuration, not motor behaviour, so hiding them would make
+    a setting the door is perfectly happy to change look broken.
+    """
+    mock_door.power = False
+    async_push(hass, mock_door)
+    await hass.async_block_till_done()
+
+    # A concrete state, not merely "not unavailable": an entity reporting
+    # `unknown` is exactly as broken to a user, and the old assertion
+    # passed for both.
+    assert hass.states.get(entity_id).state in ("on", "off")
+
+
+# ---------------------------------------------------------------------------
+# The connection switch
+# ---------------------------------------------------------------------------
+
+
+async def test_the_connection_switch_reports_whether_the_door_is_connected(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """It replaces the old connectivity binary sensor, so it must report."""
+    assert hass.states.get("switch.power_pet_door_connection").state == "on"
+
+    mock_door.connected = False
+    for callback in mock_door._callbacks["on_disconnect"]:
+        callback()
+    await hass.async_block_till_done()
+
+    assert hass.states.get("switch.power_pet_door_connection").state == "off"
+
+
+async def test_the_connection_switch_stays_available_while_the_door_is_gone(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """The control that gets the connection back cannot itself go away.
+
+    An unavailable connection switch would say nothing about the outage and
+    offer no way out of it.
+    """
+    mock_door.connected = False
+    mock_door.power = False
+    for callback in mock_door._callbacks["on_disconnect"]:
+        callback()
+    await hass.async_block_till_done()
+
+    assert hass.states.get("switch.power_pet_door_connection").state == "off"
+
+
+async def test_turning_the_connection_off_frees_the_door_for_the_phone_app(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """Issue #18: the door accepts one client, so this hands it back."""
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": "switch.power_pet_door_connection"}, blocking=True
+    )
+
+    mock_door.disconnect.assert_awaited_once()
+
+
+async def test_turning_the_connection_back_on_reconnects_and_refreshes(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """Everything cached went stale while disconnected.
+
+    Reconnecting without a refresh would leave every entity showing the
+    values the door had before the phone app changed them.
+    """
+    mock_door.connect.reset_mock()
+    mock_door.refresh.reset_mock()
+
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": "switch.power_pet_door_connection"}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    mock_door.connect.assert_awaited_once()
+    mock_door.refresh.assert_awaited()
+
+
+@pytest.mark.parametrize(
+    "raised", [CommandError("busy"), OSError("no route to host"), TimeoutError("no answer")]
 )
+async def test_a_reconnection_that_fails_is_reported_to_the_user(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock, raised: Exception
+) -> None:
+    """Turning the switch on when the door is gone says so.
 
+    `cannot_connect`, not `command_failed`: the message names the address,
+    which is the one piece of information that makes this actionable.
+    """
+    mock_door.connect.side_effect = raised
 
-# ============================================================================
-# PetDoorSwitch Tests
-# ============================================================================
-
-class TestPetDoorSwitch:
-    """Tests for PetDoorSwitch entity."""
-
-    @pytest.fixture
-    def mock_coordinator(self):
-        """Create a mock coordinator with settings data."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = {
-            FIELD_INSIDE: True,
-            FIELD_OUTSIDE: True,
-            FIELD_POWER: True,
-            FIELD_AUTO: False,
-            FIELD_CMD_LOCKOUT: False,
-        }
-        coordinator.async_set_updated_data = MagicMock()
-        return coordinator
-
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = True
-        client.add_listener = MagicMock()
-        client.send_message = MagicMock()
-        return client
-
-    @pytest.fixture
-    def inside_switch(self, mock_client, mock_coordinator):
-        """Create an inside sensor switch for testing."""
-        switch = PetDoorSwitch(
-            client=mock_client,
-            name="Test Inside Sensor",
-            switch=SWITCHES["inside"],
-            coordinator=mock_coordinator,
-            device=None
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            "switch", "turn_on", {"entity_id": "switch.power_pet_door_connection"}, blocking=True
         )
-        switch.power = True
-        return switch
 
-    @pytest.fixture
-    def power_switch(self, mock_client, mock_coordinator):
-        """Create a power switch for testing."""
-        switch = PetDoorSwitch(
-            client=mock_client,
-            name="Test Power",
-            switch=SWITCHES["power"],
-            coordinator=mock_coordinator,
-            device=None
-        )
-        switch.power = True
-        return switch
+    assert err.value.translation_key == "cannot_connect"
+    assert err.value.translation_placeholders["host"] == "192.0.2.10"
 
-    @pytest.fixture
-    def inverted_switch(self, mock_client, mock_coordinator):
-        """Create an inverted switch (cmd_lockout) for testing."""
-        switch = PetDoorSwitch(
-            client=mock_client,
-            name="Test Pet Proximity",
-            switch=SWITCHES["cmd_lockout"],
-            coordinator=mock_coordinator,
-            device=None
-        )
-        switch.power = True
-        return switch
 
-    # ==========================================================================
-    # State Tests
-    # ==========================================================================
+def async_push(hass: HomeAssistant, door: MagicMock) -> None:
+    """Fire the door's settings-change callbacks, as a real push would.
 
-    def test_is_on_true(self, inside_switch, mock_coordinator):
-        """Test is_on returns True when field is true."""
-        mock_coordinator.data[FIELD_INSIDE] = True
-        assert inside_switch.is_on is True
-
-    def test_is_on_false(self, inside_switch, mock_coordinator):
-        """Test is_on returns False when field is false."""
-        mock_coordinator.data[FIELD_INSIDE] = False
-        assert inside_switch.is_on is False
-
-    def test_is_on_none_when_no_data(self, inside_switch, mock_coordinator):
-        """Test is_on returns None when no data."""
-        mock_coordinator.data = None
-        assert inside_switch.is_on is None
-
-    def test_is_on_inverted(self, inverted_switch, mock_coordinator):
-        """Test inverted switch returns opposite value."""
-        mock_coordinator.data[FIELD_CMD_LOCKOUT] = False
-        assert inverted_switch.is_on is True  # Inverted, so False becomes True
-
-        mock_coordinator.data[FIELD_CMD_LOCKOUT] = True
-        assert inverted_switch.is_on is False  # Inverted, so True becomes False
-
-    def test_is_on_handles_string_true(self, inside_switch, mock_coordinator):
-        """Test is_on handles string 'true'."""
-        mock_coordinator.data[FIELD_INSIDE] = "true"
-        assert inside_switch.is_on is True
-
-    def test_is_on_handles_string_false(self, inside_switch, mock_coordinator):
-        """Test is_on handles string 'false'."""
-        mock_coordinator.data[FIELD_INSIDE] = "false"
-        assert inside_switch.is_on is False
-
-    # ==========================================================================
-    # Icon Tests
-    # ==========================================================================
-
-    def test_icon_when_on(self, inside_switch, mock_coordinator):
-        """Test icon when switch is on."""
-        mock_coordinator.data[FIELD_INSIDE] = True
-        assert inside_switch.icon == "mdi:leak"
-
-    def test_icon_when_off(self, inside_switch, mock_coordinator):
-        """Test icon when switch is off."""
-        mock_coordinator.data[FIELD_INSIDE] = False
-        assert inside_switch.icon == "mdi:leak-off"
-
-    # ==========================================================================
-    # Command Tests
-    # ==========================================================================
-
-    @pytest.mark.asyncio
-    async def test_turn_on_normal_switch(self, inside_switch, mock_client):
-        """Test turning on a normal switch sends enable command."""
-        await inside_switch.async_turn_on()
-        mock_client.send_message.assert_called_once_with(CONFIG, CMD_ENABLE_INSIDE)
-
-    @pytest.mark.asyncio
-    async def test_turn_off_normal_switch(self, inside_switch, mock_client):
-        """Test turning off a normal switch sends disable command."""
-        await inside_switch.async_turn_off()
-        mock_client.send_message.assert_called_once_with(CONFIG, CMD_DISABLE_INSIDE)
-
-    @pytest.mark.asyncio
-    async def test_turn_on_inverted_switch(self, inverted_switch, mock_client):
-        """Test turning on inverted switch sends disable command."""
-        await inverted_switch.async_turn_on()
-        # Inverted: turn_on sends disable
-        mock_client.send_message.assert_called_once_with(CONFIG, CMD_DISABLE_CMD_LOCKOUT)
-
-    @pytest.mark.asyncio
-    async def test_turn_off_inverted_switch(self, inverted_switch, mock_client):
-        """Test turning off inverted switch sends enable command."""
-        await inverted_switch.async_turn_off()
-        # Inverted: turn_off sends enable
-        mock_client.send_message.assert_called_once_with(CONFIG, CMD_ENABLE_CMD_LOCKOUT)
-
-    @pytest.mark.asyncio
-    async def test_power_on(self, power_switch, mock_client):
-        """Test power on sends POWER_ON command."""
-        await power_switch.async_turn_on()
-        mock_client.send_message.assert_called_once_with(CONFIG, CMD_POWER_ON)
-
-    @pytest.mark.asyncio
-    async def test_power_off(self, power_switch, mock_client):
-        """Test power off sends POWER_OFF command."""
-        await power_switch.async_turn_off()
-        mock_client.send_message.assert_called_once_with(CONFIG, CMD_POWER_OFF)
-
-    # ==========================================================================
-    # Availability Tests
-    # ==========================================================================
-
-    def test_available_when_connected(self, inside_switch, mock_client, mock_coordinator):
-        """Test available when client connected."""
-        mock_client.available = True
-        inside_switch.power = True
-        with patch.object(type(inside_switch).__bases__[0], 'available', True):
-            assert inside_switch.available is True
-
-    def test_unavailable_when_disconnected(self, inside_switch, mock_client, mock_coordinator):
-        """Test unavailable when client disconnected."""
-        mock_client.available = False
-        inside_switch.power = True
-        with patch.object(type(inside_switch).__bases__[0], 'available', True):
-            assert inside_switch.available is False
-
-    def test_unavailable_when_power_off(self, inside_switch, mock_client, mock_coordinator):
-        """Test unavailable when power is off."""
-        mock_client.available = True
-        inside_switch.power = False
-        with patch.object(type(inside_switch).__bases__[0], 'available', True):
-            assert inside_switch.available is False
-
-    # ==========================================================================
-    # Callback Tests
-    # ==========================================================================
-
-    def test_handle_state_update(self, inside_switch, mock_coordinator):
-        """Test state update changes coordinator data."""
-        mock_coordinator.data = {FIELD_INSIDE: True, FIELD_POWER: True}
-        inside_switch.handle_state_update(False)
-        mock_coordinator.async_set_updated_data.assert_called_once()
-        call_args = mock_coordinator.async_set_updated_data.call_args[0][0]
-        assert call_args[FIELD_INSIDE] is False
-
-    def test_handle_power_update(self, inside_switch):
-        """Test power update changes power state."""
-        inside_switch.power = True
-        inside_switch.async_schedule_update_ha_state = MagicMock()
-        inside_switch.handle_power_update(False)
-        assert inside_switch.power is False
-        inside_switch.async_schedule_update_ha_state.assert_called_once()
-
-    # ==========================================================================
-    # Extra Attributes Tests
-    # ==========================================================================
-
-    def test_extra_attributes_includes_last_change(self, inside_switch):
-        """Test extra attributes includes last change."""
-        inside_switch.last_change = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
-        attrs = inside_switch.extra_state_attributes
-        assert STATE_LAST_CHANGE in attrs
-
-    def test_extra_attributes_none_without_last_change(self, inside_switch):
-        """Test extra attributes is None without last change."""
-        inside_switch.last_change = None
-        attrs = inside_switch.extra_state_attributes
-        assert attrs is None
-
-
-# ============================================================================
-# PetDoorNotificationSwitch Tests
-# ============================================================================
-
-class TestPetDoorNotificationSwitch:
-    """Tests for PetDoorNotificationSwitch entity."""
-
-    @pytest.fixture
-    def mock_coordinator(self):
-        """Create a mock coordinator with notification data."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = {
-            FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS: True,
-        }
-        coordinator.async_set_updated_data = MagicMock()
-        return coordinator
-
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = True
-        client.add_listener = MagicMock()
-        client.send_message = MagicMock()
-        return client
-
-    @pytest.fixture
-    def notification_switch(self, mock_client, mock_coordinator):
-        """Create a notification switch for testing."""
-        switch = PetDoorNotificationSwitch(
-            client=mock_client,
-            name="Test Inside On Notify",
-            switch=NOTIFICATION_SWITCHES["inside_on"],
-            coordinator=mock_coordinator,
-            device=None
-        )
-        switch.power = True
-        return switch
-
-    def test_is_on_true(self, notification_switch, mock_coordinator):
-        """Test is_on returns True when notification enabled."""
-        mock_coordinator.data[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS] = True
-        assert notification_switch.is_on is True
-
-    def test_is_on_false(self, notification_switch, mock_coordinator):
-        """Test is_on returns False when notification disabled."""
-        mock_coordinator.data[FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS] = False
-        assert notification_switch.is_on is False
-
-    @pytest.mark.asyncio
-    async def test_turn_on_sends_notifications(self, notification_switch, mock_client, mock_coordinator):
-        """Test turning on sends SET_NOTIFICATIONS with updated data."""
-        mock_coordinator.data = {FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS: False}
-        await notification_switch.async_turn_on()
-        mock_client.send_message.assert_called_once()
-        call_args = mock_client.send_message.call_args
-        assert call_args[0][0] == CONFIG
-        assert call_args[0][1] == CMD_SET_NOTIFICATIONS
-        assert call_args[1]["notifications"][FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS] is True
-
-    @pytest.mark.asyncio
-    async def test_turn_off_sends_notifications(self, notification_switch, mock_client, mock_coordinator):
-        """Test turning off sends SET_NOTIFICATIONS with updated data."""
-        mock_coordinator.data = {FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS: True}
-        await notification_switch.async_turn_off()
-        mock_client.send_message.assert_called_once()
-        call_args = mock_client.send_message.call_args
-        assert call_args[1]["notifications"][FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS] is False
-
-
-# ============================================================================
-# ConnectionSwitch Tests
-# ============================================================================
-
-class TestConnectionSwitch:
-    """Tests for ConnectionSwitch entity."""
-
-    @pytest.fixture
-    def mock_coordinator(self):
-        """Create a mock coordinator."""
-        coordinator = MagicMock(spec=DataUpdateCoordinator)
-        coordinator.data = {}
-        return coordinator
-
-    @pytest.fixture
-    def mock_client(self):
-        """Create a mock client."""
-        client = MagicMock()
-        client.host = "192.168.1.100"
-        client.port = 3000
-        client.available = False
-        client.add_handlers = MagicMock()
-        client.start = MagicMock()
-        client.stop = MagicMock()
-        return client
-
-    @pytest.fixture
-    def connection_switch(self, mock_client, mock_coordinator):
-        """Create a connection switch for testing."""
-        switch = ConnectionSwitch(
-            client=mock_client,
-            name="Test Connection",
-            coordinator=mock_coordinator,
-            device=None
-        )
-        return switch
-
-    # ==========================================================================
-    # State Tests
-    # ==========================================================================
-
-    def test_default_desired_on(self, connection_switch):
-        """Test default desired state is on."""
-        assert connection_switch._desired_on is True
-
-    def test_is_on_returns_desired_state(self, connection_switch):
-        """Test is_on returns desired state, not actual connection state."""
-        connection_switch._desired_on = True
-        assert connection_switch.is_on is True
-
-        connection_switch._desired_on = False
-        assert connection_switch.is_on is False
-
-    def test_always_available(self, connection_switch, mock_client):
-        """Test connection switch is always available."""
-        mock_client.available = False
-        assert connection_switch.available is True
-
-        mock_client.available = True
-        assert connection_switch.available is True
-
-    # ==========================================================================
-    # Command Tests
-    # ==========================================================================
-
-    @pytest.mark.asyncio
-    async def test_turn_on_calls_start(self, connection_switch, mock_client):
-        """Test turning on calls client.start()."""
-        connection_switch._desired_on = False
-        connection_switch.async_write_ha_state = MagicMock()
-        await connection_switch.async_turn_on()
-
-        assert connection_switch._desired_on is True
-        mock_client.start.assert_called_once()
-        connection_switch.async_write_ha_state.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_turn_off_calls_stop(self, connection_switch, mock_client):
-        """Test turning off calls client.stop()."""
-        connection_switch._desired_on = True
-        connection_switch.async_write_ha_state = MagicMock()
-        await connection_switch.async_turn_off()
-
-        assert connection_switch._desired_on is False
-        mock_client.stop.assert_called_once()
-        connection_switch.async_write_ha_state.assert_called_once()
-
-    # ==========================================================================
-    # Extra Attributes Tests
-    # ==========================================================================
-
-    def test_extra_attributes_shows_connected_status(self, connection_switch, mock_client):
-        """Test extra attributes shows actual connection status."""
-        mock_client.available = True
-        attrs = connection_switch.extra_state_attributes
-        assert attrs["connected"] is True
-
-        mock_client.available = False
-        attrs = connection_switch.extra_state_attributes
-        assert attrs["connected"] is False
-
-    # ==========================================================================
-    # Lifecycle Tests
-    # ==========================================================================
-
-    @pytest.mark.asyncio
-    async def test_added_to_hass_starts_client(self, connection_switch, mock_client):
-        """Test adding to hass starts the client."""
-        with patch.object(type(connection_switch).__bases__[0], 'async_added_to_hass', new_callable=AsyncMock):
-            await connection_switch.async_added_to_hass()
-
-        assert connection_switch._desired_on is True
-        mock_client.start.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_will_remove_stops_client(self, connection_switch, mock_client):
-        """Test removing from hass stops the client."""
-        with patch.object(type(connection_switch).__bases__[0], 'async_will_remove_from_hass', new_callable=AsyncMock):
-            await connection_switch.async_will_remove_from_hass()
-
-        mock_client.stop.assert_called_once()
-
-    # ==========================================================================
-    # Callback Tests
-    # ==========================================================================
-
-    @pytest.mark.asyncio
-    async def test_handle_connect_updates_state(self, connection_switch):
-        """Test handle_connect updates HA state."""
-        connection_switch.async_write_ha_state = MagicMock()
-        await connection_switch._handle_connect()
-        connection_switch.async_write_ha_state.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_handle_disconnect_updates_state(self, connection_switch):
-        """Test handle_disconnect updates HA state."""
-        connection_switch.async_write_ha_state = MagicMock()
-        await connection_switch._handle_disconnect()
-        connection_switch.async_write_ha_state.assert_called_once()
-
-
-# ============================================================================
-# Switch Configuration Tests
-# ============================================================================
-
-class TestSwitchConfiguration:
-    """Tests for switch configuration dictionaries."""
-
-    def test_switches_have_required_fields(self):
-        """Test all switches have required fields."""
-        for name, switch in SWITCHES.items():
-            assert "field" in switch, f"{name} missing 'field'"
-            assert "update" in switch, f"{name} missing 'update'"
-            assert "enable" in switch, f"{name} missing 'enable'"
-            assert "disable" in switch, f"{name} missing 'disable'"
-            assert "icon_on" in switch, f"{name} missing 'icon_on'"
-            assert "icon_off" in switch, f"{name} missing 'icon_off'"
-
-    def test_notification_switches_have_required_fields(self):
-        """Test all notification switches have required fields."""
-        for name, switch in NOTIFICATION_SWITCHES.items():
-            assert "field" in switch, f"{name} missing 'field'"
-            assert "icon_on" in switch, f"{name} missing 'icon_on'"
-            assert "icon_off" in switch, f"{name} missing 'icon_off'"
-
-    def test_inside_switch_config(self):
-        """Test inside switch configuration."""
-        switch = SWITCHES["inside"]
-        assert switch["field"] == FIELD_INSIDE
-        assert switch["enable"] == CMD_ENABLE_INSIDE
-        assert switch["disable"] == CMD_DISABLE_INSIDE
-        assert switch["category"] == EntityCategory.CONFIG
-
-    def test_power_switch_has_no_category(self):
-        """Test power switch has no entity category."""
-        switch = SWITCHES["power"]
-        assert "category" not in switch
-
-    def test_cmd_lockout_is_inverted(self):
-        """Test cmd_lockout switch is inverted."""
-        switch = SWITCHES["cmd_lockout"]
-        assert switch.get("inverted") is True
+    Changing a property on the double is not enough on its own: entities
+    only re-read when the coordinator tells them to, which is exactly what
+    happens on the wire.
+    """
+    for callback in door._callbacks["on_settings_change"]:
+        callback({})

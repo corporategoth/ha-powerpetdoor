@@ -46,6 +46,8 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage.json
+coverage_html/
 *.cover
 *.py,cover
 .hypothesis/
@@ -268,5 +270,34 @@ http-client.private.env.json
 # Claude Code
 .claude/**/*.local.*
 
-# direnv
-.envrc
+# Local data/database files
+data/
+
+# direnv - the checked-in .envrc only activates .venv; keep it tracked so a
+# fresh clone gets it. Uncomment to ignore a local override instead.
+#.envrc
+# NOTE: no blanket `.idea/` here, unlike pypowerpetdoor. This repo
+# deliberately TRACKS its JetBrains project (copyright profile, run
+# configs, inspection profiles - see `git ls-files .idea`). The
+# granular JetBrains rules above already drop the per-user churn
+# (workspace.xml, tasks.xml, shelf/, dataSources). A blanket ignore
+# would leave those 10 files tracked-but-ignored, which is the
+# worst of both worlds.
+
+# AI review process residue - not product
+.claude/analysis/
+
+# -------------------------------------------------------------------------------------------
+# ha-powerpetdoor specifics
+
+# Frontend (Lovelace card) test tooling
+node_modules/
+tests/frontend/coverage/
+npm-debug.log*
+yarn-error.log*
+
+# Home Assistant scratch config used by the manual smoke-test target
+.ha-test-config/
+
+# PyCharm's pre-rename safety copy of .idea; pure local residue.
+.idea.local-backup/

@@ -3,519 +3,326 @@
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
 
-"""Switch entities for Power Pet Door."""
+"""Switch entities for the Power Pet Door."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
-import copy
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.components.switch import (
+    SwitchDeviceClass,
+    SwitchEntity,
+    SwitchEntityDescription,
+)
 from homeassistant.const import EntityCategory
-from homeassistant.helpers.entity import DeviceInfo, Entity, ToggleEntity
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
-from homeassistant.components.switch import SwitchDeviceClass
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from powerpetdoor import PowerPetDoorClient, make_bool
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from powerpetdoor import CommandError, PowerPetDoor
 
-from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_PORT,
-    CONF_NAME,
-    CONF_REFRESH,
-    CONFIG,
-    CMD_GET_SENSORS,
-    CMD_GET_POWER,
-    CMD_GET_AUTO,
-    CMD_GET_OUTSIDE_SENSOR_SAFETY_LOCK,
-    CMD_GET_CMD_LOCKOUT,
-    CMD_GET_AUTORETRACT,
-    CMD_GET_NOTIFICATIONS,
-    CMD_SET_NOTIFICATIONS,
-    CMD_ENABLE_INSIDE,
-    CMD_DISABLE_INSIDE,
-    CMD_ENABLE_OUTSIDE,
-    CMD_DISABLE_OUTSIDE,
-    CMD_POWER_ON,
-    CMD_POWER_OFF,
-    CMD_ENABLE_AUTO,
-    CMD_DISABLE_AUTO,
-    CMD_DISABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
-    CMD_ENABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
-    CMD_DISABLE_CMD_LOCKOUT,
-    CMD_ENABLE_CMD_LOCKOUT,
-    CMD_DISABLE_AUTORETRACT,
-    CMD_ENABLE_AUTORETRACT,
-    STATE_LAST_CHANGE,
-    FIELD_INSIDE,
-    FIELD_OUTSIDE,
-    FIELD_POWER,
-    FIELD_AUTO,
-    FIELD_OUTSIDE_SENSOR_SAFETY_LOCK,
-    FIELD_CMD_LOCKOUT,
-    FIELD_AUTORETRACT,
-    FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
-    FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS,
-    FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS,
-    FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS,
-    FIELD_LOW_BATTERY_NOTIFICATIONS,
+from .const import DOMAIN
+from .coordinator import PowerPetDoorConfigEntry, PowerPetDoorCoordinator
+from .entity import PowerPetDoorEntity, PowerPetDoorPoweredEntity
+
+# Every write goes to one device over one socket; the library serialises
+# them anyway. Letting Home Assistant fire them concurrently would only
+# queue them deeper.
+PARALLEL_UPDATES = 1
+
+
+@dataclass(frozen=True, kw_only=True)
+class PowerPetDoorSwitchDescription(SwitchEntityDescription):
+    """Describes one Power Pet Door switch."""
+
+    value_fn: Callable[[PowerPetDoor], bool]
+    set_fn: Callable[[PowerPetDoor, bool], Awaitable[None]]
+    #: True when the door being powered off makes this switch meaningless.
+    #: The power switch itself and the notification switches are not gated,
+    #: or turning the door back on would be impossible.
+    needs_power: bool = True
+
+
+SWITCHES: tuple[PowerPetDoorSwitchDescription, ...] = (
+    PowerPetDoorSwitchDescription(
+        key="power",
+        translation_key="power",
+        device_class=SwitchDeviceClass.SWITCH,
+        value_fn=lambda door: door.power,
+        set_fn=lambda door, on: door.set_power(on),
+        # Never gated: this is the switch that turns the power back on.
+        needs_power=False,
+    ),
+    PowerPetDoorSwitchDescription(
+        key="inside_sensor",
+        translation_key="inside_sensor",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda door: door.inside_sensor,
+        set_fn=lambda door, on: door.set_inside_sensor(on),
+    ),
+    PowerPetDoorSwitchDescription(
+        key="outside_sensor",
+        translation_key="outside_sensor",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda door: door.outside_sensor,
+        set_fn=lambda door, on: door.set_outside_sensor(on),
+    ),
+    PowerPetDoorSwitchDescription(
+        key="auto",
+        translation_key="auto",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda door: door.auto,
+        set_fn=lambda door, on: door.set_auto(on),
+    ),
+    PowerPetDoorSwitchDescription(
+        key="outside_safety_lock",
+        translation_key="outside_safety_lock",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.safety_lock,
+        set_fn=lambda door, on: door.set_safety_lock(on),
+    ),
+    PowerPetDoorSwitchDescription(
+        key="auto_retract",
+        translation_key="auto_retract",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.autoretract,
+        set_fn=lambda door, on: door.set_autoretract(on),
+    ),
+    # The wire calls this "cmd lockout" and inverts it. The facade already
+    # presents it the way a user thinks about it - "keep the door open while
+    # a pet is near" - so this integration does NOT re-invert it. Previous
+    # versions carried an `inverted` flag here and got the polarity from
+    # const.py; that logic now lives in exactly one place, the library.
+    PowerPetDoorSwitchDescription(
+        key="pet_proximity_keep_open",
+        translation_key="pet_proximity_keep_open",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.pet_proximity_keep_open,
+        set_fn=lambda door, on: door.set_pet_proximity_keep_open(on),
+    ),
 )
 
-import logging
-
-_LOGGER = logging.getLogger(__name__)
-
-SWITCHES = {
-    "inside": {
-        "field": FIELD_INSIDE,
-        "update": CMD_GET_SENSORS,
-        "enable": CMD_ENABLE_INSIDE,
-        "disable": CMD_DISABLE_INSIDE,
-        "icon_on": "mdi:leak",
-        "icon_off": "mdi:leak-off",
-        "category": EntityCategory.CONFIG
-    },
-    "outside": {
-        "field": FIELD_OUTSIDE,
-        "update": CMD_GET_SENSORS,
-        "enable": CMD_ENABLE_OUTSIDE,
-        "disable": CMD_DISABLE_OUTSIDE,
-        "icon_on": "mdi:leak",
-        "icon_off": "mdi:leak-off",
-        "category": EntityCategory.CONFIG
-    },
-    "auto": {
-        "field": FIELD_AUTO,
-        "update": CMD_GET_AUTO,
-        "enable": CMD_ENABLE_AUTO,
-        "disable": CMD_DISABLE_AUTO,
-        "icon_on": "mdi:calendar-week",
-        "icon_off": "mdi:calendar-remove",
-        "category": EntityCategory.CONFIG
-    },
-    "outside_sensor_safety_lock": {
-        "field": FIELD_OUTSIDE_SENSOR_SAFETY_LOCK,
-        "update": CMD_GET_OUTSIDE_SENSOR_SAFETY_LOCK,
-        "enable": CMD_ENABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
-        "disable": CMD_DISABLE_OUTSIDE_SENSOR_SAFETY_LOCK,
-        "icon_on": "mdi:weather-sunny-alert",
-        "icon_off": "mdi:shield-sun-outline",
-        "category": EntityCategory.CONFIG,
-        "disabled": True,
-    },
-    "cmd_lockout": {
-        "field": FIELD_CMD_LOCKOUT,
-        "update": CMD_GET_CMD_LOCKOUT,
-        "enable": CMD_ENABLE_CMD_LOCKOUT,
-        "disable": CMD_DISABLE_CMD_LOCKOUT,
-        "icon_on": "mdi:window-shutter-open",
-        "icon_off": "mdi:window-shutter",
-        "category": EntityCategory.CONFIG,
-        "inverted": True,
-        "disabled": True,
-    },
-    "autoretract": {
-        "field": FIELD_AUTORETRACT,
-        "update": CMD_GET_AUTORETRACT,
-        "enable": CMD_ENABLE_AUTORETRACT,
-        "disable": CMD_DISABLE_AUTORETRACT,
-        "icon_on": "mdi:window-shutter-alert",
-        "icon_off": "mdi:window-shutter-settings",
-        "category": EntityCategory.CONFIG,
-        "disabled": True,
-    },
-    "power": {
-        "field": FIELD_POWER,
-        "update": CMD_GET_POWER,
-        "enable": CMD_POWER_ON,
-        "disable": CMD_POWER_OFF,
-        "icon_on": "mdi:power",
-        "icon_off": "mdi:power-off"
-    },
-}
-
-NOTIFICATION_SWITCHES = {
-    "inside_on": {
-        "field": FIELD_SENSOR_ON_INDOOR_NOTIFICATIONS,
-        "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off",
-        "disabled": True,
-    },
-    "inside_off": {
-        "field": FIELD_SENSOR_OFF_INDOOR_NOTIFICATIONS,
-        "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off",
-        "disabled": True,
-    },
-    "outside_on": {
-        "field": FIELD_SENSOR_ON_OUTDOOR_NOTIFICATIONS,
-        "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off",
-        "disabled": True,
-    },
-    "outside_off": {
-        "field": FIELD_SENSOR_OFF_OUTDOOR_NOTIFICATIONS,
-        "icon_on": "mdi:motion-sensor",
-        "icon_off": "mdi:motion-sensor-off",
-        "disabled": True,
-    },
-    "low_battery": {
-        "field": FIELD_LOW_BATTERY_NOTIFICATIONS,
-        "icon_on": "mdi:battery-alert-variant-outline",
-        "icon_off": "mdi:battery-remove-outline",
-        "disabled": True,
-    },
-}
-
-class PetDoorSwitch(CoordinatorEntity, ToggleEntity):
-    _attr_device_class = SwitchDeviceClass.SWITCH
-
-    def __init__(self,
-                 client: PowerPetDoorClient,
-                 name: str,
-                 switch: dict,
-                 coordinator: DataUpdateCoordinator,
-                 device: DeviceInfo | None = None) -> None:
-        super().__init__(coordinator)
-        self.client = client
-        self.switch = switch
-
-        self.last_change = None
-        self.power = True
-
-        self._attr_name = name
-        self._attr_entity_category = switch.get("category")
-        self._attr_entity_registry_enabled_default = not switch.get("disabled", False)
-        self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
-
-        client.add_listener(name=self.unique_id, sensor_update={switch["field"]: self.handle_state_update})
-        if switch["field"] is not FIELD_POWER:
-            client.add_listener(name=self.unique_id, sensor_update={FIELD_POWER: self.handle_power_update})
-
-    @property
-    def available(self) -> bool:
-        return self.client.available and super().available and self.power
-
-    @property
-    def icon(self) -> str | None:
-        if self.is_on:
-            return self.switch["icon_on"]
-        else:
-            return self.switch["icon_off"]
-
-    @property
-    def extra_state_attributes(self) -> dict | None:
-        if self.last_change:
-            return { STATE_LAST_CHANGE: self.last_change.isoformat() }
-        return None
-
-    def handle_state_update(self, state: bool) -> None:
-        if self.coordinator.data and state != self.coordinator.data[self.switch["field"]]:
-            changed = self.coordinator.data
-            changed[self.switch["field"]] = state
-            self.coordinator.async_set_updated_data(changed)
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.last_change = datetime.now(timezone.utc)
-        if self.coordinator.data:
-            if self.switch["field"] is not FIELD_POWER and FIELD_POWER in self.coordinator.data:
-                self.power = self.coordinator.data[FIELD_POWER]
-        super()._handle_coordinator_update()
-
-    @callback
-    def handle_power_update(self, state: bool) -> None:
-        self.power = state
-        if self.enabled:
-            self.async_schedule_update_ha_state()
-
-    @property
-    def is_on(self) -> bool:
-        if self.coordinator.data is None:
-            return None
-        if self.switch.get("inverted", False):
-            return not make_bool(self.coordinator.data[self.switch["field"]])
-        else:
-            return make_bool(self.coordinator.data[self.switch["field"]])
-
-    async def async_turn_on(self) -> None:
-        """Turn the entity on."""
-        if self.switch.get("inverted", False):
-            self.client.send_message(CONFIG, self.switch["disable"])
-        else:
-            self.client.send_message(CONFIG, self.switch["enable"])
-
-    async def async_turn_off(self) -> None:
-        """Turn the entity off."""
-        if self.switch.get("inverted", False):
-            self.client.send_message(CONFIG, self.switch["enable"])
-        else:
-            self.client.send_message(CONFIG, self.switch["disable"])
-
-class PetDoorNotificationSwitch(CoordinatorEntity, ToggleEntity):
-    _attr_device_class = SwitchDeviceClass.SWITCH
-    _attr_entity_category = EntityCategory.CONFIG
-
-    def __init__(self,
-                 client: PowerPetDoorClient,
-                 name: str,
-                 switch: dict,
-                 coordinator: DataUpdateCoordinator,
-                 device: DeviceInfo | None = None) -> None:
-        super().__init__(coordinator)
-        self.client = client
-        self.switch = switch
-
-        self.last_change = None
-        self.power = True
-
-        self._attr_name = name
-        if "disabled" in switch:
-            self._attr_entity_registry_enabled_default = not switch["disabled"]
-        self._attr_device_info = device
-        self._attr_unique_id = f"{client.host}:{client.port}-{switch['field']}"
-
-        client.add_listener(name=self.unique_id,
-                            notifications_update={switch["field"]: self.handle_state_update},
-                            sensor_update={FIELD_POWER: self.handle_power_update})
-
-    @property
-    def available(self) -> bool:
-        return self.client.available and super().available and self.power
-
-    @property
-    def icon(self) -> str | None:
-        if self.is_on:
-            return self.switch["icon_on"]
-        else:
-            return self.switch["icon_off"]
-
-    @property
-    def extra_state_attributes(self) -> dict | None:
-        if self.last_change:
-            return { STATE_LAST_CHANGE: self.last_change.isoformat() }
-        return None
-
-    def handle_state_update(self, state: bool) -> None:
-        if self.coordinator.data and state != self.coordinator.data[self.switch["field"]]:
-            changed = self.coordinator.data
-            changed[self.switch["field"]] = make_bool(state)
-            self.coordinator.async_set_updated_data(changed)
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.last_change = datetime.now(timezone.utc)
-        super()._handle_coordinator_update()
-
-    @callback
-    def handle_power_update(self, state: bool) -> None:
-        self.power = state
-        if self.enabled:
-            self.async_schedule_update_ha_state()
-
-    @property
-    def is_on(self) -> bool:
-        if self.coordinator.data is None:
-            return None
-        return self.coordinator.data[self.switch["field"]]
-
-    async def async_turn_on(self) -> None:
-        """Turn the entity on."""
-        changed = copy.deepcopy(self.coordinator.data)
-        changed[self.switch["field"]] = True
-        self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
-
-    async def async_turn_off(self) -> None:
-        """Turn the entity off."""
-        changed = copy.deepcopy(self.coordinator.data)
-        changed[self.switch["field"]] = False
-        self.client.send_message(CONFIG, CMD_SET_NOTIFICATIONS, notifications=changed)
+#: The five notification toggles. They are a separate table because the
+#: door sets them as one message - `set_notifications(**kwargs)` - so each
+#: switch has to name its own keyword rather than call a dedicated setter.
+NOTIFICATION_SWITCHES: tuple[PowerPetDoorSwitchDescription, ...] = (
+    PowerPetDoorSwitchDescription(
+        key="notify_inside_on",
+        translation_key="notify_inside_on",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.notifications.inside_on,
+        set_fn=lambda door, on: door.set_notifications(inside_on=on),
+        needs_power=False,
+    ),
+    PowerPetDoorSwitchDescription(
+        key="notify_inside_off",
+        translation_key="notify_inside_off",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.notifications.inside_off,
+        set_fn=lambda door, on: door.set_notifications(inside_off=on),
+        needs_power=False,
+    ),
+    PowerPetDoorSwitchDescription(
+        key="notify_outside_on",
+        translation_key="notify_outside_on",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.notifications.outside_on,
+        set_fn=lambda door, on: door.set_notifications(outside_on=on),
+        needs_power=False,
+    ),
+    PowerPetDoorSwitchDescription(
+        key="notify_outside_off",
+        translation_key="notify_outside_off",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.notifications.outside_off,
+        set_fn=lambda door, on: door.set_notifications(outside_off=on),
+        needs_power=False,
+    ),
+    PowerPetDoorSwitchDescription(
+        key="notify_low_battery",
+        translation_key="notify_low_battery",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        value_fn=lambda door: door.notifications.low_battery,
+        set_fn=lambda door, on: door.set_notifications(low_battery=on),
+        needs_power=False,
+    ),
+)
 
 
-class ConnectionSwitch(CoordinatorEntity, ToggleEntity):
-    """Switch to control Power Pet Door connection state.
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PowerPetDoorConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the Power Pet Door switches."""
+    coordinator = entry.runtime_data
+    entities: list[SwitchEntity] = [
+        PowerPetDoorSwitch(coordinator, description)
+        if not description.needs_power
+        else PowerPetDoorPoweredSwitch(coordinator, description)
+        for description in (*SWITCHES, *NOTIFICATION_SWITCHES)
+    ]
+    entities.append(PowerPetDoorConnectionSwitch(coordinator))
+    async_add_entities(entities)
 
-    This is the primary lifecycle controller for the client connection.
-    ON = connected, OFF = disconnected.
 
-    The switch tracks the "desired" state (what the user wants) separately
-    from the actual connection state. This ensures the UI shows the correct
-    state immediately after toggling, even during connection/disconnection.
+class _SwitchMixin:
+    """The behaviour shared by the gated and ungated switch classes.
+
+    Split this way because availability is decided by which BASE class an
+    entity inherits (`PowerPetDoorEntity` vs `PowerPetDoorPoweredEntity`),
+    and Python has no way to pick a base at runtime from a dataclass field
+    without this small amount of ceremony. The alternative - one class with
+    an `if self.entity_description.needs_power` inside `available` -
+    duplicates the base classes' logic in a third place.
     """
 
-    _attr_device_class = SwitchDeviceClass.SWITCH
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:connection"
-    _attr_entity_registry_enabled_default = True  # Always enabled by default
-
-    def __init__(self,
-                 client: PowerPetDoorClient,
-                 name: str,
-                 coordinator: DataUpdateCoordinator,
-                 device: DeviceInfo | None = None) -> None:
-        super().__init__(coordinator)
-        self.client = client
-        self._attr_name = name
-        self._attr_unique_id = f"{client.host}:{client.port}-connection"
-        self._attr_device_info = device
-        # Track desired state - defaults to ON (will connect on startup)
-        self._desired_on = True
-
-        # Register for connect/disconnect callbacks
-        client.add_handlers(
-            name=self.unique_id,
-            on_connect=self._handle_connect,
-            on_disconnect=self._handle_disconnect
-        )
-
-    async def async_added_to_hass(self) -> None:
-        """Start connection when switch entity is added (defaults to ON)."""
-        await super().async_added_to_hass()
-        # Start the client - switch defaults to ON
-        self._desired_on = True
-        self.client.start()
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Stop connection when switch entity is removed."""
-        self.client.stop()
-        await super().async_will_remove_from_hass()
-
-    async def _handle_connect(self) -> None:
-        """Handle connection established."""
-        self.async_write_ha_state()
-
-    async def _handle_disconnect(self) -> None:
-        """Handle connection lost."""
-        self.async_write_ha_state()
+    entity_description: PowerPetDoorSwitchDescription
+    coordinator: PowerPetDoorCoordinator
 
     @property
     def is_on(self) -> bool:
-        """Return True if switch is on (desired state)."""
-        return self._desired_on
+        """Return the door's current setting for this switch."""
+        return self.entity_description.value_fn(self.coordinator.door)
+
+    async def _async_set(self, state: bool) -> None:
+        """Push a new setting to the door, surfacing failures to the user."""
+        try:
+            await self.entity_description.set_fn(self.coordinator.door, state)
+        except (CommandError, OSError, TimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        # The door echoes the change back as a push, but not always
+        # instantly; writing state now keeps the toggle from springing back
+        # under the user's finger while that round trip completes.
+        self.coordinator.async_update_listeners()
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the switch on."""
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the switch off."""
+        await self._async_set(False)
+
+
+class PowerPetDoorSwitch(_SwitchMixin, PowerPetDoorEntity, SwitchEntity):
+    """A switch that works regardless of whether the door is powered."""
+
+    entity_description: PowerPetDoorSwitchDescription
+
+    def __init__(
+        self,
+        coordinator: PowerPetDoorCoordinator,
+        description: PowerPetDoorSwitchDescription,
+    ) -> None:
+        """Initialise the switch."""
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+
+class PowerPetDoorPoweredSwitch(_SwitchMixin, PowerPetDoorPoweredEntity, SwitchEntity):
+    """A switch that is unavailable while the door's motor is powered off."""
+
+    entity_description: PowerPetDoorSwitchDescription
+
+    def __init__(
+        self,
+        coordinator: PowerPetDoorCoordinator,
+        description: PowerPetDoorSwitchDescription,
+    ) -> None:
+        """Initialise the switch."""
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+
+class PowerPetDoorConnectionSwitch(PowerPetDoorEntity, SwitchEntity):
+    """Whether Home Assistant holds the connection to the door.
+
+    The door accepts one client at a time, so while Home Assistant is
+    connected the manufacturer's phone app cannot be. Turning this off frees
+    the door for the app and stops the library reconnecting; turning it back
+    on reconnects without a Home Assistant restart. That capability was
+    added in response to issue #18 and would otherwise have been lost in the
+    move to a coordinator-owned connection.
+
+    Crucially it does NOT own the lifecycle. Setup connects, and this switch
+    only toggles afterwards. The previous design put `client.start()` in an
+    entity's `async_added_to_hass`, which is why disabling an entity could
+    take the whole integration offline - the failure behind issue #18 in the
+    first place.
+
+    This entity also replaces the separate connectivity binary sensor: a
+    switch already reports the state it controls, and two entities showing
+    one value is one entity too many.
+    """
+
+    entity_description = SwitchEntityDescription(
+        key="connection",
+        translation_key="connection",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+    )
+
+    def __init__(self, coordinator: PowerPetDoorCoordinator) -> None:
+        """Initialise the connection switch."""
+        super().__init__(coordinator, self.entity_description.key)
 
     @property
     def available(self) -> bool:
-        """Always available so user can control connection."""
+        """Always. This is the control that gets the connection back."""
         return True
 
     @property
-    def extra_state_attributes(self) -> dict:
-        """Return additional state attributes."""
-        return {
-            "connected": self.client.available,
-        }
+    def is_on(self) -> bool:
+        """Whether the door is connected."""
+        return self.coordinator.door.connected
 
-    async def async_turn_on(self) -> None:
-        """Connect to the device."""
-        self._desired_on = True
-        self.async_write_ha_state()
-        # start() sets _shutdown=False and initiates connection with auto-reconnect
-        self.client.start()
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Reconnect to the door."""
+        try:
+            await self.coordinator.door.connect()
+        except (CommandError, OSError, TimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={
+                    "host": self.coordinator.door.host,
+                    "port": str(self.coordinator.door.port),
+                },
+            ) from err
+        # Everything cached went stale while disconnected.
+        await self.coordinator.async_request_refresh()
 
-    async def async_turn_off(self) -> None:
-        """Disconnect from the device."""
-        self._desired_on = False
-        self.async_write_ha_state()
-        # stop() sets _shutdown=True which prevents auto-reconnect
-        self.client.stop()
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disconnect, and stop the library reconnecting.
 
-
-# Right now this can be an alias for the above
-async def async_setup_entry(hass: HomeAssistant,
-                            entry: ConfigEntry,
-                            async_add_entities: AddEntitiesCallback) -> None:
-
-    host = entry.data.get(CONF_HOST)
-    port = entry.data.get(CONF_PORT)
-    name = entry.data.get(CONF_NAME)
-    obj = hass.data[DOMAIN][f"{host}:{port}"]
-
-    async_add_entities([
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Inside Sensor",
-                      switch=SWITCHES["inside"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Outside Sensor",
-                      switch=SWITCHES["outside"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Power",
-                      switch=SWITCHES["power"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Auto",
-                      switch=SWITCHES["auto"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Outside Safety Lock",
-                      switch=SWITCHES["outside_sensor_safety_lock"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Pet Proximity Keep Open",
-                      switch=SWITCHES["cmd_lockout"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        PetDoorSwitch(client=obj["client"],
-                      name=f"{name} Auto Retract",
-                      switch=SWITCHES["autoretract"],
-                      coordinator=obj["settings"],
-                      device=obj["device"]),
-        ConnectionSwitch(client=obj["client"],
-                         name=f"{name} Connection",
-                         coordinator=obj["settings"],
-                         device=obj["device"]),
-    ])
-
-    async def update_notifications() -> dict:
-        _LOGGER.debug("Requesting update of notifications")
-        future = obj["client"].send_message(CONFIG, CMD_GET_NOTIFICATIONS, notify=True)
-        result = await future
-        for key in result.keys():
-            result[key] = make_bool(result[key])
-        return result
-
-    notifications_coordinator = DataUpdateCoordinator(
-        hass=hass,
-        logger=_LOGGER,
-        name=f"{name} Notifications",
-        update_method=update_notifications,
-        update_interval=timedelta(entry.options.get(CONF_REFRESH)))
-
-    obj["client"].add_handlers(f"{name} Notifications", on_connect=notifications_coordinator.async_request_refresh)
-
-    async_add_entities([
-        PetDoorNotificationSwitch(client=obj["client"],
-                                  name=f"{name} Notify Inside On",
-                                  switch=NOTIFICATION_SWITCHES["inside_on"],
-                                  coordinator=notifications_coordinator,
-                                  device=obj["device"]),
-        PetDoorNotificationSwitch(client=obj["client"],
-                                  name=f"{name} Notify Inside Off",
-                                  switch=NOTIFICATION_SWITCHES["inside_off"],
-                                  coordinator=notifications_coordinator,
-                                  device=obj["device"]),
-        PetDoorNotificationSwitch(client=obj["client"],
-                                  name=f"{name} Notify Outside On",
-                                  switch=NOTIFICATION_SWITCHES["outside_on"],
-                                  coordinator=notifications_coordinator,
-                                  device=obj["device"]),
-        PetDoorNotificationSwitch(client=obj["client"],
-                                  name=f"{name} Notify Outside Off",
-                                  switch=NOTIFICATION_SWITCHES["outside_off"],
-                                  coordinator=notifications_coordinator,
-                                  device=obj["device"]),
-        PetDoorNotificationSwitch(client=obj["client"],
-                                  name=f"{name} Notify Low Battery",
-                                  switch=NOTIFICATION_SWITCHES["low_battery"],
-                                  coordinator=notifications_coordinator,
-                                  device=obj["device"]),
-    ])
+        `disconnect()` is documented as stopping automatic reconnection, so
+        the door stays free for the phone app until the user turns this back
+        on.
+        """
+        await self.coordinator.door.disconnect()
+        self.coordinator.async_update_listeners()
