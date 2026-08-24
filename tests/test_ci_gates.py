@@ -12,6 +12,7 @@ up in production, in CI, or in a user's Home Assistant log.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -27,6 +28,16 @@ MANIFEST = COMPONENT / "manifest.json"
 
 def _requirement_name(requirement: str) -> str:
     return re.split(r"[<>=!~\[; ]", requirement.strip(), maxsplit=1)[0].lower()
+
+
+def _load_translation_checker():
+    """Import scripts/check_translations.py, which is not a package."""
+    spec = importlib.util.spec_from_file_location(
+        "_check_translations", REPO_ROOT / "scripts" / "check_translations.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class TestBothRunnersGetTheSamePipeline:
@@ -382,3 +393,47 @@ class TestTheFrontendToolchainIsReproducible:
             assert f"node_modules/{dependency}" in resolved, (
                 f"{dependency} is in package.json but not resolved in package-lock.json"
             )
+
+
+class TestTranslatedTextIsParseableByHomeAssistant:
+    """Home Assistant parses `{...}` in every translated string.
+
+    Whatever is inside must be an identifier; a literal brace is written
+    `{{`. A string that breaks the rule is rejected by hassfest, which runs
+    nightly - and which spent months failing on its own broken container
+    image, so nothing was checking this at all. `{"monday": [...]}` shipped
+    in a service description that way.
+
+    `scripts/check_translations.py` did not catch it either: its regex
+    matched only VALID placeholders, so it compared an empty set to an empty
+    set and reported clean. This pins the check that closed that gap - the
+    third green-checker-that-checks-nothing found in this repo, and the
+    reason a checker needs a test of its own.
+    """
+
+    def test_no_shipped_string_contains_an_unparseable_brace(self):
+        checker = _load_translation_checker()
+        for path in (
+            COMPONENT / "strings.json",
+            *sorted((COMPONENT / "translations").glob("*.json")),
+        ):
+            flat = checker.flatten(json.loads(path.read_text(encoding="utf-8")))
+            assert checker.bad_placeholders(flat) == [], path.name
+
+    @pytest.mark.parametrize(
+        ("text", "rejected"),
+        [
+            ("Door at {host}:{port} did not answer", False),
+            ("Use {{ }} to escape a brace", False),
+            ("No braces here at all", False),
+            # The one that actually shipped.
+            ('for example {"monday": [...]}', True),
+            # A space is not an identifier character, and this is the shape a
+            # well-meaning translator produces.
+            ("the {day name} window", True),
+            ("{}", True),
+        ],
+    )
+    def test_each_shape_is_judged_on_its_own(self, text, rejected):
+        checker = _load_translation_checker()
+        assert bool(checker.bad_placeholders({"k": text})) is rejected

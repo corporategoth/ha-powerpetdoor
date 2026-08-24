@@ -206,7 +206,7 @@
       "fields": {
         "schedule": {
           "name": "Schedule",
-          "description": "Days mapped to time windows, in Home Assistant's schedule format, for example {\"monday\": [{\"from\": \"06:00:00\", \"to\": \"20:00:00\"}]}. Days you omit are cleared."
+          "description": "Days mapped to time windows, in Home Assistant's schedule format: each day name maps to a list of from/to pairs. Days you omit are cleared."
         }
       }
     }

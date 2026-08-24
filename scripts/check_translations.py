@@ -69,6 +69,29 @@ ENTITY_SECTIONS = (
 #: `{placeholder}` but not `{{escaped}}`.
 _PLACEHOLDER = re.compile(r"(?<!\{)\{([a-z_][a-z0-9_]*)\}(?!\})")
 
+#: Any brace at all, so the two regexes can be subtracted. Home Assistant
+#: parses every translated string for `{...}` and requires what is inside to
+#: be an identifier; `_PLACEHOLDER` matches only the valid ones, so on its
+#: own it is blind to the invalid ones - it compared an empty set to an empty
+#: set and reported clean while `{"monday": [...]}` sat in a service
+#: description. hassfest rejects that, and hassfest is nightly and was itself
+#: broken for months, so catch it here where it costs a second.
+_ANY_BRACE = re.compile(r"(?<!\{)\{(?!\{)([^{}]*)\}(?!\})")
+
+
+def bad_placeholders(keys: dict[str, str]) -> list[str]:
+    """Keys whose text contains a `{...}` Home Assistant cannot parse.
+
+    Doubling a brace (`{{`) escapes it, which is how a string says a literal
+    one. Anything else must be an identifier.
+    """
+    problems: list[str] = []
+    for key, text in sorted(keys.items()):
+        for inner in _ANY_BRACE.findall(text):
+            if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", inner):
+                problems.append(f"{key}: {{{inner}}} is not a valid placeholder")
+    return problems
+
 
 # ---------------------------------------------------------------------------
 # Catalogue
@@ -672,6 +695,18 @@ def main() -> int:
     else:
         print("  every translation_key in the code resolves")
 
+    print("\nPlaceholders:")
+    malformed = bad_placeholders(keys)
+    for language, entries in locales().items():
+        malformed += [f"{language}: {problem}" for problem in bad_placeholders(entries)]
+    if malformed:
+        print(f"  {len(malformed)} unparseable:")
+        for problem in malformed:
+            print(f"    {problem}")
+        print("    (double a literal brace to escape it: {{ }})")
+    else:
+        print("  every brace is a valid placeholder or escaped")
+
     print("\nLocales:")
     orphaned, missing, mismatched = compare(keys, args.locale)
     for label, entries in (
@@ -702,7 +737,7 @@ def main() -> int:
             print("  all user-facing text is translated")
 
     print()
-    fatal = len(dangling) + len(orphaned) + len(mismatched) + len(untranslated)
+    fatal = len(dangling) + len(orphaned) + len(mismatched) + len(untranslated) + len(malformed)
     if rewrote:
         print("FAIL: translations/en.json was regenerated; stage it and commit again")
         return 1

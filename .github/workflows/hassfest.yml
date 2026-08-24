@@ -39,4 +39,12 @@ jobs:
       # from a third-party repo against our checkout; @master means whatever
       # landed upstream this morning. Dependabot moves this pin (see
       # .github/dependabot.yml), so pinning costs nothing in staleness.
-      - uses: home-assistant/actions/hassfest@4b258cf2bf1668d8e0adcb6b2be96b6cda36f42f # v1.0.0
+      #
+      # NOT the v1.0.0 tag, which is the only tag upstream has ever cut and
+      # dates from 2020. That version is a Docker action that builds its own
+      # image, and the build has since rotted: every run dies on
+      # `ModuleNotFoundError: No module named 'script'` before validating
+      # anything. It had been failing nightly for months, always looking like
+      # our problem. The action is a composite now and runs the prebuilt
+      # ghcr.io/home-assistant/hassfest, so track the branch by SHA instead.
+      - uses: home-assistant/actions/hassfest@a7c616ce81ccda50150bf1595786c71b1883fabb # master@2026-08-03
