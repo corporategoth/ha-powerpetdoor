@@ -11,8 +11,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <BinarySensorDeviceClass.BATTERY_CHARGING: 'battery_charging'>,
     'original_icon': None,
     'original_name': 'Battery charging',
@@ -49,8 +47,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Inside schedule',
@@ -92,8 +88,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <BinarySensorDeviceClass.PLUG: 'plug'>,
     'original_icon': None,
     'original_name': 'Mains power',
@@ -130,8 +124,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Outside schedule',
@@ -173,8 +165,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Remote key set',
@@ -210,8 +200,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Remote paired',
@@ -247,8 +235,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Close',
@@ -284,8 +270,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Open',
@@ -321,8 +305,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Open and auto-close',
@@ -358,8 +340,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Toggle',
@@ -395,8 +375,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <CoverDeviceClass.SHUTTER: 'shutter'>,
     'original_icon': None,
     'original_name': 'Door',
@@ -440,8 +418,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <NumberDeviceClass.DURATION: 'duration'>,
     'original_icon': None,
     'original_name': 'Hold open time',
@@ -488,8 +464,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <NumberDeviceClass.VOLTAGE: 'voltage'>,
     'original_icon': None,
     'original_name': 'Sensor trigger voltage',
@@ -536,8 +510,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <NumberDeviceClass.VOLTAGE: 'voltage'>,
     'original_icon': None,
     'original_name': 'Sleep sensor trigger voltage',
@@ -1181,8 +1153,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Timezone',
@@ -1822,8 +1792,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SensorDeviceClass.BATTERY: 'battery'>,
     'original_icon': None,
     'original_name': 'Battery',
@@ -1862,8 +1830,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Door clock',
@@ -1912,8 +1878,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SensorDeviceClass.ENUM: 'enum'>,
     'original_icon': None,
     'original_name': 'Door status',
@@ -1964,11 +1928,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-      'sensor': ReadOnlyDict({
-        'suggested_display_precision': 0,
-      }),
-    }),
     'original_device_class': <SensorDeviceClass.DURATION: 'duration'>,
     'original_icon': None,
     'original_name': 'Latency',
@@ -2009,8 +1968,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Total auto-retracts',
@@ -2049,8 +2006,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': None,
     'original_icon': None,
     'original_name': 'Total open cycles',
@@ -2087,8 +2042,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Auto retract',
@@ -2125,8 +2078,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Connection',
@@ -2163,8 +2114,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Inside sensor',
@@ -2201,8 +2150,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify inside sensor off',
@@ -2239,8 +2186,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify inside sensor on',
@@ -2277,8 +2222,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify low battery',
@@ -2315,8 +2258,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify outside sensor off',
@@ -2353,8 +2294,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Notify outside sensor on',
@@ -2391,8 +2330,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Outside safety lock',
@@ -2429,8 +2366,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Outside sensor',
@@ -2467,8 +2402,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Pet proximity keep open',
@@ -2505,8 +2438,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Power',
@@ -2543,8 +2474,6 @@
     'hidden_by': None,
     'icon': None,
     'name': None,
-    'options': ReadOnlyDict({
-    }),
     'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
     'original_name': 'Schedule enabled',

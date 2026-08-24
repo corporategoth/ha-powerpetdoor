@@ -380,6 +380,10 @@ async def test_the_schedule_summary_is_readable(
 #: Everything a user's dashboard actually sees is here - the entity id and
 #: unique id, the name and translation key, device class, category, icon,
 #: unit, capabilities and supported features.
+#:
+#: `options` is deliberately NOT here even though it looks like ours: nothing
+#: in this integration writes it, and Home Assistant fills it in with things
+#: like `suggested_display_precision`, which 2025.4.0 does not have.
 _SNAPSHOT_FIELDS = (
     "entity_id",
     "unique_id",
@@ -397,7 +401,6 @@ _SNAPSHOT_FIELDS = (
     "capabilities",
     "unit_of_measurement",
     "supported_features",
-    "options",
     "disabled_by",
     "hidden_by",
 )
