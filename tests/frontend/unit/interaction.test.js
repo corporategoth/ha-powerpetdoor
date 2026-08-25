@@ -1959,3 +1959,85 @@ describe('Escape on the copy dialogs', () => {
     expect(card._schedule).toEqual({ monday: [{ from: '06:00', to: '08:00' }] });
   });
 });
+
+describe('copy edge cases', () => {
+  // Deliberately NOT the card's own entity: sharing the id makes the
+  // mock answer the initial load as well, so the card never learns it
+  // has a counterpart and the copy is a no-op for the wrong reason.
+  const OTHER = 'binary_sensor.second_door_inside_schedule';
+
+  test('the copy button names the sensor being copied FROM', async () => {
+    // On the OUTSIDE schedule the offer is "copy from Inside Sensor". The
+    // two directions come from one ternary, so naming the sensor you are
+    // standing on rather than the other one is a single character away and
+    // would invite the user to overwrite the wrong schedule.
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockResolvedValue({
+      entity_id: ENTITY, kind: 'outside', schedule: {}, counterpart: OTHER,
+    });
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    card._handleHeaderClick();
+    await flush();
+
+    expect(card.shadowRoot.getElementById('copy-from-link').textContent).toContain(
+      'Inside Sensor',
+    );
+  });
+
+  test('copying with no counterpart does nothing rather than throwing', async () => {
+    // Reachable if the other entity is removed between the load that drew
+    // the button and the click on it.
+    const { card, hass } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    hass.callWS.mockClear();
+
+    await card._copyFromCounterpart();
+
+    expect(card._schedule).toEqual({ monday: [{ from: '06:00', to: '08:00' }] });
+    expect(hass.callWS).not.toHaveBeenCalled();
+  });
+
+  test('copying an empty day clears the days it is copied onto', async () => {
+    // The way to clear several days at once, and the reason the source is
+    // read with a `|| []` rather than skipped when absent: a day with no
+    // windows is a legitimate thing to copy.
+    const { card } = await openCard({ tuesday: [{ from: '09:00', to: '17:00' }] });
+
+    await card._copyDayTo('monday', ['tuesday']);
+
+    expect(card._schedule.tuesday).toEqual([]);
+  });
+
+  test('naming the source among the targets leaves it alone', async () => {
+    // The picker disables the source box so this cannot come from the UI,
+    // but the guard is what stops a caller clobbering the thing being
+    // copied FROM part-way through the loop.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+
+    await card._copyDayTo('monday', ['monday', 'tuesday']);
+
+    expect(card._schedule.monday).toEqual([{ from: '06:00', to: '08:00' }]);
+    expect(card._schedule.tuesday).toEqual([{ from: '06:00', to: '08:00' }]);
+  });
+
+  test('a copy failure with no message still says something readable', async () => {
+    // Rejecting with a bare value rather than an Error - which a WebSocket
+    // layer does - must not produce "undefined" in the toast.
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockImplementation((msg) =>
+      msg.entity_id === OTHER
+        ? Promise.reject('nope')
+        : Promise.resolve({ entity_id: ENTITY, kind: 'outside', schedule: {}, counterpart: OTHER }),
+    );
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    card._handleHeaderClick();
+    await flush();
+    const messages = [];
+    card.addEventListener('hass-notification', (e) => messages.push(e.detail.message));
+
+    await card._copyFromCounterpart();
+
+    expect(messages[0]).toContain('nope');
+  });
+});
