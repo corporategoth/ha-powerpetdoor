@@ -54,9 +54,8 @@ stays available so you can turn it back on.
 
 > **If you are on a version before 0.5.0**: disabling the *Latency* sensor
 > could take the whole integration offline, because the connection was owned
-> by an entity ([issue #18](https://github.com/corporategoth/ha-powerpetdoor/issues/18)).
-> Re-enable it, or upgrade — from 0.5.0 the connection belongs to the
-> integration and no entity can affect it.
+> by an entity. Re-enable it, or upgrade — from 0.5.0 the connection belongs
+> to the integration and no entity can affect it.
 
 ## The door drops out and does not come back
 
@@ -75,10 +74,9 @@ If it does **not** recover:
 3. Give the door a static IP or DHCP reservation. A changed address looks
    exactly like a dead door.
 
-> A `KeyError` traceback from `client.py` alongside these drops was
-> [issue #16](https://github.com/corporategoth/ha-powerpetdoor/issues/16),
-> caused by a reply arriving after its request had already timed out. Fixed
-> in the library — if you still see it, you are on an old version.
+> A `KeyError` traceback from `client.py` alongside these drops was caused
+> by a reply arriving after its request had already timed out. Fixed in the
+> library — if you still see it, you are on an old version.
 
 ## Schedules fire at the wrong time
 
@@ -133,9 +131,11 @@ Include:
 3. Debug logs covering the problem, with both loggers above enabled.
 4. What you expected, and what happened.
 
-Issues: <https://github.com/corporategoth/ha-powerpetdoor/issues>
+File it on the issue tracker linked from **Settings → Devices & services
+→ Power Pet Door → ⋮ → Known issues**, which Home Assistant reads from this
+integration's manifest, or from the repository's own tracker.
 
-If the problem is in protocol handling rather than in the entities, it may
-belong in the library instead:
-<https://github.com/corporategoth/py-powerpetdoor/issues>. If you are not
-sure, file it here.
+If the problem is in protocol handling rather than in the entities, it
+probably belongs in the `pypowerpetdoor` library instead — anything about
+the wire format, reconnection, or how a reply is parsed. If you are not
+sure, file it here and it can be moved.
