@@ -149,21 +149,21 @@
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_paired-state]
   'off'
 # ---
-# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open_and_auto_close-entry]
+# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_cycle-entry]
   dict({
     'capabilities': None,
     'device_class': None,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
-    'entity_id': 'button.power_pet_door_open_and_auto_close',
+    'entity_id': 'button.power_pet_door_cycle',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
     'name': None,
     'original_device_class': None,
     'original_icon': None,
-    'original_name': 'Open and auto-close',
+    'original_name': 'Cycle',
     'platform': 'powerpetdoor',
     'supported_features': 0,
     'translation_key': 'cycle',
@@ -171,7 +171,7 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open_and_auto_close-state]
+# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_cycle-state]
   'unknown'
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_toggle-entry]

@@ -276,7 +276,7 @@ async def test_the_auto_close_button_uses_the_timed_open(
     await hass.services.async_call(
         "button",
         "press",
-        {"entity_id": "button.power_pet_door_open_and_auto_close"},
+        {"entity_id": "button.power_pet_door_cycle"},
         blocking=True,
     )
 

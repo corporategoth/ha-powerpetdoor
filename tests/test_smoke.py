@@ -117,7 +117,7 @@ async def test_every_entity_has_a_unique_id_and_a_translation_key(
         ("switch.power_pet_door_power", "turn_off", "set_power"),
         ("switch.power_pet_door_inside_sensor", "turn_on", "set_inside_sensor"),
         ("button.power_pet_door_toggle", "press", "toggle"),
-        ("button.power_pet_door_open_and_auto_close", "press", "cycle"),
+        ("button.power_pet_door_cycle", "press", "cycle"),
     ],
 )
 async def test_commands_reach_the_door(

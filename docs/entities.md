@@ -26,7 +26,7 @@ settings almost nobody changes. Enable one from the device page.
 
 | Entity | What it sends |
 |---|---|
-| `button.power_pet_door_open_and_auto_close` | Opens, waits the hold-open time, closes — exactly as if a pet had triggered a sensor. |
+| `button.power_pet_door_cycle` | Opens, waits the hold-open time, closes — exactly as if a pet had triggered a sensor. |
 | `button.power_pet_door_toggle` | Opens if closed, closes if open, does nothing mid-travel. |
 
 > **There is no Open or Close button**, on purpose. Those are exactly what
@@ -34,9 +34,8 @@ settings almost nobody changes. Enable one from the device page.
 > `cover.power_pet_door_door`, and a second control for the same action is
 > one more thing to keep in sync on a dashboard. Use the cover.
 >
-> **Open vs. Open and auto-close.** These are different commands, not
-> synonyms. Open the cover to prop the door open; use *Open and auto-close*
-> to let a pet through once.
+> **Open vs. Cycle.** These are different commands, not synonyms. Open the
+> cover to prop the door open; use *Cycle* to let a pet through once.
 
 ## Sensors and controls
 

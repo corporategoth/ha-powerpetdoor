@@ -19,14 +19,16 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 #: entity_id, the door method it must call, and the three it must NOT.
 #:
 #: The entity ids are pinned by literal because they are what an automation
-#: names, and "open_and_auto_close" is deliberately not its key (`cycle`).
+#: names. Both are spelled the same as their key, which is the point: `key`
+#: is the translation key AND the unique_id suffix, so a display name that
+#: says something else puts three spellings on one entity.
 #:
 #: There is no Open or Close button, and that absence is asserted below.
 #: `door.open()` and `door.close()` are exactly what `cover.open_cover` and
 #: `cover.close_cover` already call, so buttons for them would be a second
 #: control for the same two actions.
 BUTTONS = [
-    ("button.power_pet_door_open_and_auto_close", "cycle"),
+    ("button.power_pet_door_cycle", "cycle"),
     ("button.power_pet_door_toggle", "toggle"),
 ]
 
@@ -147,6 +149,6 @@ async def test_the_cover_s_own_two_actions_are_not_also_buttons(
     }
 
     assert buttons == {
-        "button.power_pet_door_open_and_auto_close",
+        "button.power_pet_door_cycle",
         "button.power_pet_door_toggle",
     }

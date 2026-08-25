@@ -92,7 +92,7 @@
     },
     "button": {
       "cycle": {
-        "name": "Open and auto-close"
+        "name": "Cycle"
       },
       "toggle": {
         "name": "Toggle"

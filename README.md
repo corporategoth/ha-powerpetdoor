@@ -89,7 +89,7 @@ One device with 32 entities. The headlines:
 | `switch.<name>_connection` | Disconnect Home Assistant so the phone app can use the door |
 | `binary_sensor.<name>_inside_schedule` / `_outside_schedule` | Whether a schedule window is open now |
 | `sensor.<name>_battery` | Battery level |
-| `button.<name>_open_and_auto_close` / `_toggle` | One-shot commands the cover cannot express |
+| `button.<name>_cycle` / `_toggle` | One-shot commands the cover cannot express |
 
 Plus configuration, diagnostic and statistics entities — several disabled by
 default. The complete list, and what each one means, is in

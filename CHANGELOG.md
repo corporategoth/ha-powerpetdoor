@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **There are no longer Open and Close buttons.** They sent exactly what
   `cover.open_cover` and `cover.close_cover` send on
   `cover.power_pet_door_door`, so they were a second control for the same
-  two actions. `Open and auto-close` and `Toggle` remain, because a cover
+  two actions. `Cycle` and `Toggle` remain, because a cover
   has no way to ask for either.
 - **The `schedule.*` helper entities are gone.** Earlier versions created
   them by monkeypatching Home Assistant's core `schedule` integration at
@@ -52,11 +52,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which also leaves its `entity_id` alone. An upgrade that already ran once
   is repaired: the empty duplicate is discarded and the entity holding the
   history is kept.
-- **The old "Cycle" button becomes Toggle, not Open and auto-close.** It was
+- **The old "Cycle" button becomes Toggle, not the new Cycle.** It was
   labelled Cycle, but it opened the door when it read idle or closed and
   closed it when it read keepup or holding - a toggle. Mapping it onto the
   button that merely inherited its label would have silently changed what
   an existing automation does.
+- **On an upgraded system the new Cycle button may be named
+  `button.<name>_cycle_2`.** Home Assistant builds an entity id once,
+  from the name, and the old button already holds `_cycle` - it is now
+  Toggle, and it keeps that id so existing automations and dashboards
+  that press it still work. A fresh install has no such clash and gets
+  a plain `_cycle`.
 - **The two dead `schedule.*` entities are removed on upgrade** rather than
   left reading `unavailable` forever. The monkeypatch that set their state
   is gone, and their replacements are `binary_sensor` entities, which a
@@ -145,7 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written into a module-level table, so a second door's options overwrote the
   first's.
 - **The Open button no longer closes the door by itself.** *Open* now holds
-  the door open; *Open and auto-close* is the timed open a pet gets. They
+  the door open; *Cycle* is the timed open a pet gets. They
   were previously the same command, so one of the two behaviours was
   unreachable. Requires pypowerpetdoor 0.4.1, where `open()` means "open and
   stay open" and `cycle()` is the timed open.
