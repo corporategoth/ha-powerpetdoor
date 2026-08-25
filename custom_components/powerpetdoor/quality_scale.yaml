@@ -31,6 +31,14 @@ rules:
       by patching the message, the duplicate-unique-id abort, the
       reconfigure flow including the wrong-door abort, and the options flow
       including the inverted hold-range rejection.
+  common-modules:
+    status: done
+    comment: >-
+      `coordinator.py` holds the single DataUpdateCoordinator and
+      `entity.py` the two base classes every platform builds on -
+      PowerPetDoorEntity for the unique_id/translation_key/device_info
+      triple, and PowerPetDoorPoweredEntity for the entities that also go
+      unavailable when the motor is switched off.
   config-flow: done
   dependency-transparency: done
   docs-actions:
@@ -150,6 +158,17 @@ rules:
   discovery-update-info:
     status: exempt
     comment: Not discoverable; see `discovery`.
+  docs-conditions:
+    status: exempt
+    comment: >-
+      No condition platform. There is no `conditions.py` and `strings.json`
+      carries no `conditions` key, so there is nothing to document.
+  docs-triggers:
+    status: exempt
+    comment: >-
+      No trigger platform. There is no `triggers.py` and `strings.json`
+      carries no `triggers` key. State changes are observed through the
+      entities in the ordinary way.
   docs-data-update:
     status: done
     comment: docs/entities.md and README explain that the door pushes state and the interval is a safety net.

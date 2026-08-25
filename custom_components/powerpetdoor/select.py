@@ -38,10 +38,15 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Power Pet Door selects."""
-    # Built here rather than during entry setup: the timezone select is the
-    # only consumer and is disabled by default, so a user who never enables
-    # it never pays for the IANA scan. The entity reads the cache while
-    # constructing its option list, so it has to be warm before that.
+    # Warm before the entity is added, because it reads the cache while
+    # building its option list.
+    #
+    # This does NOT mean only users of the timezone select pay for the scan:
+    # SELECT is in PLATFORMS, so this runs on every setup whether the entity
+    # is enabled or not. Deferring it to `async_added_to_hass` would be the
+    # honest version of that claim, and it is not worth it - the scan is
+    # ~600 zone files behind the library's own `asyncio.to_thread`, measured
+    # at 47ms, and it is idempotent process-wide, so a second door is free.
     await async_init_timezone_cache()
     async_add_entities([PowerPetDoorTimezone(entry.runtime_data)])
 

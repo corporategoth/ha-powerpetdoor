@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from homeassistant.components.schedule import CONF_FROM, CONF_TO, WEEKDAY_TO_CONF
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPONENT = REPO_ROOT / "custom_components" / "powerpetdoor"
@@ -485,3 +486,173 @@ class TestTheUnitMatrixMatchesTheMeasuredGrid:
             strategy = workflow["jobs"]["unit-tests"]["strategy"]
             assert isinstance(strategy["matrix"], dict), f"{name}: matrix is an expression"
             assert isinstance(strategy["matrix"]["include"], list), f"{name}: include is not a list"
+
+
+#: Home Assistant's own `script.hassfest.quality_scale.ALL_RULES`, by name.
+#:
+#: Pinned by literal because nothing in this repo can derive it. hassfest's
+#: quality-scale plugin opens with `if not integration.core: return`, so the
+#: CI hassfest run - which is what the `quality_scale: platinum` claim in
+#: manifest.json rests on - never opens this file. Read out of the pinned
+#: hassfest image with:
+#:
+#:     docker run --rm --entrypoint sh ghcr.io/home-assistant/hassfest -c \
+#:       'cd /usr/src/homeassistant && python3 -c "
+#:        from script.hassfest.quality_scale import ALL_RULES
+#:        print(chr(10).join(sorted(r.name for r in ALL_RULES)))"'
+#:
+#: Re-run that when a new Home Assistant release lands; a rule added upstream
+#: is a rule this integration silently stops being measured against.
+HA_QUALITY_SCALE_RULES = frozenset(
+    [
+        "action-exceptions",
+        "action-setup",
+        "appropriate-polling",
+        "async-dependency",
+        "brands",
+        "common-modules",
+        "config-entry-unloading",
+        "config-flow",
+        "config-flow-test-coverage",
+        "dependency-transparency",
+        "devices",
+        "diagnostics",
+        "discovery",
+        "discovery-update-info",
+        "docs-actions",
+        "docs-conditions",
+        "docs-configuration-parameters",
+        "docs-data-update",
+        "docs-examples",
+        "docs-high-level-description",
+        "docs-installation-instructions",
+        "docs-installation-parameters",
+        "docs-known-limitations",
+        "docs-removal-instructions",
+        "docs-supported-devices",
+        "docs-supported-functions",
+        "docs-triggers",
+        "docs-troubleshooting",
+        "docs-use-cases",
+        "dynamic-devices",
+        "entity-category",
+        "entity-device-class",
+        "entity-disabled-by-default",
+        "entity-event-setup",
+        "entity-translations",
+        "entity-unavailable",
+        "entity-unique-id",
+        "exception-translations",
+        "has-entity-name",
+        "icon-translations",
+        "inject-websession",
+        "integration-owner",
+        "log-when-unavailable",
+        "parallel-updates",
+        "reauthentication-flow",
+        "reconfiguration-flow",
+        "repair-issues",
+        "runtime-data",
+        "stale-devices",
+        "strict-typing",
+        "test-before-configure",
+        "test-before-setup",
+        "test-coverage",
+        "unique-config-entry",
+    ]
+)
+
+
+class TestTheQualityScaleFileCoversEveryRule:
+    """Every rule Home Assistant defines must appear, or the tier is a claim.
+
+    `quality_scale.yaml`'s schema makes each rule key `vol.Required`, and the
+    tier check refuses a tier whose rules are not all resolved. Three rules -
+    `common-modules`, `docs-conditions`, `docs-triggers` - were simply absent,
+    so the file failed validation and Bronze was not met, which means neither
+    was Platinum, while `manifest.json` said `platinum` and CI stayed green.
+
+    Nothing caught it and nothing could: hassfest's quality-scale plugin
+    returns immediately for a non-core integration, so the file it is meant
+    to validate is never read on a custom component. This is that check.
+    """
+
+    @staticmethod
+    def _rules() -> set[str]:
+        data = yaml.safe_load((COMPONENT / "quality_scale.yaml").read_text(encoding="utf-8"))
+        return set(data["rules"])
+
+    def test_no_rule_is_missing(self):
+        missing = sorted(HA_QUALITY_SCALE_RULES - self._rules())
+        assert not missing, f"quality_scale.yaml is missing: {missing}"
+
+    def test_no_rule_is_invented(self):
+        """A typo'd key is silently ignored by everything, including us."""
+        extra = sorted(self._rules() - HA_QUALITY_SCALE_RULES)
+        assert not extra, f"quality_scale.yaml has rules Home Assistant does not define: {extra}"
+
+    def test_nothing_is_left_todo_while_the_manifest_claims_platinum(self):
+        """The tier gate: a `todo` anywhere means the claimed tier is not met."""
+        data = yaml.safe_load((COMPONENT / "quality_scale.yaml").read_text(encoding="utf-8"))
+        todo = sorted(
+            name
+            for name, value in data["rules"].items()
+            if (value if isinstance(value, str) else value["status"]) == "todo"
+        )
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        assert manifest["quality_scale"] == "platinum"
+        assert not todo, f"manifest claims platinum but these are todo: {todo}"
+
+
+class TestTheBorrowedScheduleConstants:
+    """`schedule.py` imports three names from Home Assistant's own component.
+
+        from homeassistant.components.schedule import (
+            CONF_FROM, CONF_TO, WEEKDAY_TO_CONF,
+        )
+
+    They live in that component's `const.py`, which carries no stability
+    contract. If any of them is renamed, `schedule.py` raises ImportError at
+    import - and both `binary_sensor.py` and `websocket.py` import it, so
+    setup fails outright: no entities, no card, no schedules, for everyone.
+
+    hassfest cannot see this. `find_non_referenced_integrations` skips any
+    reference whose name matches a file in the integration, and
+    `custom_components/powerpetdoor/schedule.py` matches `schedule` - so it
+    reads the import as our own platform file and validates nothing about
+    it, in either direction.
+
+    Pinning the VALUES rather than just the names is what makes this useful:
+    the payload shape is Home Assistant's schedule format, which is a
+    contract with every automation calling `powerpetdoor.set_schedule` and
+    with the card. A silent change to `"from"` or to the weekday spelling
+    would rewrite that payload with the suite green.
+    """
+
+    def test_the_values_are_what_the_payload_format_promises(self):
+        assert CONF_FROM == "from"
+        assert CONF_TO == "to"
+        assert WEEKDAY_TO_CONF == {
+            0: "monday",
+            1: "tuesday",
+            2: "wednesday",
+            3: "thursday",
+            4: "friday",
+            5: "saturday",
+            6: "sunday",
+        }
+
+    def test_the_manifest_declares_the_dependency_the_import_creates(self):
+        """Importing another integration requires declaring it.
+
+        Asserted because the declaration looks removable: nothing in this
+        repo fails without it, hassfest does not check it, and it costs
+        every user a `schedule` component they never asked for. It is still
+        required - Home Assistant may not have loaded that component when
+        `schedule.py` is imported.
+        """
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        assert "schedule" in manifest.get("dependencies", []), (
+            "schedule.py imports from homeassistant.components.schedule, "
+            "so the manifest must declare it"
+        )
