@@ -370,45 +370,93 @@ def to_ha_format(schedules: list[Schedule], kind: str) -> dict[str, list[dict[st
     return result
 
 
-def _merge_by_window(entries: list[Schedule]) -> list[Schedule]:
-    """Collapse per-day entries that share a window into one day-masked entry.
+def _union(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge overlapping and abutting spans. `[start, end)` throughout."""
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        # `<=`, not `<`: 06:00-08:00 followed by 08:00-10:00 touch without
+        # overlapping, and the door covers the same minutes with one entry.
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
 
-    `to_ha_format` explodes each door entry into one slot PER DAY, and
-    `from_ha_format` rebuilds one entry per (day, slot). Without regrouping,
-    a no-change save on a factory door turned ONE table entry into eight,
-    with eight writes to a device that is single-connection and
-    rate-limited, and the user's phone app then listed eight entries where
-    the factory shipped one. A realistic two-window, both-sensor schedule
-    reached 28 slots where 4 express the same thing, and the door has a
-    finite number of slots.
 
-    The pre-rewrite code used the library's `compress_schedule` for this.
-    That is NOT usable here: it contains
-    `if in_end < in_start: in_start, in_end = in_end, in_start`, which turns
-    an overnight window into its complement - 22:00-06:00 becomes
-    06:00-22:00, the exact inverse of what the user asked for. So the
-    regrouping is done locally, on the one axis that is safe: entries that
-    already agree on window and sensor flags differ only in which day they
-    name, so OR-ing their day masks is lossless.
+def _consolidate(entries: list[Schedule]) -> list[Schedule]:
+    """Express the same coverage in as few door entries as possible.
+
+    The door holds a finite number of slots on a single-connection,
+    rate-limited link, so an entry that says nothing new is a real cost. A
+    table is equivalent to any other that covers the same minutes, so this
+    reduces to: work out what is covered, then say it the short way.
+
+    Three things collapse, and they have to happen together because each
+    creates opportunities for the others:
+
+    * **Windows that touch or overlap, on the same days and sensors.**
+      06:00-08:00 and 08:00-10:00 become 06:00-10:00.
+    * **The same window on several days.** One entry with a day mask.
+    * **The same window on both sensors.** One entry with `inside` and
+      `outside` both set, rather than two.
+
+    The pre-rewrite code got this from the library's `compress_schedule`,
+    which is not usable here: it contains
+    `if in_end < in_start: in_start, in_end = in_end, in_start`, turning an
+    inverted window into its complement - 22:00-06:00 would become
+    06:00-22:00, the precise inverse of what was asked for.
+
+    Two classes of entry are passed through untouched rather than folded in,
+    because neither can be expressed as coverage: disabled entries (they
+    cover nothing now but the user may re-enable them) and entries whose
+    window is empty (`end <= start`, which the door stores and never acts
+    on). Rewriting either would be this function deciding something the user
+    did not ask it to decide.
     """
-    merged: dict[tuple[int, int, int, int, bool, bool], Schedule] = {}
+    passthrough: list[Schedule] = []
+    #: (day index, "inside"/"outside") -> covered spans
+    coverage: dict[tuple[int, str], list[tuple[int, int]]] = {}
+
     for entry in entries:
-        key = (
-            entry.start.hour,
-            entry.start.minute,
-            entry.end.hour,
-            entry.end.minute,
-            entry.inside,
-            entry.outside,
-        )
-        existing = merged.get(key)
-        if existing is None:
-            merged[key] = entry
+        spans = _entry_spans(entry)
+        if not entry.enabled or not spans:
+            passthrough.append(entry)
             continue
-        existing.days_of_week = [
-            a or b for a, b in zip(existing.days_of_week, entry.days_of_week, strict=True)
-        ]
-    return list(merged.values())
+        for day, on in enumerate(entry.days_of_week):
+            if not on:
+                continue
+            for sensor in (SCHEDULE_INSIDE, SCHEDULE_OUTSIDE):
+                if getattr(entry, sensor):
+                    coverage.setdefault((day, sensor), []).extend(spans)
+
+    #: (start, end) -> day -> the sensors covered for that day
+    by_span: dict[tuple[int, int], dict[int, set[str]]] = {}
+    for (day, sensor), spans in coverage.items():
+        for span in _union(spans):
+            by_span.setdefault(span, {}).setdefault(day, set()).add(sensor)
+
+    rebuilt: list[Schedule] = []
+    for (start, end), days in sorted(by_span.items()):
+        # Days whose sensor set matches share an entry; at most three per
+        # window (inside only, outside only, both), usually one.
+        grouped: dict[frozenset[str], list[int]] = {}
+        for day, sensors in days.items():
+            grouped.setdefault(frozenset(sensors), []).append(day)
+        for sensor_set, members in sorted(grouped.items(), key=lambda kv: sorted(kv[0])):
+            mask = [False] * 7
+            for day in members:
+                mask[day] = True
+            rebuilt.append(
+                Schedule(
+                    enabled=True,
+                    days_of_week=mask,
+                    inside=SCHEDULE_INSIDE in sensor_set,
+                    outside=SCHEDULE_OUTSIDE in sensor_set,
+                    start=ScheduleTime(start // 60, start % 60),
+                    end=ScheduleTime(end // 60, end % 60),
+                )
+            )
+    return [*rebuilt, *passthrough]
 
 
 def from_ha_format(config: dict[str, list[dict[str, str]]], kind: str) -> list[Schedule]:
@@ -443,7 +491,7 @@ def from_ha_format(config: dict[str, list[dict[str, str]]], kind: str) -> list[S
                     end=ScheduleTime(end_minutes // 60, end_minutes % 60),
                 )
             )
-    return _merge_by_window(entries)
+    return _consolidate(entries)
 
 
 def _parse_hhmm(value: str | time) -> time:
@@ -544,7 +592,11 @@ async def _apply_schedule_locked(
         else:
             keep.append(replace(entry, outside=False))
 
-    desired = [*keep, *from_ha_format(config, kind)]
+    # Consolidated across BOTH sensors, which `from_ha_format` cannot do on
+    # its own - it is called for one kind at a time, so an inside window and
+    # an identical outside window only meet here. This is also where windows
+    # that touch get folded together.
+    desired = _consolidate([*keep, *from_ha_format(config, kind)])
 
     to_delete, to_add = compute_schedule_diff(
         [entry.to_dict() for entry in current],

@@ -28,6 +28,9 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.powerpetdoor.const import SCHEDULE_INSIDE, SCHEDULE_OUTSIDE
 from custom_components.powerpetdoor.schedule import (
     SCHEDULE_PAYLOAD_SCHEMA,
+    _consolidate,
+    _entry_spans,
+    _union,
     active_windows,
     apply_schedule,
     from_ha_format,
@@ -49,6 +52,13 @@ EVERY_DAY = [True] * 7
 MONDAY = datetime(2026, 8, 24, tzinfo=UTC)
 SUNDAY = datetime(2026, 8, 23, tzinfo=UTC)
 TUESDAY = datetime(2026, 8, 25, tzinfo=UTC)
+
+
+def _days(index: int) -> list[bool]:
+    """A day mask with one day set, in the door's convention (0 is Sunday)."""
+    mask = [False] * 7
+    mask[index] = True
+    return mask
 
 
 def sched(
@@ -1062,3 +1072,160 @@ def test_windows_that_differ_are_never_merged() -> None:
 
     assert len(entries) == 2
     assert to_ha_format(entries, SCHEDULE_INSIDE) == config
+
+
+# ---------------------------------------------------------------------------
+# Consolidation
+# ---------------------------------------------------------------------------
+
+
+def _spans_by_day(entries: list[Schedule]) -> dict[int, list[tuple[int, int]]]:
+    """Covered minutes per door-convention day index, for the inside sensor."""
+    out: dict[int, list[tuple[int, int]]] = {}
+    for entry in entries:
+        if not entry.inside:
+            continue
+        for day, on in enumerate(entry.days_of_week):
+            if on:
+                out.setdefault(day, []).extend(_entry_spans(entry))
+    return {day: _union(spans) for day, spans in out.items()}
+
+
+class TestConsolidation:
+    """The door has a finite number of slots on a rate-limited link.
+
+    An entry that says nothing a shorter table could say is a real cost, and
+    the user's phone app lists every one of them. The pre-rewrite code got
+    this from the library's `compress_schedule`, which cannot be used here -
+    it swaps an inverted window's ends, turning 22:00-06:00 into 06:00-22:00,
+    the precise inverse of what was asked for.
+    """
+
+    def test_windows_that_touch_become_one(self):
+        """06:00-08:00 then 08:00-10:00 is 06:00-10:00, in one entry.
+
+        Abutment, not overlap: the windows share a single instant and no
+        minutes at all, so a merge rule written with `<` instead of `<=`
+        leaves both and the door burns two slots saying one thing.
+        """
+        merged = _consolidate(
+            [
+                sched(_days(1), (6, 0), (8, 0)),
+                sched(_days(1), (8, 0), (10, 0)),
+            ]
+        )
+
+        assert len(merged) == 1
+        assert (merged[0].start.hour, merged[0].start.minute) == (6, 0)
+        assert (merged[0].end.hour, merged[0].end.minute) == (10, 0)
+
+    def test_windows_that_overlap_become_one(self):
+        merged = _consolidate(
+            [
+                sched(_days(1), (6, 0), (9, 0)),
+                sched(_days(1), (8, 0), (10, 0)),
+            ]
+        )
+
+        assert len(merged) == 1
+        assert (merged[0].start.hour, merged[0].end.hour) == (6, 10)
+
+    def test_windows_with_a_gap_are_left_alone(self):
+        """The boundary the merge rule turns on, asserted from both sides.
+
+        One minute apart is still two windows: merging them would open the
+        door for a minute the user did not ask for.
+        """
+        merged = _consolidate(
+            [
+                sched(_days(1), (6, 0), (8, 0)),
+                sched(_days(1), (8, 1), (10, 0)),
+            ]
+        )
+
+        assert len(merged) == 2
+
+    def test_the_same_window_on_both_sensors_becomes_one_entry(self):
+        """Two entries differing only in which sensor they gate.
+
+        The door's entry carries both flags, so this is one slot, not two -
+        and it is the shape the factory default ships in.
+        """
+        merged = _consolidate(
+            [
+                sched(_days(1), (6, 0), (8, 0), inside=True, outside=False),
+                sched(_days(1), (6, 0), (8, 0), inside=False, outside=True),
+            ]
+        )
+
+        assert len(merged) == 1
+        assert merged[0].inside is True
+        assert merged[0].outside is True
+
+    def test_the_same_window_on_several_days_becomes_one_masked_entry(self):
+        merged = _consolidate(
+            [
+                sched(_days(1), (6, 0), (8, 0)),
+                sched(_days(2), (6, 0), (8, 0)),
+                sched(_days(3), (6, 0), (8, 0)),
+            ]
+        )
+
+        assert len(merged) == 1
+        assert sum(merged[0].days_of_week) == 3
+
+    def test_days_that_differ_are_not_forced_together(self):
+        """Monday gains a window Tuesday does not; they cannot share an entry."""
+        merged = _consolidate(
+            [
+                sched(_days(1), (6, 0), (8, 0)),
+                sched(_days(1), (8, 0), (10, 0)),
+                sched(_days(2), (6, 0), (8, 0)),
+            ]
+        )
+
+        assert _spans_by_day(merged) == {1: [(360, 600)], 2: [(360, 480)]}
+
+    def test_a_disabled_entry_is_carried_through_untouched(self):
+        """It covers nothing now, but the user may switch it back on.
+
+        Folding it into coverage would silently delete a window the user
+        parked; rewriting it as enabled would silently switch it on.
+        """
+        disabled = sched(_days(1), (6, 0), (8, 0), enabled=False)
+
+        merged = _consolidate([disabled])
+
+        assert merged == [disabled]
+
+    def test_an_empty_window_is_carried_through_untouched(self):
+        """`end <= start` covers no time; the door stores it and never acts.
+
+        It cannot be expressed as coverage, so it cannot be rebuilt from
+        coverage. Dropping it would be this function deciding something the
+        user did not ask it to decide.
+        """
+        empty = sched(_days(1), (8, 0), (8, 0))
+
+        merged = _consolidate([empty])
+
+        assert merged == [empty]
+
+    def test_a_disabled_entry_does_not_absorb_an_enabled_one(self):
+        """Both arms in one table, which is the case that actually ships."""
+        disabled = sched(_days(1), (6, 0), (8, 0), enabled=False)
+
+        merged = _consolidate([disabled, sched(_days(1), (6, 0), (8, 0))])
+
+        assert disabled in merged
+        assert len(merged) == 2
+
+    def test_end_of_day_survives_consolidation_as_24_00(self):
+        """1440 minutes must come back as 24:00, which the door honours.
+
+        An end of 00:00 is a spelling the door stores and never acts on, so
+        rebuilding the span with `divmod` has to produce hour 24, not 0.
+        """
+        merged = _consolidate([sched(_days(1), (22, 0), (24, 0))])
+
+        assert (merged[0].end.hour, merged[0].end.minute) == (24, 0)

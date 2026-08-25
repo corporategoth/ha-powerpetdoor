@@ -28,11 +28,16 @@ from datetime import UTC, datetime, timedelta
 import voluptuous as vol
 from hypothesis import assume, example, given
 from hypothesis import strategies as st
-from powerpetdoor import Schedule, ScheduleTime
+from powerpetdoor import Schedule, ScheduleTime, week_0_mon_to_sun
 
 from custom_components.powerpetdoor.const import SCHEDULE_INSIDE, SCHEDULE_OUTSIDE
 from custom_components.powerpetdoor.schedule import (
     SCHEDULE_PAYLOAD_SCHEMA,
+    _entry_spans,
+    _ha_end_minutes,
+    _minutes,
+    _parse_hhmm,
+    _union,
     active_windows,
     from_ha_format,
     is_active,
@@ -299,12 +304,37 @@ def test_every_payload_the_schema_accepts_can_be_written_to_the_door(
         return
     entries = from_ha_format(validated, SCHEDULE_INSIDE)
 
-    # Not one entry per slot: `from_ha_format` merges days that share a
-    # window into a single day-masked entry, and duplicate slots on one day
-    # collapse. What must be preserved is the set of (day, window) PAIRS -
-    # losing one is an edit that appears to save and then partly vanishes.
-    pairs = {(day, slot["from"], slot["to"]) for day, slots in validated.items() for slot in slots}
-    assert sum(sum(entry.days_of_week) for entry in entries) == len(pairs)
+    # What must be preserved is the COVERAGE, not the entry count.
+    # `from_ha_format` consolidates: days that share a window collapse into
+    # one day-masked entry, and windows that touch or overlap on the same
+    # day union into one. So counting (day, window) pairs is wrong - two
+    # slots of 06:00-08:00 and 08:00-10:00 legitimately become one entry.
+    #
+    # Coverage is the property that actually matters: the minutes the door
+    # will gate must be exactly the minutes asked for. Losing one is an edit
+    # that appears to save and then partly vanishes; gaining one opens the
+    # door when the user said closed.
+    wanted: dict[int, list[tuple[int, int]]] = {}
+    for day, slots in validated.items():
+        index = DAY_NAMES.index(day)
+        for slot in slots:
+            start = _minutes(_parse_hhmm(slot["from"]))
+            # `days_of_week` is the DOOR's convention (index 0 is Sunday);
+            # DAY_NAMES is Home Assistant's (index 0 is Monday). Comparing
+            # them unconverted made every single-day payload look like it
+            # had moved to the wrong day.
+            door_day = week_0_mon_to_sun(index)
+            wanted.setdefault(door_day, []).append((start, _ha_end_minutes(slot["to"])))
+
+    got: dict[int, list[tuple[int, int]]] = {}
+    for entry in entries:
+        for index, on in enumerate(entry.days_of_week):
+            if on:
+                got.setdefault(index, []).extend(_entry_spans(entry))
+
+    assert {day: _union(spans) for day, spans in wanted.items()} == {
+        day: _union(spans) for day, spans in got.items()
+    }
     for entry in entries:
         assert entry.inside is True
         assert sum(entry.days_of_week) >= 1
