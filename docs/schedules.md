@@ -50,7 +50,17 @@ then:
 - **Drag on an empty area** of a day column to create a window.
 - **Drag a window's top or bottom edge** to resize it.
 - **Click a window** to edit its exact times, or delete it.
+- **Click a day's heading** to copy that day's windows onto other days.
+- **Copy from the other sensor** using the link under the grid, when both
+  schedule sensors are enabled.
 - A red line shows the current time; the window covering it is highlighted.
+
+Dragging an edge towards a neighbouring window stops at its border, and
+letting go there merges the two into one. Drag clear past the neighbour and
+it turns red — releasing then absorbs it. The door stores one table for both
+sensors, so windows that end up touching, or that end up identical on
+several days or on both sensors, are combined into a single entry before
+they are written.
 
 > **Check the entity id first.** The ids in this page assume a device named
 > "Power Pet Door" with no area. Home Assistant builds an entity's id from

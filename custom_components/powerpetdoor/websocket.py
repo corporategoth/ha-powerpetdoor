@@ -88,12 +88,36 @@ def _resolve(hass: HomeAssistant, entity_id: str) -> tuple[PowerPetDoorCoordinat
     return config_entry.runtime_data, kind
 
 
-def _payload(entity_id: str, coordinator: PowerPetDoorCoordinator, kind: str) -> dict[str, Any]:
+def _counterpart(
+    hass: HomeAssistant, coordinator: PowerPetDoorCoordinator, kind: str
+) -> str | None:
+    """Find the OTHER sensor's schedule entity on the same door.
+
+    The card offers "copy from the other sensor", and it can only do that
+    if it knows which entity that is. Deriving it in the card would mean
+    guessing at an entity_id; the unique_id is `<host>:<port>-<kind>_schedule`
+    and the coordinator already knows the address, so the registry can
+    answer exactly - including when two doors are configured, where a guess
+    could land on the wrong door's sensor.
+    """
+    other = SCHEDULE_OUTSIDE if kind == SCHEDULE_INSIDE else SCHEDULE_INSIDE
+    return er.async_get(hass).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{coordinator.device_identifier}-{other}_schedule"
+    )
+
+
+def _payload(
+    hass: HomeAssistant, entity_id: str, coordinator: PowerPetDoorCoordinator, kind: str
+) -> dict[str, Any]:
     """Return the card's view of one schedule entity."""
     schedule = to_ha_format(coordinator.schedules, kind)
     return {
         "entity_id": entity_id,
         "kind": kind,
+        # None when the other sensor's schedule entity is disabled, which is
+        # why the card treats the copy button as optional rather than
+        # assuming a partner is always there.
+        "counterpart": _counterpart(hass, coordinator, kind),
         "schedule": schedule,
         "schedule_count": sum(len(slots) for slots in schedule.values()),
         # The door's master switch. Without it the card cannot tell whether
@@ -122,7 +146,7 @@ def ws_list_schedules(
         if resolved is None:
             continue
         coordinator, kind = resolved
-        results.append(_payload(entry.entity_id, coordinator, kind))
+        results.append(_payload(hass, entry.entity_id, coordinator, kind))
     connection.send_result(msg["id"], results)
 
 
@@ -148,7 +172,7 @@ def ws_get_schedule(
         )
         return
     coordinator, kind = resolved
-    connection.send_result(msg["id"], _payload(msg["entity_id"], coordinator, kind))
+    connection.send_result(msg["id"], _payload(hass, msg["entity_id"], coordinator, kind))
 
 
 @websocket_api.websocket_command(
@@ -183,4 +207,4 @@ async def ws_update_schedule(
         connection.send_error(msg["id"], "update_failed", str(err))
         return
 
-    connection.send_result(msg["id"], _payload(msg["entity_id"], coordinator, kind))
+    connection.send_result(msg["id"], _payload(hass, msg["entity_id"], coordinator, kind))

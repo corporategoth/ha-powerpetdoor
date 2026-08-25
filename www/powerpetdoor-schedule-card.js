@@ -4,7 +4,7 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.14.0
+ * Power Pet Door Schedule Card v1.15.0
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
@@ -89,6 +89,15 @@ const STRINGS = {
       'That window does not cover any time. The end must be later than the start, and the door cannot schedule past midnight in one window - use 00:00 as the end to run to the end of the day, then add a second window on the next day.',
     new_slot: 'New Time Slot',
     edit_slot: 'Edit Time Slot',
+    copy_from: 'Copy from {sensor}',
+    copy_from_confirm:
+      'Replace this schedule with the one from {sensor}? The windows currently shown will be lost.',
+    copy_day: 'Copy {day} to other days',
+    copy_day_title: 'Copy {day} to',
+    copy_day_confirm: 'Copy',
+    copy_day_none: 'Choose at least one day.',
+    select_all: 'All',
+    select_none: 'None',
   },
 };
 
@@ -185,6 +194,9 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     this._dragOriginalSlot = null;
     this._dragMergeWith = null;
     this._dragDoomed = [];
+    this._counterpart = null;
+    this._copyingDay = null;
+    this._confirmCopyFrom = false;
     this._columnRects = {}; // Store rects for all columns
 
     // Current time tracking
@@ -352,6 +364,9 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     let kind;
     // Same "leave it alone" rule: the attribute fallback cannot supply it.
     let timersEnabled;
+    // Same again: the attribute fallback cannot name the other sensor, and
+    // forgetting it there would hide the copy button on a transient failure.
+    let counterpart;
     let error = null;
     try {
       const result = await this._hass.callWS({
@@ -361,6 +376,7 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       schedule = result.schedule || {};
       kind = result.kind || null;
       timersEnabled = result.timers_enabled !== false;
+      counterpart = result.counterpart || null;
     } catch (err) {
       // Fallback to entity state attributes
       const state = this._hass.states[this._config.entity];
@@ -376,8 +392,59 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     if (schedule !== undefined) this._schedule = schedule;
     if (kind !== undefined) this._kind = kind;
     if (timersEnabled !== undefined) this._timersEnabled = timersEnabled;
+    if (counterpart !== undefined) this._counterpart = counterpart;
     this._error = error;
     this._loading = false;
+    this.render();
+  }
+
+  /** The other sensor's label, for the copy button. */
+  _counterpartLabel() {
+    return t(this._hass, this._kind === 'inside' ? 'outside_sensor' : 'inside_sensor');
+  }
+
+  /**
+   * Replace this sensor's schedule with the other sensor's.
+   *
+   * Read fresh over the WebSocket rather than from anything cached: the
+   * other sensor may have been edited in another tab, or by an automation,
+   * since this card loaded, and copying a stale view would quietly undo
+   * that.
+   */
+  async _copyFromCounterpart() {
+    if (!this._hass || !this._counterpart) return;
+    try {
+      const result = await this._hass.callWS({
+        type: 'powerpetdoor/schedule/get',
+        entity_id: this._counterpart,
+      });
+      this._schedule = JSON.parse(JSON.stringify(result.schedule || {}));
+    } catch (err) {
+      this._notify(`${t(this._hass, 'load_failed')}: ${err.message || err}`);
+      return;
+    }
+    // Deliberately not `_materialised`: this IS a schedule, so the card is
+    // no longer describing a door with none.
+    this._materialised = false;
+    await this._saveSchedule();
+    this.render();
+  }
+
+  /**
+   * Copy one day's windows onto other days, replacing whatever they had.
+   *
+   * Replace rather than merge: "copy Monday to Tuesday" means Tuesday
+   * looks like Monday. Merging would make the button non-idempotent -
+   * pressing it twice would give a different answer from pressing it once.
+   */
+  async _copyDayTo(fromDay, toDays) {
+    const source = this._schedule[fromDay] || [];
+    for (const day of toDays) {
+      if (day === fromDay) continue;
+      this._schedule[day] = source.map((slot) => ({ ...slot }));
+    }
+    this._materialised = false;
+    await this._saveSchedule();
     this.render();
   }
 
@@ -1350,6 +1417,27 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           padding-right: 4px;
           box-sizing: border-box;
         }
+        /* The day header doubles as the copy-to-other-days button when the
+           user can edit, so it has to look like a header and behave like a
+           button. */
+        button.day-header {
+          border: none;
+          font: inherit;
+          cursor: pointer;
+          width: 100%;
+        }
+        .copy-day-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin: 8px 0;
+        }
+        .copy-day-option {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+        }
         .day-header {
           text-align: center;
           padding: 4px 2px;
@@ -1656,7 +1744,14 @@ class PowerPetDoorScheduleCard extends HTMLElement {
               <!-- Day columns -->
               ${DAYS.map((day, dayIndex) => `
                 <div style="display: flex; flex-direction: column;">
-                  <div class="day-header">${DAY_SHORT[dayIndex]}</div>
+                  ${this._canEdit() ? `
+                    <button type="button" class="day-header day-copy"
+                            data-day="${day}"
+                            title="${escapeHtml(t(this._hass, 'copy_day', { day: DAY_LABELS[dayIndex] }))}"
+                            aria-label="${escapeHtml(t(this._hass, 'copy_day', { day: DAY_LABELS[dayIndex] }))}">
+                      ${DAY_SHORT[dayIndex]}
+                    </button>
+                  ` : `<div class="day-header">${DAY_SHORT[dayIndex]}</div>`}
                   <div class="day-column" data-day="${day}"
                        ${this._canEdit() ? `tabindex="0" role="button" aria-label="${t(this._hass, 'add_window')} ${DAY_LABELS[dayIndex]}"` : ''}>
                     ${[0, 6, 12, 18].map(h => `
@@ -1687,12 +1782,14 @@ class PowerPetDoorScheduleCard extends HTMLElement {
               `).join('')}
             </div>
             ${this._timersEnabled ? '' : `<div class="notice" role="status">${t(this._hass, 'timers_disabled')}</div>`}
-            <div class="hint">${this._canEdit() ? t(this._hass, 'hint') : t(this._hass, 'hint_readonly')} <button type="button" class="link-button" id="refresh-link">${t(this._hass, 'reload')}</button></div>
+            <div class="hint">${this._canEdit() ? t(this._hass, 'hint') : t(this._hass, 'hint_readonly')} <button type="button" class="link-button" id="refresh-link">${t(this._hass, 'reload')}</button>${this._canEdit() && this._counterpart ? ` <button type="button" class="link-button" id="copy-from-link">${escapeHtml(t(this._hass, 'copy_from', { sensor: this._counterpartLabel() }))}</button>` : ''}</div>
           `}
         </div>
       </ha-card>
 
       ${this._editingSlot ? this._renderEditDialog() : ''}
+      ${this._copyingDay ? this._renderCopyDayDialog() : ''}
+      ${this._confirmCopyFrom ? this._renderCopyFromDialog() : ''}
     `;
 
     this._attachEventListeners();
@@ -1742,6 +1839,60 @@ class PowerPetDoorScheduleCard extends HTMLElement {
             ${!this._isNewSlot ? `<button class="delete-btn" id="dialog-delete">${t(this._hass, 'delete')}</button>` : ''}
             <button class="cancel-btn" id="dialog-cancel">${t(this._hass, 'cancel')}</button>
             <button class="save-btn" id="dialog-save">${t(this._hass, 'save')}</button>
+          </div>
+        </div>
+      </dialog>
+    `;
+  }
+
+  /**
+   * The day picker for "copy Monday to...".
+   *
+   * A <dialog> for the same reasons as the edit dialog: the focus trap,
+   * initial focus, focus restore and top-layer rendering come with it.
+   * The source day is checked and disabled - it is the thing being copied
+   * FROM, and unchecking it would suggest it could be excluded.
+   */
+  _renderCopyDayDialog() {
+    const fromDay = this._copyingDay;
+    const fromLabel = DAY_LABELS[DAYS.indexOf(fromDay)];
+    return `
+      <dialog class="dialog-overlay" id="copy-day-overlay"
+              aria-labelledby="copy-day-title">
+        <div class="edit-dialog" id="copy-day-dialog">
+          <div class="dialog-title" id="copy-day-title">${escapeHtml(t(this._hass, 'copy_day_title', { day: fromLabel }))}</div>
+          <div class="copy-day-list">
+            ${DAYS.map((day, index) => `
+              <label class="copy-day-option">
+                <input type="checkbox" name="copy-day" value="${day}"
+                       ${day === fromDay ? 'checked disabled' : ''}>
+                <span>${DAY_LABELS[index]}</span>
+              </label>
+            `).join('')}
+          </div>
+          ${this._dialogError ? `<div class="dialog-error" id="copy-day-error" role="alert">${escapeHtml(this._dialogError)}</div>` : ''}
+          <div class="dialog-buttons">
+            <button class="cancel-btn" id="copy-day-all">${t(this._hass, 'select_all')}</button>
+            <button class="cancel-btn" id="copy-day-none">${t(this._hass, 'select_none')}</button>
+            <button class="cancel-btn" id="copy-day-cancel">${t(this._hass, 'cancel')}</button>
+            <button class="save-btn" id="copy-day-confirm">${t(this._hass, 'copy_day_confirm')}</button>
+          </div>
+        </div>
+      </dialog>
+    `;
+  }
+
+  /** Confirmation for replacing this schedule with the other sensor's. */
+  _renderCopyFromDialog() {
+    return `
+      <dialog class="dialog-overlay" id="copy-from-overlay"
+              aria-labelledby="copy-from-title">
+        <div class="edit-dialog" id="copy-from-dialog">
+          <div class="dialog-title" id="copy-from-title">${escapeHtml(t(this._hass, 'copy_from', { sensor: this._counterpartLabel() }))}</div>
+          <div class="dialog-row">${escapeHtml(t(this._hass, 'copy_from_confirm', { sensor: this._counterpartLabel() }))}</div>
+          <div class="dialog-buttons">
+            <button class="cancel-btn" id="copy-from-cancel">${t(this._hass, 'cancel')}</button>
+            <button class="save-btn" id="copy-from-confirm">${t(this._hass, 'copy_day_confirm')}</button>
           </div>
         </div>
       </dialog>
@@ -1836,6 +1987,80 @@ class PowerPetDoorScheduleCard extends HTMLElement {
   }
 
   _attachDialogListeners() {
+    // -- copy from the other sensor ----------------------------------------
+    const copyFromLink = this.shadowRoot.getElementById('copy-from-link');
+    if (copyFromLink) {
+      copyFromLink.addEventListener('click', () => {
+        this._confirmCopyFrom = true;
+        this.render();
+      });
+    }
+
+    const copyFromOverlay = this.shadowRoot.getElementById('copy-from-overlay');
+    if (copyFromOverlay) {
+      if (!copyFromOverlay.open) copyFromOverlay.showModal();
+      const close = () => {
+        this._confirmCopyFrom = false;
+        this.render();
+      };
+      copyFromOverlay.addEventListener('close', () => {
+        if (this._confirmCopyFrom) close();
+      });
+      this.shadowRoot.getElementById('copy-from-cancel')
+        ?.addEventListener('click', close);
+      this.shadowRoot.getElementById('copy-from-confirm')
+        ?.addEventListener('click', async () => {
+          this._confirmCopyFrom = false;
+          await this._copyFromCounterpart();
+        });
+    }
+
+    // -- copy one day onto others -----------------------------------------
+    this.shadowRoot.querySelectorAll('.day-copy').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this._copyingDay = button.dataset.day;
+        this._dialogError = null;
+        this.render();
+      });
+    });
+
+    const copyDayOverlay = this.shadowRoot.getElementById('copy-day-overlay');
+    if (copyDayOverlay) {
+      if (!copyDayOverlay.open) copyDayOverlay.showModal();
+      const close = () => {
+        this._copyingDay = null;
+        this._dialogError = null;
+        this.render();
+      };
+      copyDayOverlay.addEventListener('close', () => {
+        if (this._copyingDay) close();
+      });
+      const boxes = () => Array.from(
+        this.shadowRoot.querySelectorAll('input[name="copy-day"]:not(:disabled)'),
+      );
+      this.shadowRoot.getElementById('copy-day-cancel')
+        ?.addEventListener('click', close);
+      this.shadowRoot.getElementById('copy-day-all')
+        ?.addEventListener('click', () => boxes().forEach((b) => { b.checked = true; }));
+      this.shadowRoot.getElementById('copy-day-none')
+        ?.addEventListener('click', () => boxes().forEach((b) => { b.checked = false; }));
+      this.shadowRoot.getElementById('copy-day-confirm')
+        ?.addEventListener('click', async () => {
+          const chosen = boxes().filter((b) => b.checked).map((b) => b.value);
+          if (chosen.length === 0) {
+            // Refused rather than treated as "no days", which would look
+            // exactly like a successful copy that did nothing.
+            this._dialogError = t(this._hass, 'copy_day_none');
+            this.render();
+            return;
+          }
+          const fromDay = this._copyingDay;
+          this._copyingDay = null;
+          await this._copyDayTo(fromDay, chosen);
+        });
+    }
+
     const dialogOverlay = this.shadowRoot.getElementById('dialog-overlay');
     const editDialog = this.shadowRoot.getElementById('edit-dialog');
     const dialogCancel = this.shadowRoot.getElementById('dialog-cancel');
@@ -2117,7 +2342,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.14.0 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.0 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );

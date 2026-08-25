@@ -1687,3 +1687,275 @@ describe('dragging one window into another', () => {
     ]);
   });
 });
+
+describe('copying a schedule', () => {
+  const OTHER = 'binary_sensor.power_pet_door_outside_schedule';
+
+  // `counterpart` is what the backend sends so the card knows which entity
+  // the other sensor's schedule lives on. Without it there is nothing to
+  // copy from and the button is not offered at all.
+  const openWithCounterpart = async (schedule, otherSchedule) => {
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockImplementation((msg) => {
+      if (msg.type === 'powerpetdoor/schedule/get' && msg.entity_id === OTHER) {
+        return Promise.resolve({ entity_id: OTHER, kind: 'outside', schedule: otherSchedule });
+      }
+      if (msg.type === 'powerpetdoor/schedule/get') {
+        return Promise.resolve({
+          entity_id: ENTITY, kind: 'inside', schedule, counterpart: OTHER,
+        });
+      }
+      return Promise.resolve({});
+    });
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    card._handleHeaderClick();
+    await flush();
+    return { card, hass };
+  };
+
+  test('the copy button is offered only when there is a counterpart', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+
+    // openCard's mock sends no `counterpart`, which is the disabled-sibling
+    // case: offering the button would produce a copy from nothing.
+    expect(card.shadowRoot.getElementById('copy-from-link')).toBeNull();
+  });
+
+  test('copying from the other sensor replaces this schedule and saves', async () => {
+    const { card, hass } = await openWithCounterpart(
+      { monday: [{ from: '06:00', to: '08:00' }] },
+      { tuesday: [{ from: '09:00', to: '17:00' }] },
+    );
+
+    card.shadowRoot.getElementById('copy-from-link').click();
+    await flush();
+    card.shadowRoot.getElementById('copy-from-confirm').click();
+    await flush();
+
+    expect(card._schedule).toEqual({ tuesday: [{ from: '09:00', to: '17:00' }] });
+    expect(hass.callWS).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'powerpetdoor/schedule/update',
+        schedule: { tuesday: [{ from: '09:00', to: '17:00' }] },
+      }),
+    );
+  });
+
+  test('the copy is read fresh, not taken from anything cached', async () => {
+    // The other sensor may have been edited in another tab since this card
+    // loaded; copying a stale view would quietly undo that.
+    const { card, hass } = await openWithCounterpart({}, { friday: [{ from: '01:00', to: '02:00' }] });
+
+    card.shadowRoot.getElementById('copy-from-link').click();
+    await flush();
+    card.shadowRoot.getElementById('copy-from-confirm').click();
+    await flush();
+
+    expect(hass.callWS).toHaveBeenCalledWith({
+      type: 'powerpetdoor/schedule/get',
+      entity_id: OTHER,
+    });
+  });
+
+  test('cancelling the copy leaves the schedule untouched', async () => {
+    const { card } = await openWithCounterpart(
+      { monday: [{ from: '06:00', to: '08:00' }] },
+      { tuesday: [{ from: '09:00', to: '17:00' }] },
+    );
+
+    card.shadowRoot.getElementById('copy-from-link').click();
+    await flush();
+    card.shadowRoot.getElementById('copy-from-cancel').click();
+    await flush();
+
+    expect(card._schedule).toEqual({ monday: [{ from: '06:00', to: '08:00' }] });
+  });
+
+  test('a copy that fails to read says so and changes nothing', async () => {
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockImplementation((msg) => {
+      if (msg.type === 'powerpetdoor/schedule/get' && msg.entity_id === OTHER) {
+        return Promise.reject(new Error('door went away'));
+      }
+      return Promise.resolve({
+        entity_id: ENTITY,
+        kind: 'inside',
+        schedule: { monday: [{ from: '06:00', to: '08:00' }] },
+        counterpart: OTHER,
+      });
+    });
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    card._handleHeaderClick();
+    await flush();
+    const notified = jest.fn();
+    card.addEventListener('hass-notification', notified);
+
+    card.shadowRoot.getElementById('copy-from-link').click();
+    await flush();
+    card.shadowRoot.getElementById('copy-from-confirm').click();
+    await flush();
+
+    expect(card._schedule).toEqual({ monday: [{ from: '06:00', to: '08:00' }] });
+    expect(notified).toHaveBeenCalled();
+  });
+});
+
+describe('copying one day onto others', () => {
+  test('the day header is a button only when the user can edit', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+
+    expect(card.shadowRoot.querySelector('.day-copy[data-day="monday"]')).not.toBeNull();
+  });
+
+  test('a non-admin gets no copy buttons at all', async () => {
+    const { card } = await openCard(
+      { monday: [{ from: '06:00', to: '08:00' }] },
+      { user: { is_admin: false } },
+    );
+
+    expect(card.shadowRoot.querySelector('.day-copy')).toBeNull();
+  });
+
+  test('copying Monday to two days replaces both and saves once', async () => {
+    const { card, hass } = await openCard({
+      monday: [{ from: '06:00', to: '08:00' }],
+      // Wednesday already has something, to prove copy REPLACES rather than
+      // merges - "copy Monday to Wednesday" means Wednesday looks like
+      // Monday, and pressing it twice must not differ from pressing it once.
+      wednesday: [{ from: '20:00', to: '22:00' }],
+    });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+    const boxes = card.shadowRoot.querySelectorAll('input[name="copy-day"]');
+    boxes.forEach((box) => {
+      if (box.value === 'tuesday' || box.value === 'wednesday') box.checked = true;
+    });
+    hass.callWS.mockClear();
+
+    card.shadowRoot.getElementById('copy-day-confirm').click();
+    await flush();
+
+    expect(card._schedule.tuesday).toEqual([{ from: '06:00', to: '08:00' }]);
+    expect(card._schedule.wednesday).toEqual([{ from: '06:00', to: '08:00' }]);
+    expect(card._schedule.monday).toEqual([{ from: '06:00', to: '08:00' }]);
+    expect(
+      hass.callWS.mock.calls.filter(([m]) => m.type === 'powerpetdoor/schedule/update'),
+    ).toHaveLength(1);
+  });
+
+  test('the copied days are independent objects, not shared references', async () => {
+    // A shallow copy would make editing Tuesday silently edit Monday too.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+    card.shadowRoot.querySelectorAll('input[name="copy-day"]').forEach((box) => {
+      if (box.value === 'tuesday') box.checked = true;
+    });
+    card.shadowRoot.getElementById('copy-day-confirm').click();
+    await flush();
+
+    card._schedule.tuesday[0].from = '01:00';
+
+    expect(card._schedule.monday[0].from).toBe('06:00');
+  });
+
+  test('confirming with no day chosen refuses instead of silently doing nothing', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+
+    card.shadowRoot.getElementById('copy-day-confirm').click();
+    await flush();
+
+    expect(card.shadowRoot.getElementById('copy-day-error')).not.toBeNull();
+    expect(card._copyingDay).toBe('monday');
+  });
+
+  test('All ticks every day except the source, which stays fixed', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+
+    card.shadowRoot.getElementById('copy-day-all').click();
+
+    const boxes = Array.from(card.shadowRoot.querySelectorAll('input[name="copy-day"]'));
+    expect(boxes.filter((b) => b.checked)).toHaveLength(7);
+    // The source is checked AND disabled: it is what is being copied from,
+    // so offering to exclude it would be meaningless.
+    expect(boxes.find((b) => b.value === 'monday').disabled).toBe(true);
+  });
+
+  test('None clears every day the user could have chosen', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+    card.shadowRoot.getElementById('copy-day-all').click();
+
+    card.shadowRoot.getElementById('copy-day-none').click();
+
+    const enabled = Array.from(
+      card.shadowRoot.querySelectorAll('input[name="copy-day"]:not(:disabled)'),
+    );
+    expect(enabled.filter((b) => b.checked)).toHaveLength(0);
+  });
+
+  test('cancelling copies nothing', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+    card.shadowRoot.querySelectorAll('input[name="copy-day"]').forEach((box) => {
+      if (box.value === 'tuesday') box.checked = true;
+    });
+
+    card.shadowRoot.getElementById('copy-day-cancel').click();
+    await flush();
+
+    expect(card._schedule.tuesday).toBeUndefined();
+    expect(card._copyingDay).toBeNull();
+  });
+});
+
+describe('Escape on the copy dialogs', () => {
+  // The browser closes a modal <dialog> on Escape by itself and fires
+  // `close`. Without a listener the card keeps its state set, the next
+  // render puts the dialog straight back, and Escape appears to do nothing.
+  const OTHER = 'binary_sensor.power_pet_door_outside_schedule';
+
+  test('Escape closes the day picker and clears the state', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    card.shadowRoot.querySelector('.day-copy[data-day="monday"]').click();
+    await flush();
+    expect(card._copyingDay).toBe('monday');
+
+    card.shadowRoot.getElementById('copy-day-overlay').close();
+    await flush();
+
+    expect(card._copyingDay).toBeNull();
+    expect(card.shadowRoot.getElementById('copy-day-overlay')).toBeNull();
+  });
+
+  test('Escape closes the copy-from confirmation and copies nothing', async () => {
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockResolvedValue({
+      entity_id: ENTITY,
+      kind: 'inside',
+      schedule: { monday: [{ from: '06:00', to: '08:00' }] },
+      counterpart: OTHER,
+    });
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    card._handleHeaderClick();
+    await flush();
+    card.shadowRoot.getElementById('copy-from-link').click();
+    await flush();
+    expect(card._confirmCopyFrom).toBe(true);
+
+    card.shadowRoot.getElementById('copy-from-overlay').close();
+    await flush();
+
+    expect(card._confirmCopyFrom).toBe(false);
+    expect(card._schedule).toEqual({ monday: [{ from: '06:00', to: '08:00' }] });
+  });
+});

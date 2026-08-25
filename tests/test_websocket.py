@@ -797,3 +797,76 @@ async def test_registering_the_api_twice_does_not_raise(
     result = await client.receive_json()
 
     assert result["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# counterpart
+# ---------------------------------------------------------------------------
+
+
+async def test_each_schedule_names_the_other_sensor_on_the_same_door(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    hass_ws_client: WebSocketGenerator,
+) -> None:
+    """The card's "copy from the other sensor" needs to know which entity that is.
+
+    Deriving it in the card would mean guessing at an entity_id from a
+    naming convention. Asserted in both directions because the two are
+    produced by the same branch reading opposite ways, and a mapping that
+    pointed a sensor at itself would copy nothing and look like a no-op.
+    """
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": WS_SCHEDULE_GET, "entity_id": INSIDE})
+    inside = await client.receive_json()
+    await client.send_json_auto_id({"type": WS_SCHEDULE_GET, "entity_id": OUTSIDE})
+    outside = await client.receive_json()
+
+    assert inside["result"]["counterpart"] == OUTSIDE
+    assert outside["result"]["counterpart"] == INSIDE
+
+
+async def test_the_counterpart_never_crosses_between_two_doors(
+    hass: HomeAssistant,
+    two_doors: tuple[MockConfigEntry, MagicMock, MockConfigEntry, MagicMock],
+    hass_ws_client: WebSocketGenerator,
+) -> None:
+    """With two doors configured, a guess could land on the wrong one.
+
+    This is the case the entity registry lookup exists for: copying the
+    other door's outside schedule onto this door's inside sensor would be a
+    silent, wrong write to real hardware.
+    """
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": WS_SCHEDULE_LIST})
+    result = await client.receive_json()
+
+    by_entity = {row["entity_id"]: row for row in result["result"]}
+    assert len(by_entity) == 4
+    for entity_id, row in by_entity.items():
+        partner = by_entity[row["counterpart"]]
+        # Same door, other sensor: the counterpart's counterpart is itself.
+        assert partner["kind"] != row["kind"]
+        assert partner["counterpart"] == entity_id
+
+
+async def test_a_schedule_with_no_partner_reports_none(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    hass_ws_client: WebSocketGenerator,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The other sensor's entity can be removed or disabled by the user.
+
+    `None` rather than a dangling entity_id, because the card decides
+    whether to offer the copy button at all on this field - offering it
+    would produce a copy from nothing.
+    """
+    entity_registry.async_remove(OUTSIDE)
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": WS_SCHEDULE_GET, "entity_id": INSIDE})
+    result = await client.receive_json()
+
+    assert result["result"]["counterpart"] is None

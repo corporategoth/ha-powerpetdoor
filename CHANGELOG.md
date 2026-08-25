@@ -177,7 +177,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whole description was rejected. The same example is still shown, from the
   `example:` block in `services.yaml` where it belongs.
 
-### Added
+#- **The schedule card can copy a schedule again.** Both ways it used to,
+  before the rewrite dropped them: "copy from the other sensor" under the
+  grid, and clicking a day's heading to copy that day onto any others.
+- **Dragging a window into its neighbour merges them.** The edge stops at
+  the neighbour's border, and letting go there makes one window of the two.
+  Drag clear past the neighbour and it is drawn in the removal colour -
+  releasing then absorbs it. Previously the edge sailed straight through
+  and the save produced two overlapping windows.
+## Added
 
 - **Platinum quality scale**, tracked rule by rule in `quality_scale.yaml`.
 - **`powerpetdoor.set_schedule` action**, so automations can change a
