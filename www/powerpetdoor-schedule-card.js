@@ -4,7 +4,7 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.15.0
+ * Power Pet Door Schedule Card v1.15.1
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
@@ -49,6 +49,8 @@ const STRINGS = {
     save_failed: 'Failed to save schedule',
     inside_sensor: 'Inside Sensor',
     outside_sensor: 'Outside Sensor',
+    inside_short: 'Inside',
+    outside_short: 'Outside',
     always_active: 'Active 24/7 (no schedule set)',
     no_windows: 'No window is open for this sensor',
     active: 'Active',
@@ -74,7 +76,7 @@ const STRINGS = {
     active_now: 'active now',
     add_window: 'Add a window to',
     loading: 'Loading schedule...',
-    hint: 'Click or drag to create. Drag edges to resize. Click slot to edit.',
+    hint: 'Click or drag to create. Drag edges to resize. Click slot to edit. Click day to copy to another day.',
     hint_readonly: 'You have read-only access to this schedule.',
     timers_disabled:
       'Schedules are switched off on the door, so these windows are not being applied and both sensors stay live. Turn on the Schedule enabled switch to use them.',
@@ -400,7 +402,7 @@ class PowerPetDoorScheduleCard extends HTMLElement {
 
   /** The other sensor's label, for the copy button. */
   _counterpartLabel() {
-    return t(this._hass, this._kind === 'inside' ? 'outside_sensor' : 'inside_sensor');
+    return t(this._hass, this._kind === 'inside' ? 'outside_short' : 'inside_short');
   }
 
   /**
@@ -1426,6 +1428,11 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           cursor: pointer;
           width: 100%;
         }
+        .hint-actions {
+          display: flex;
+          gap: 12px;
+          margin-top: 2px;
+        }
         .copy-day-list {
           display: flex;
           flex-direction: column;
@@ -1782,7 +1789,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
               `).join('')}
             </div>
             ${this._timersEnabled ? '' : `<div class="notice" role="status">${t(this._hass, 'timers_disabled')}</div>`}
-            <div class="hint">${this._canEdit() ? t(this._hass, 'hint') : t(this._hass, 'hint_readonly')} <button type="button" class="link-button" id="refresh-link">${t(this._hass, 'reload')}</button>${this._canEdit() && this._counterpart ? ` <button type="button" class="link-button" id="copy-from-link">${escapeHtml(t(this._hass, 'copy_from', { sensor: this._counterpartLabel() }))}</button>` : ''}</div>
+            <div class="hint">${this._canEdit() ? t(this._hass, 'hint') : t(this._hass, 'hint_readonly')}</div>
+            <div class="hint hint-actions">${this._canEdit() && this._counterpart ? `<button type="button" class="link-button" id="copy-from-link">${escapeHtml(t(this._hass, 'copy_from', { sensor: this._counterpartLabel() }))}</button>` : ''}<button type="button" class="link-button" id="refresh-link">${t(this._hass, 'reload')}</button></div>
           `}
         </div>
       </ha-card>
@@ -2342,7 +2350,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.0 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.1 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );

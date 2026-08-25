@@ -1980,9 +1980,12 @@ describe('copy edge cases', () => {
     card._handleHeaderClick();
     await flush();
 
-    expect(card.shadowRoot.getElementById('copy-from-link').textContent).toContain(
-      'Inside Sensor',
-    );
+    // Both halves: it must name Inside, and must NOT name the sensor the
+    // user is standing on. Asserting only the first passes for a label that
+    // says both, which is what a wrong ternary branch would produce.
+    const label = card.shadowRoot.getElementById('copy-from-link').textContent;
+    expect(label).toContain('Inside');
+    expect(label).not.toContain('Outside');
   });
 
   test('copying with no counterpart does nothing rather than throwing', async () => {

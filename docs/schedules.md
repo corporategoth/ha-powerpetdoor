@@ -51,8 +51,8 @@ then:
 - **Drag a window's top or bottom edge** to resize it.
 - **Click a window** to edit its exact times, or delete it.
 - **Click a day's heading** to copy that day's windows onto other days.
-- **Copy from the other sensor** using the link under the grid, when both
-  schedule sensors are enabled.
+- **Copy from the other sensor** using the link under the grid, beside
+  *Reload from device*, when both schedule sensors are enabled.
 - A red line shows the current time; the window covering it is highlighted.
 
 Dragging an edge towards a neighbouring window stops at its border, and
