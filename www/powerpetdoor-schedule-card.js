@@ -4,7 +4,7 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.15.3
+ * Power Pet Door Schedule Card v1.15.4
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
@@ -113,13 +113,21 @@ const STRINGS = {
 function t(hass, key, replacements) {
   const language = (hass && hass.language) || 'en';
   const table = STRINGS[language] || {};
-  // The final `|| key` is unreachable from any input: every call site passes
-  // a literal, and scripts/check_translations.py fails the build on one that
-  // is not in the table. It stays anyway, because the alternative when it IS
-  // wrong is rendering `undefined` into the card - and it is the one branch
-  // arm this file does not cover, rather than being faked with a test that
-  // reaches in to break the table.
-  let text = table[key] || STRINGS.en[key] || key;
+  let text = table[key] || STRINGS.en[key];
+  // Unreachable from any input, and deliberately kept: every call site
+  // passes a literal, and scripts/check_translations.py fails the build on
+  // a key that is not in the table, so nothing a user or a device can do
+  // reaches here. It stays because the alternative when it IS wrong is
+  // rendering `undefined` into the card, which is worse for the user than
+  // showing the key.
+  //
+  // There is no coverage pragma to silence it with: the card runs under V8
+  // coverage (jest.config.js sets `coverageProvider: 'v8'`), which does not
+  // read `/* istanbul ignore */` - that is a babel-plugin-istanbul feature,
+  // and adding babel would mean instrumenting the card instead of running
+  // the exact bytes that ship. So it is declared in the Acknowledged Gaps
+  // section of tests/TESTING_GAPS.md instead.
+  if (!text) text = key;
   if (replacements) {
     for (const [name, value] of Object.entries(replacements)) {
       text = text.split(`{${name}}`).join(String(value));
@@ -2357,7 +2365,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.3 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.4 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );

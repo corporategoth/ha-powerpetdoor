@@ -2,7 +2,7 @@
 
 This file is **auto-generated** by CI after each test run. Do not edit manually.
 
-**Last updated:** 2026-08-23 18:28 UTC
+**Last updated:** 2026-08-25 20:18 UTC
 
 ## Summary
 
@@ -88,6 +88,13 @@ The following are excluded from coverage by configuration (`pyproject.toml`):
 - `^\s*@overload\s*$` - Typing overload declarations
 - `(^\s*\.\.\.\s*$)|(:\s*\.\.\.\s*$)` - Ellipsis stub bodies
 - `#\s*pragma:\s*no\s+branch\s*($|\()` - Explicitly annotated partial branches (see Pragma Exclusions below)
+
+### Acknowledged Gaps
+
+Branches knowingly left uncovered. These are NOT configuration exclusions - the gate still counts them - and each one is a claim that the branch cannot be reached, with the reason why:
+
+- **www/powerpetdoor-schedule-card.js - t(), the `if (!text) text = key`**
+  Unreachable from any input. Every `t()` call site passes a literal key, and `scripts/check_translations.py` fails the build on a key that is not in the table, so no user action and no device response can reach it. Kept because the alternative when it IS wrong is rendering `undefined` into the card, which is worse for the user than showing the key.
 
 ### Prose-Triggered Exclusions
 

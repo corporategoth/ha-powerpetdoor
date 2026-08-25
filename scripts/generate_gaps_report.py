@@ -103,6 +103,41 @@ def coverage_config() -> CoverageSettings:
     )
 
 
+#: Branches knowingly left uncovered, with the reason. Declared here rather
+#: than marked in the source, because the card's coverage runs under V8
+#: (`tests/frontend/jest.config.js` sets `coverageProvider: 'v8'`) and V8
+#: coverage does not read `/* istanbul ignore */` hints - those are a
+#: babel-plugin-istanbul feature, and adding babel would mean instrumenting
+#: the card rather than running the exact bytes that ship.
+#:
+#: An entry here is a promise that the branch cannot be reached, not that
+#: covering it was inconvenient.
+ACKNOWLEDGED_GAPS: list[dict[str, str]] = [
+    {
+        "where": "www/powerpetdoor-schedule-card.js - t(), the `if (!text) text = key`",
+        "why": (
+            "Unreachable from any input. Every `t()` call site passes a "
+            "literal key, and `scripts/check_translations.py` fails the "
+            "build on a key that is not in the table, so no user action and "
+            "no device response can reach it. Kept because the alternative "
+            "when it IS wrong is rendering `undefined` into the card, which "
+            "is worse for the user than showing the key."
+        ),
+    },
+]
+
+
+def render_acknowledged_gaps() -> list[str]:
+    """Render the deliberately-uncovered branches and their reasons."""
+    if not ACKNOWLEDGED_GAPS:
+        return ["_None._"]
+    out = []
+    for gap in ACKNOWLEDGED_GAPS:
+        out.append(f"- **{gap['where']}**")
+        out.append(f"  {gap['why']}")
+    return out
+
+
 def render_automatic_exclusions() -> list[str]:
     """Render the "Automatic Exclusions" bullets from the live config."""
     settings = coverage_config()
@@ -568,6 +603,17 @@ def main() -> int:
     lines.append("")
     # Rendered from the live config, never hand-maintained (M2).
     lines.extend(render_automatic_exclusions())
+    lines.append("")
+
+    lines.append("### Acknowledged Gaps")
+    lines.append("")
+    lines.append(
+        "Branches knowingly left uncovered. These are NOT configuration "
+        "exclusions - the gate still counts them - and each one is a claim "
+        "that the branch cannot be reached, with the reason why:"
+    )
+    lines.append("")
+    lines.extend(render_acknowledged_gaps())
     lines.append("")
 
     # Every pattern above is a `re.search` against the whole source line,
