@@ -52,6 +52,15 @@ then:
 - **Click a window** to edit its exact times, or delete it.
 - A red line shows the current time; the window covering it is highlighted.
 
+> **Check the entity id first.** The ids in this page assume a device named
+> "Power Pet Door" with no area. Home Assistant builds an entity's id from
+> the device, and since 2026.8 it prefixes a *newly created* entity with the
+> device's **area** — so a door in "Breakfast Area" gets
+> `binary_sensor.breakfast_area_power_pet_door_inside_schedule`. Entities
+> that existed before the 0.5.0 upgrade are migrated in place and keep their
+> original ids, so a system can legitimately hold a mix of both. Copy the
+> real id from **Settings → Devices & services → Power Pet Door**.
+
 ```yaml
 type: custom:powerpetdoor-schedule-card
 entity: binary_sensor.power_pet_door_inside_schedule

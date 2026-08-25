@@ -8,6 +8,15 @@ settings almost nobody changes. Enable one from the device page.
 
 ## The door itself
 
+> **Check the entity id first.** The ids in this page assume a device named
+> "Power Pet Door" with no area. Home Assistant builds an entity's id from
+> the device, and since 2026.8 it prefixes a *newly created* entity with the
+> device's **area** — so a door in "Breakfast Area" gets
+> `binary_sensor.breakfast_area_power_pet_door_inside_schedule`. Entities
+> that existed before the 0.5.0 upgrade are migrated in place and keep their
+> original ids, so a system can legitimately hold a mix of both. Copy the
+> real id from **Settings → Devices & services → Power Pet Door**.
+
 | Entity | Type | Notes |
 |---|---|---|
 | `cover.power_pet_door_door` | Cover | Open **and hold**, or close. Reports position (0/33/66/100) and whether it is opening or closing. |
