@@ -4,7 +4,7 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.15.1
+ * Power Pet Door Schedule Card v1.15.2
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
@@ -1430,6 +1430,7 @@ class PowerPetDoorScheduleCard extends HTMLElement {
         }
         .hint-actions {
           display: flex;
+          justify-content: center;
           gap: 12px;
           margin-top: 2px;
         }
@@ -2350,7 +2351,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.1 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.2 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );
