@@ -5,6 +5,10 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  # So the whole matrix can be re-run without inventing a commit - which is
+  # what verifying a runner, or re-checking after an upstream release, would
+  # otherwise require. hassfest.yml has carried this since it was written.
+  workflow_dispatch:
   # Weekly unseeded fuzz exploration, and a full re-probe of the Home
   # Assistant matrix (upstream moves without us committing anything).
   schedule:
