@@ -45,8 +45,14 @@ keywords = ["power pet door", "pet door", "home assistant", "hacs", "home automa
 # library the integration will actually import. tests/test_ci_gates.py
 # asserts the two lists agree, so they cannot drift.
 dependencies = [
-    "pypowerpetdoor>=0.4.2",
-    "tzdata>=2024.1",
+    # No `tzdata` here, deliberately. Home Assistant's platinum
+    # `strict-typing` rule requires every entry in manifest.json's
+    # `requirements` to ship `py.typed`; tzdata does not, and there is no
+    # types-tzdata, so declaring it fails the rule outright. Nothing in
+    # custom_components/ imports it - pypowerpetdoor does - so by the
+    # library-boundary rule the floor belongs there, and since 0.4.3 it is
+    # `tzdata>=2026.3`, which is what used to be pinned here.
+    "pypowerpetdoor>=0.4.3",
 ]
 
 [dependency-groups]
@@ -78,7 +84,7 @@ dev = [
     "syrupy>=4.7.0",
     # The simulator, for the integration tests that drive a real protocol
     # conversation instead of a mock.
-    "pypowerpetdoor[simulator]>=0.4.2",
+    "pypowerpetdoor[simulator]>=0.4.3",
     # Static analysis
     "mypy>=1.13.0",
     "ruff>=0.8.0",

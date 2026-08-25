@@ -16,6 +16,7 @@ import importlib.util
 import json
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -75,12 +76,12 @@ class TestShippedAndDevelopmentRequirementsAgree:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         shipped = {_requirement_name(r) for r in manifest["requirements"]}
 
-        text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        block = re.search(r"^dependencies\s*=\s*\[(.*?)^\]", text, re.S | re.M)
-        assert block, "pyproject.toml has no [project] dependencies block"
-        declared = {
-            _requirement_name(e) for e in re.findall(r"[\"']([^\"']+)[\"']", block.group(1))
-        }
+        # Parsed as TOML, not scraped with a regex. The regex this replaced
+        # matched every quoted run inside the block, comments included, so
+        # an apostrophe in a comment ("Home Assistant\'s") registered as a
+        # dependency named `s` and failed the build for a prose edit.
+        pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        declared = {_requirement_name(e) for e in pyproject["project"]["dependencies"]}
 
         assert shipped == declared, (
             f"manifest.json requires {sorted(shipped)} but pyproject.toml "
@@ -656,3 +657,27 @@ class TestTheBorrowedScheduleConstants:
             "schedule.py imports from homeassistant.components.schedule, "
             "so the manifest must declare it"
         )
+
+
+class TestEveryActionHasAnIcon:
+    """`icons.json` must carry an icon for every action in `services.yaml`.
+
+    Home Assistant renders an action without one as a generic cog in the UI
+    action picker, and hassfest reports it as an error - but only in core
+    mode, which is not how this integration is validated in CI, so nothing
+    here would have said so. `set_schedule` shipped without one for exactly
+    that reason.
+    """
+
+    def test_no_action_is_missing_its_icon(self):
+        services = yaml.safe_load((COMPONENT / "services.yaml").read_text(encoding="utf-8"))
+        icons = json.loads((COMPONENT / "icons.json").read_text(encoding="utf-8"))
+        missing = sorted(set(services) - set(icons.get("services", {})))
+        assert not missing, f"icons.json has no icon for: {missing}"
+
+    def test_no_icon_names_an_action_that_does_not_exist(self):
+        """A renamed action leaves its icon behind, pointing at nothing."""
+        services = yaml.safe_load((COMPONENT / "services.yaml").read_text(encoding="utf-8"))
+        icons = json.loads((COMPONENT / "icons.json").read_text(encoding="utf-8"))
+        orphaned = sorted(set(icons.get("services", {})) - set(services))
+        assert not orphaned, f"icons.json has icons for actions that do not exist: {orphaned}"

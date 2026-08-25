@@ -1,44 +1,156 @@
 {
   "entity": {
     "binary_sensor": {
-      "remote_id": { "default": "mdi:remote", "state": { "off": "mdi:remote-off" } },
-      "remote_key": { "default": "mdi:key-variant", "state": { "off": "mdi:key-remove" } },
-      "inside_schedule": { "default": "mdi:home-clock", "state": { "off": "mdi:home-clock-outline" } },
-      "outside_schedule": { "default": "mdi:sun-clock", "state": { "off": "mdi:sun-clock-outline" } }
+      "remote_id": {
+        "default": "mdi:remote",
+        "state": {
+          "off": "mdi:remote-off"
+        }
+      },
+      "remote_key": {
+        "default": "mdi:key-variant",
+        "state": {
+          "off": "mdi:key-remove"
+        }
+      },
+      "inside_schedule": {
+        "default": "mdi:home-clock",
+        "state": {
+          "off": "mdi:home-clock-outline"
+        }
+      },
+      "outside_schedule": {
+        "default": "mdi:sun-clock",
+        "state": {
+          "off": "mdi:sun-clock-outline"
+        }
+      }
     },
     "button": {
-      "cycle": { "default": "mdi:autorenew" },
-      "toggle": { "default": "mdi:swap-vertical" }
+      "cycle": {
+        "default": "mdi:autorenew"
+      },
+      "toggle": {
+        "default": "mdi:swap-vertical"
+      }
     },
     "number": {
-      "hold_open_time": { "default": "mdi:timer-outline" },
-      "sensor_trigger_voltage": { "default": "mdi:high-voltage" },
-      "sleep_sensor_trigger_voltage": { "default": "mdi:sleep" }
+      "hold_open_time": {
+        "default": "mdi:timer-outline"
+      },
+      "sensor_trigger_voltage": {
+        "default": "mdi:high-voltage"
+      },
+      "sleep_sensor_trigger_voltage": {
+        "default": "mdi:sleep"
+      }
     },
     "select": {
-      "timezone": { "default": "mdi:map-clock-outline" }
+      "timezone": {
+        "default": "mdi:map-clock-outline"
+      }
     },
     "sensor": {
-      "latency": { "default": "mdi:lan-connect" },
-      "status": { "default": "mdi:door" },
-      "total_open_cycles": { "default": "mdi:reload" },
-      "total_auto_retracts": { "default": "mdi:alert" },
-      "device_time": { "default": "mdi:clock-outline" }
+      "latency": {
+        "default": "mdi:lan-connect"
+      },
+      "status": {
+        "default": "mdi:door"
+      },
+      "total_open_cycles": {
+        "default": "mdi:reload"
+      },
+      "total_auto_retracts": {
+        "default": "mdi:alert"
+      },
+      "device_time": {
+        "default": "mdi:clock-outline"
+      }
     },
     "switch": {
-      "connection": { "default": "mdi:lan-connect", "state": { "off": "mdi:lan-disconnect" } },
-      "power": { "default": "mdi:power", "state": { "off": "mdi:power-off" } },
-      "inside_sensor": { "default": "mdi:leak", "state": { "off": "mdi:leak-off" } },
-      "outside_sensor": { "default": "mdi:leak", "state": { "off": "mdi:leak-off" } },
-      "auto": { "default": "mdi:calendar-week", "state": { "off": "mdi:calendar-remove" } },
-      "outside_safety_lock": { "default": "mdi:weather-sunny-alert", "state": { "off": "mdi:shield-sun-outline" } },
-      "auto_retract": { "default": "mdi:window-shutter-alert", "state": { "off": "mdi:window-shutter-settings" } },
-      "pet_proximity_keep_open": { "default": "mdi:window-shutter-open", "state": { "off": "mdi:window-shutter" } },
-      "notify_inside_on": { "default": "mdi:motion-sensor", "state": { "off": "mdi:motion-sensor-off" } },
-      "notify_inside_off": { "default": "mdi:motion-sensor", "state": { "off": "mdi:motion-sensor-off" } },
-      "notify_outside_on": { "default": "mdi:motion-sensor", "state": { "off": "mdi:motion-sensor-off" } },
-      "notify_outside_off": { "default": "mdi:motion-sensor", "state": { "off": "mdi:motion-sensor-off" } },
-      "notify_low_battery": { "default": "mdi:battery-alert-variant-outline", "state": { "off": "mdi:battery-remove-outline" } }
+      "connection": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "off": "mdi:lan-disconnect"
+        }
+      },
+      "power": {
+        "default": "mdi:power",
+        "state": {
+          "off": "mdi:power-off"
+        }
+      },
+      "inside_sensor": {
+        "default": "mdi:leak",
+        "state": {
+          "off": "mdi:leak-off"
+        }
+      },
+      "outside_sensor": {
+        "default": "mdi:leak",
+        "state": {
+          "off": "mdi:leak-off"
+        }
+      },
+      "auto": {
+        "default": "mdi:calendar-week",
+        "state": {
+          "off": "mdi:calendar-remove"
+        }
+      },
+      "outside_safety_lock": {
+        "default": "mdi:weather-sunny-alert",
+        "state": {
+          "off": "mdi:shield-sun-outline"
+        }
+      },
+      "auto_retract": {
+        "default": "mdi:window-shutter-alert",
+        "state": {
+          "off": "mdi:window-shutter-settings"
+        }
+      },
+      "pet_proximity_keep_open": {
+        "default": "mdi:window-shutter-open",
+        "state": {
+          "off": "mdi:window-shutter"
+        }
+      },
+      "notify_inside_on": {
+        "default": "mdi:motion-sensor",
+        "state": {
+          "off": "mdi:motion-sensor-off"
+        }
+      },
+      "notify_inside_off": {
+        "default": "mdi:motion-sensor",
+        "state": {
+          "off": "mdi:motion-sensor-off"
+        }
+      },
+      "notify_outside_on": {
+        "default": "mdi:motion-sensor",
+        "state": {
+          "off": "mdi:motion-sensor-off"
+        }
+      },
+      "notify_outside_off": {
+        "default": "mdi:motion-sensor",
+        "state": {
+          "off": "mdi:motion-sensor-off"
+        }
+      },
+      "notify_low_battery": {
+        "default": "mdi:battery-alert-variant-outline",
+        "state": {
+          "off": "mdi:battery-remove-outline"
+        }
+      }
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "service": "mdi:calendar-clock"
     }
   }
 }

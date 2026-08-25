@@ -218,7 +218,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Changed to use CoverEntityFeature enum
 
-### Fixed
+#- **Platinum is now what Home Assistant's own validator says, not just what
+  the manifest claims.** hassfest's quality-scale plugin returns immediately
+  for a non-core integration, so the file it exists to validate was never
+  opened in CI. Run against a core-mode copy it reported that Bronze was not
+  met - and therefore neither was Platinum - because three of the 54 rules
+  (`common-modules`, `docs-conditions`, `docs-triggers`) were simply absent
+  and every rule key is required. All 54 are present now, and the rule list
+  is pinned in `tests/test_ci_gates.py` so an upstream addition cannot go
+  unnoticed again.
+- **`tzdata` is no longer a declared requirement.** The platinum
+  `strict-typing` rule requires every entry in `manifest.json`'s
+  `requirements` to ship `py.typed`; `tzdata` does not, and there is no
+  `types-tzdata`. Nothing in this integration imports it - `pypowerpetdoor`
+  does - so the floor moved there, and 0.4.3 raises it to `tzdata>=2026.3`,
+  which is the version this used to pin. Users still get a current IANA
+  database; the door still gets correct DST rules.
+- **The `set_schedule` action has an icon**, so it no longer renders as a
+  generic cog in the action picker.
+## Fixed
 - Updated version number
 
 ## [0.4.5] - 2024-01-01

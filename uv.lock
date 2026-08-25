@@ -1770,7 +1770,6 @@ version = "0.5.0"
 source = { virtual = "." }
 dependencies = [
     { name = "pypowerpetdoor" },
-    { name = "tzdata" },
 ]
 
 [package.dev-dependencies]
@@ -1797,17 +1796,14 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "pypowerpetdoor", specifier = ">=0.4.2" },
-    { name = "tzdata", specifier = ">=2024.1" },
-]
+requires-dist = [{ name = "pypowerpetdoor", specifier = ">=0.4.3" }]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "hypothesis", specifier = ">=6.100.0" },
     { name = "mypy", specifier = ">=1.13.0" },
     { name = "pre-commit", specifier = ">=3.7.0" },
-    { name = "pypowerpetdoor", extras = ["simulator"], specifier = ">=0.4.2" },
+    { name = "pypowerpetdoor", extras = ["simulator"], specifier = ">=0.4.3" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "pytest-cov", specifier = ">=5.0.0" },
@@ -3668,14 +3664,14 @@ wheels = [
 
 [[package]]
 name = "pypowerpetdoor"
-version = "0.4.2"
+version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tzdata" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/b1/61147b750901cbfd96524a5f8b104bffb148c9ed8c17e25794d30e7cd0fc/pypowerpetdoor-0.4.2.tar.gz", hash = "sha256:7c59fc3217e1c5b6dc400a0f3776ae58d7aaf045236c50043f8687996c976c44", size = 629510, upload-time = "2026-08-24T22:24:57.447Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/fc/12f253697bb30c372b9943a5f5a4c0ae077cfdd8fbd16eef902979879165/pypowerpetdoor-0.4.3.tar.gz", hash = "sha256:c00b9150442d2906aa5a725f9d42b98e57824f25f8cc081380e86db16d12aa43", size = 630081, upload-time = "2026-08-25T16:34:25.994Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/a7/6ced9522818b1db3dcc441cb9b8b7cfb858b5464707417665a3e71350d64/pypowerpetdoor-0.4.2-py3-none-any.whl", hash = "sha256:a56565c7142e65f3a6e98f1785f92795b1ca01d6716ac1255a5897f0a185e820", size = 221313, upload-time = "2026-08-24T22:24:55.59Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/0c/9231fe56d353b2cc656af1ac515b401820cee24106cc5ae92c000bbadf6a/pypowerpetdoor-0.4.3-py3-none-any.whl", hash = "sha256:ace7d0d6074143f6142c111013e408dfa463e61a74dff3f2bd68ac70deb6fda1", size = 221314, upload-time = "2026-08-25T16:34:24.148Z" },
 ]
 
 [package.optional-dependencies]
