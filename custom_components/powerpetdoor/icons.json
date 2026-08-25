@@ -1,18 +1,6 @@
 {
   "entity": {
     "binary_sensor": {
-      "remote_id": {
-        "default": "mdi:remote",
-        "state": {
-          "off": "mdi:remote-off"
-        }
-      },
-      "remote_key": {
-        "default": "mdi:key-variant",
-        "state": {
-          "off": "mdi:key-remove"
-        }
-      },
       "inside_schedule": {
         "default": "mdi:home-clock",
         "state": {
@@ -62,9 +50,6 @@
       },
       "total_auto_retracts": {
         "default": "mdi:alert"
-      },
-      "device_time": {
-        "default": "mdi:clock-outline"
       }
     },
     "switch": {

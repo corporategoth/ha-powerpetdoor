@@ -110,9 +110,6 @@ See [schedules.md](schedules.md) for editing.
 | `sensor.power_pet_door_latency` | enabled | Round-trip time to the door, in ms. Useful for spotting a flaky WiFi link. Safe to disable — unlike in older versions, nothing depends on it. |
 | `sensor.power_pet_door_total_open_cycles` | **disabled** | Lifetime open count. |
 | `sensor.power_pet_door_total_auto_retracts` | **disabled** | Lifetime count of obstruction retractions. A rising number means something keeps getting caught in the door. |
-| `sensor.power_pet_door_door_clock` | **disabled** | The door's own clock. Worth checking if schedules fire at the wrong time. |
-| `binary_sensor.power_pet_door_remote_paired` | **disabled** | Whether a remote is paired. |
-| `binary_sensor.power_pet_door_remote_key_set` | **disabled** | Whether a remote key is set. |
 
 Firmware and hardware versions are on the **device** page, not separate
 entities.

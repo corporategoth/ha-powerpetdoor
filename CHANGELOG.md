@@ -264,7 +264,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.4] - 2023-12-31
 
-### Fixed
+#- **The Door clock and the two Remote sensors are gone.** All three reported
+  a value nothing had ever fetched - the clock read `unknown` forever, and
+  the remote sensors read `off`, which is a made-up answer rather than a
+  missing one. Polling them was the wrong fix: a clock is misleading the
+  moment it is a refresh interval out of date, and the remote pairing is a
+  phone-app concern Home Assistant can neither use nor change. Both values
+  are still in the **diagnostics download**, where they are read fresh at
+  the moment it is taken, which is when they are actually worth having.
+## Fixed
 - Fixed multiple doors sharing same state and listeners (PR #11 by @sushantsaxena)
 - Move initialization to constructor to fix state isolation
 

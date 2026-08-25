@@ -86,11 +86,6 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
         #: Per coordinator, so two doors never wait on each other.
         self.schedule_lock = asyncio.Lock()
 
-        #: Whether the door's remote pairing has been read on this
-        #: connection. It is static, so it is read once and again after a
-        #: reconnect, rather than every refresh.
-        self._remote_info_read = False
-
         super().__init__(
             hass,
             _LOGGER,
@@ -118,7 +113,6 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
         on a different address must leave the entry in a retrying state with
         a message, not a half-set-up entry full of unavailable entities.
         """
-        self._remote_info_read = False
         try:
             await self.door.connect()
         except (CommandError, OSError, TimeoutError) as err:
@@ -157,26 +151,6 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
             # and let entities keep serving a stale cache as though current.
             await self.door.refresh_status()
             await self.door.refresh()
-            # `refresh()` deliberately excludes both of these, and says so:
-            # the clock is "a diagnostic, and it goes stale the moment it
-            # arrives", the remote pairing is "static pairing information,
-            # not live state". Both are reasonable for a library, and both
-            # leave an entity here reporting a value nothing ever set - the
-            # Door clock sensor sat at `unknown` forever, and the two remote
-            # binary sensors reported `off`, which is a made-up answer rather
-            # than a missing one.
-            #
-            # The clock is polled every cycle because it is what schedules
-            # are evaluated against: a door whose clock or timezone has
-            # drifted opens on the wrong schedule with nothing else to show
-            # for it, and this is the only place that is visible.
-            await self.door.refresh_time()
-            # The pairing is static, so once per connection is enough. Two
-            # round trips per refresh interval to re-learn an unchanged
-            # answer is what the library is avoiding, and it is right.
-            if not self._remote_info_read:
-                await self.door.refresh_remote_info()
-                self._remote_info_read = True
         except (CommandError, OSError, TimeoutError) as err:
             raise UpdateFailed(str(err)) from err
 
@@ -234,6 +208,26 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
         history, so it is fixed by compatibility rather than chosen.
         """
         return f"{self.door.host}:{self.door.port}"
+
+    async def async_refresh_diagnostic_data(self) -> None:
+        """Fetch the values `refresh()` deliberately leaves out.
+
+        The door's clock and its remote pairing are excluded from the bulk
+        refresh by the library, with reasons that hold: the clock "goes
+        stale the moment it arrives", the pairing is static. Neither is
+        worth a polled entity, so they are read here - on demand, when a
+        diagnostics download is actually being taken.
+
+        Failures are swallowed: a diagnostics download is what a user
+        produces when something is already wrong, and it must not be the
+        one thing that also fails. A door that cannot answer simply leaves
+        the previous values in place.
+        """
+        for refresh in (self.door.refresh_time, self.door.refresh_remote_info):
+            try:
+                await refresh()
+            except (CommandError, OSError, TimeoutError) as err:
+                _LOGGER.debug("Diagnostic refresh %s failed: %s", refresh.__name__, err)
 
     def diagnostics(self) -> dict[str, Any]:
         """Everything known about the door, for the diagnostics download."""

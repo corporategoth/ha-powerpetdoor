@@ -190,7 +190,8 @@ Worth knowing, because it explains some behaviour:
 The door evaluates its schedule against **its own clock and timezone**, not
 Home Assistant's. If schedules fire an hour out, check:
 
-1. `sensor.<name>_door_clock` (disabled by default) — the door's own time.
+1. The `device_time` in a **diagnostics download** — the door's own clock,
+   read at the moment the download is taken.
 2. `select.<name>_timezone` (disabled by default) — set it, or pick
    *Use Home Assistant timezone* to copy Home Assistant's.
 

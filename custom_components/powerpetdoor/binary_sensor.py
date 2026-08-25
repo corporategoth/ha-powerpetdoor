@@ -87,20 +87,6 @@ BINARY_SENSORS: tuple[PowerPetDoorBinarySensorDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda door: door.battery.charging,
     ),
-    PowerPetDoorBinarySensorDescription(
-        key="remote_id",
-        translation_key="remote_id",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-        value_fn=lambda door: door.has_remote_id,
-    ),
-    PowerPetDoorBinarySensorDescription(
-        key="remote_key",
-        translation_key="remote_key",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-        value_fn=lambda door: door.has_remote_key,
-    ),
 )
 
 

@@ -23,7 +23,6 @@ STATUS = "sensor.power_pet_door_door_status"
 STRINGS_PATH = "custom_components/powerpetdoor/strings.json"
 OPEN_CYCLES = "sensor.power_pet_door_total_open_cycles"
 AUTO_RETRACTS = "sensor.power_pet_door_total_auto_retracts"
-CLOCK = "sensor.power_pet_door_door_clock"
 
 
 @pytest.fixture(autouse=True)
@@ -212,40 +211,7 @@ async def test_the_lifetime_counters_are_total_increasing(
     assert hass.states.get(entity_id).attributes["state_class"] == "total_increasing"
 
 
-async def test_the_door_clock_is_reported_as_the_door_spells_it(
-    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
-) -> None:
-    """Not as a timestamp: the door's value carries no offset.
-
-    Presenting it as an absolute instant would be a guess, and its whole
-    value is spotting a door whose clock has drifted - which is exactly what
-    schedules go wrong on.
-    """
-    mock_door.device_time = "2026-08-23 12:00:00"
-    push(mock_door)
-    await hass.async_block_till_done()
-
-    state = hass.states.get(CLOCK)
-    assert state.state == "2026-08-23 12:00:00"
-    assert "device_class" not in state.attributes
-
-
-async def test_a_door_that_has_not_reported_its_clock_shows_nothing(
-    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
-) -> None:
-    """An empty string is "not read yet", not a clock reading of "".
-
-    The library returns "" before the first `refresh_time`, and publishing
-    that would render as a blank value rather than as unknown.
-    """
-    mock_door.device_time = ""
-    push(mock_door)
-    await hass.async_block_till_done()
-
-    assert hass.states.get(CLOCK).state == "unknown"
-
-
-@pytest.mark.parametrize("entity_id", [BATTERY, LATENCY, STATUS, OPEN_CYCLES, AUTO_RETRACTS, CLOCK])
+@pytest.mark.parametrize("entity_id", [BATTERY, LATENCY, STATUS, OPEN_CYCLES, AUTO_RETRACTS])
 async def test_every_sensor_stays_available_while_the_door_is_powered_off(
     hass: HomeAssistant,
     setup_integration: MockConfigEntry,
@@ -270,7 +236,7 @@ async def test_every_sensor_stays_available_while_the_door_is_powered_off(
     assert state not in ("unavailable", "unknown")
 
 
-@pytest.mark.parametrize("entity_id", [BATTERY, LATENCY, STATUS, OPEN_CYCLES, AUTO_RETRACTS, CLOCK])
+@pytest.mark.parametrize("entity_id", [BATTERY, LATENCY, STATUS, OPEN_CYCLES, AUTO_RETRACTS])
 async def test_every_sensor_goes_unavailable_when_the_door_is_unreachable(
     hass: HomeAssistant,
     setup_integration: MockConfigEntry,

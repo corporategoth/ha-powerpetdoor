@@ -42,8 +42,6 @@ def local(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> da
 
 MAINS = "binary_sensor.power_pet_door_mains_power"
 CHARGING = "binary_sensor.power_pet_door_battery_charging"
-REMOTE_ID = "binary_sensor.power_pet_door_remote_paired"
-REMOTE_KEY = "binary_sensor.power_pet_door_remote_key_set"
 INSIDE_SCHEDULE = "binary_sensor.power_pet_door_inside_schedule"
 OUTSIDE_SCHEDULE = "binary_sensor.power_pet_door_outside_schedule"
 
@@ -133,29 +131,6 @@ async def test_the_battery_binary_sensors_follow_the_doors_power_situation(
     assert hass.states.get(entity_id).state == "on"
 
     mock_door.battery = off_battery
-    push(mock_door)
-    await hass.async_block_till_done()
-    assert hass.states.get(entity_id).state == "off"
-
-
-@pytest.mark.parametrize(
-    ("entity_id", "prop"),
-    [(REMOTE_ID, "has_remote_id"), (REMOTE_KEY, "has_remote_key")],
-)
-async def test_the_remote_sensors_report_their_own_flag(
-    hass: HomeAssistant,
-    setup_integration: MockConfigEntry,
-    mock_door: MagicMock,
-    entity_id: str,
-    prop: str,
-) -> None:
-    """Two adjacent booleans that are easy to swap."""
-    setattr(mock_door, prop, True)
-    push(mock_door)
-    await hass.async_block_till_done()
-    assert hass.states.get(entity_id).state == "on"
-
-    setattr(mock_door, prop, False)
     push(mock_door)
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == "off"

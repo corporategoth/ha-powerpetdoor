@@ -77,12 +77,6 @@
       "battery_charging": {
         "name": "Battery charging"
       },
-      "remote_id": {
-        "name": "Remote paired"
-      },
-      "remote_key": {
-        "name": "Remote key set"
-      },
       "inside_schedule": {
         "name": "Inside schedule"
       },
@@ -146,9 +140,6 @@
       },
       "total_auto_retracts": {
         "name": "Total auto-retracts"
-      },
-      "device_time": {
-        "name": "Door clock"
       }
     },
     "switch": {

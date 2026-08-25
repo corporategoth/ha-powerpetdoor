@@ -82,7 +82,10 @@ If it does **not** recover:
 
 The door applies schedules using **its own clock**, not Home Assistant's.
 
-1. Enable `sensor.<name>_door_clock` and compare it with your local time.
+1. Take a **diagnostics download** and compare its `device_time` with
+   your local time. The door's clock is read fresh when the download is
+   taken, rather than being polled into an entity that would be stale
+   by up to a refresh interval.
 2. Enable `select.<name>_timezone` and set it — or pick *Use Home Assistant
    timezone*.
 

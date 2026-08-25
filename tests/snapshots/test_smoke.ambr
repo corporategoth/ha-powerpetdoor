@@ -99,56 +99,6 @@
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_outside_schedule-state]
   'on'
 # ---
-# name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_key_set-entry]
-  dict({
-    'capabilities': None,
-    'device_class': None,
-    'disabled_by': None,
-    'domain': 'binary_sensor',
-    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'binary_sensor.power_pet_door_remote_key_set',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'name': None,
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Remote key set',
-    'platform': 'powerpetdoor',
-    'supported_features': 0,
-    'translation_key': 'remote_key',
-    'unique_id': '192.0.2.10:3000-remote_key',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_key_set-state]
-  'off'
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_paired-entry]
-  dict({
-    'capabilities': None,
-    'device_class': None,
-    'disabled_by': None,
-    'domain': 'binary_sensor',
-    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'binary_sensor.power_pet_door_remote_paired',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'name': None,
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Remote paired',
-    'platform': 'powerpetdoor',
-    'supported_features': 0,
-    'translation_key': 'remote_id',
-    'unique_id': '192.0.2.10:3000-remote_id',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_paired-state]
-  'off'
-# ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_cycle-entry]
   dict({
     'capabilities': None,
@@ -967,31 +917,6 @@
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_battery-state]
   '87'
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_clock-entry]
-  dict({
-    'capabilities': None,
-    'device_class': None,
-    'disabled_by': None,
-    'domain': 'sensor',
-    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'sensor.power_pet_door_door_clock',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'name': None,
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Door clock',
-    'platform': 'powerpetdoor',
-    'supported_features': 0,
-    'translation_key': 'device_time',
-    'unique_id': '192.0.2.10:3000-device_time',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_clock-state]
-  '2026-08-23 12:00:00'
 # ---
 # name: test_the_entity_surface_matches_its_snapshot[sensor][sensor.power_pet_door_door_status-entry]
   dict({

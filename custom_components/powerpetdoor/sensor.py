@@ -91,18 +91,6 @@ SENSORS: tuple[PowerPetDoorSensorDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda door: door.total_auto_retracts,
     ),
-    PowerPetDoorSensorDescription(
-        key="device_time",
-        translation_key="device_time",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-        # Reported as the door's own clock string rather than a timestamp
-        # device class: the door has no timezone offset in the value, so
-        # presenting it as an absolute instant would be a guess. Its value
-        # is in spotting a door whose clock has drifted, which is exactly
-        # what schedules go wrong on.
-        value_fn=lambda door: door.device_time or None,
-    ),
 )
 
 

@@ -27,6 +27,21 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     coordinator = entry.runtime_data
+
+    # Two things the periodic refresh deliberately does not fetch, read here
+    # instead. `door.refresh()` leaves both out on purpose - the clock is "a
+    # diagnostic, and it goes stale the moment it arrives", the remote
+    # pairing is "static pairing information, not live state" - and neither
+    # earns a permanent entity: a clock that is up to a refresh interval
+    # wrong is worse than none, and the pairing is a phone-app concern Home
+    # Assistant can neither use nor change.
+    #
+    # A diagnostics download is exactly where they DO belong: it is asked
+    # for, once, at the moment someone is debugging, so the cost is paid
+    # only then and the values are accurate when read. The door clock is the
+    # one way to see that a door will fire its schedules at the wrong time.
+    await coordinator.async_refresh_diagnostic_data()
+
     return {
         "entry": {
             "data": async_redact_data(dict(entry.data), TO_REDACT),

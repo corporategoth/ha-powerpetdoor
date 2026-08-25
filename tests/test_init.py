@@ -232,3 +232,50 @@ async def test_the_locale_table_is_read_off_the_loop_before_the_door_is_built(
     assert events.index("read-off-loop") < events.index("construct"), (
         f"the locale was not warmed before the door was built: {events}"
     )
+
+
+async def test_the_diagnostics_download_reads_the_clock_and_the_pairing(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    hass_client: ClientSessionGenerator,
+) -> None:
+    """Two values `refresh()` deliberately never fetches.
+
+    The library leaves both out with reasons that hold - the clock "goes
+    stale the moment it arrives", the pairing is static - and neither earns
+    a polled entity here: a clock up to a refresh interval wrong is worse
+    than none, and the pairing is a phone-app concern Home Assistant can
+    neither use nor change.
+
+    A diagnostics download is where they DO belong, and asking for them
+    there is what makes them true rather than the defaults they would
+    otherwise be.
+    """
+    mock_door.refresh_time.reset_mock()
+    mock_door.refresh_remote_info.reset_mock()
+
+    await get_diagnostics_for_config_entry(hass, hass_client, setup_integration)
+
+    assert mock_door.refresh_time.await_count == 1
+    assert mock_door.refresh_remote_info.await_count == 1
+
+
+async def test_a_door_that_will_not_answer_still_produces_diagnostics(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_door: MagicMock,
+    hass_client: ClientSessionGenerator,
+) -> None:
+    """A diagnostics download is what a user takes when something is wrong.
+
+    It must not be the one thing that also fails, so a door that cannot
+    answer these two leaves the previous values in place rather than
+    raising through the download.
+    """
+    mock_door.refresh_time.side_effect = TimeoutError("no reply")
+    mock_door.refresh_remote_info.side_effect = OSError("connection reset")
+
+    report = await get_diagnostics_for_config_entry(hass, hass_client, setup_integration)
+
+    assert report["door"]["status"] == "DOOR_CLOSED"
