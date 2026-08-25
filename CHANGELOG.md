@@ -249,7 +249,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.5] - 2024-01-01
 
-### Fixed
+#- **The Door clock sensor actually reads the door's clock.** It reported
+  `unknown` from the moment it was created and never changed, because
+  nothing asked the door for the time. The clock is what schedules are
+  evaluated against, so a door whose clock or timezone has drifted opens on
+  the wrong schedule with nothing else to show for it - which is the entire
+  reason to expose it.
+- **The Remote paired and Remote key set sensors report the door's answer**
+  rather than `off`. Nothing had ever queried the pairing, so both showed a
+  made-up value, which is worse than showing none. Read once per
+  connection, since pairing is static.
+## Fixed
 - Moved initialization in client.py
 
 ## [0.4.4] - 2023-12-31

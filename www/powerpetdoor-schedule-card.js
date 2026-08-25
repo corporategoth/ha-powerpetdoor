@@ -4,7 +4,7 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.15.2
+ * Power Pet Door Schedule Card v1.15.3
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
@@ -113,6 +113,12 @@ const STRINGS = {
 function t(hass, key, replacements) {
   const language = (hass && hass.language) || 'en';
   const table = STRINGS[language] || {};
+  // The final `|| key` is unreachable from any input: every call site passes
+  // a literal, and scripts/check_translations.py fails the build on one that
+  // is not in the table. It stays anyway, because the alternative when it IS
+  // wrong is rendering `undefined` into the card - and it is the one branch
+  // arm this file does not cover, rather than being faked with a test that
+  // reaches in to break the table.
   let text = table[key] || STRINGS.en[key] || key;
   if (replacements) {
     for (const [name, value] of Object.entries(replacements)) {
@@ -2351,7 +2357,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.2 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.15.3 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );

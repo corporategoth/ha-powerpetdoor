@@ -2044,3 +2044,301 @@ describe('copy edge cases', () => {
     expect(messages[0]).toContain('nope');
   });
 });
+
+describe('guards that keep a half-finished drag from doing damage', () => {
+  test('a click arriving mid-drag does not also open the editor', async () => {
+    // mouseup fires before click. A drag that ended on a slot would open
+    // its dialog on top of the save that just happened.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    const slot = card.shadowRoot.querySelector('.time-slot[data-day="monday"][data-index="0"]');
+    card._isDragging = true;
+
+    slot.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await flush();
+
+    expect(card._editingSlot).toBeNull();
+  });
+
+  test('a click after a drag that moved does not open the editor', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    const slot = card.shadowRoot.querySelector('.time-slot[data-day="monday"][data-index="0"]');
+    card._dragMoved = true;
+
+    slot.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await flush();
+
+    expect(card._editingSlot).toBeNull();
+  });
+
+  test('pressing down on a window does not also start a create drag', async () => {
+    // The column's mousedown sees the event bubble up from the slot, and
+    // starting a create there would fight the resize the slot began.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    const slot = card.shadowRoot.querySelector('.time-slot[data-day="monday"][data-index="0"]');
+
+    card._handleDayMouseDown('monday', { target: slot, preventDefault() {} });
+
+    expect(card._dragType).toBeNull();
+  });
+
+  test('a mouseup with no drag in progress is ignored', async () => {
+    const { card, hass } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    hass.callWS.mockClear();
+
+    mouse(document, 'mouseup', 200);
+    await flush();
+
+    expect(hass.callWS).not.toHaveBeenCalled();
+  });
+
+  test('a drag whose column measurement is missing does nothing', async () => {
+    // _columnRects is filled on mousedown; a re-render between then and the
+    // first move can empty it, and reading a rect off undefined would throw
+    // inside a document-level listener.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    const edge = card.shadowRoot.querySelector('.slot-edge.bottom[data-day="monday"][data-index="0"]');
+    mouse(edge, 'mousedown', 240);
+    card._columnRects = {};
+
+    expect(() => mouse(document, 'mousemove', 300)).not.toThrow();
+  });
+
+  test('resizing on a day that is not rendered does nothing', async () => {
+    // The column is looked up by day name; a stale listener firing after a
+    // re-render that dropped the day would otherwise measure undefined.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+
+    expect(() =>
+      card._handleSlotEdgeMouseDown('nonesuch', 0, 'top', {
+        stopPropagation() {}, preventDefault() {},
+      }),
+    ).not.toThrow();
+    expect(card._isDragging).toBe(false);
+  });
+
+  test('previewing a drag on a day that is not rendered does nothing', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    card._isDragging = true;
+    card._dragDay = 'nonesuch';
+
+    expect(() => card._updateDragPreview()).not.toThrow();
+  });
+
+  test('a keypress inside a window does not also add one to the day', async () => {
+    // The column and the slot both listen for Enter. Without the target
+    // check, opening a window's editor with the keyboard also created a
+    // new window behind it.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    const slot = card.shadowRoot.querySelector('.time-slot[data-day="monday"][data-index="0"]');
+
+    slot.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await flush();
+
+    expect(card._schedule.monday).toHaveLength(1);
+  });
+
+  test('Space works as well as Enter on a day column', async () => {
+    // Both are the standard activation keys for role="button", and they are
+    // one `||` apart - only Enter was ever exercised.
+    const { card } = await openCard({});
+    const column = card.shadowRoot.querySelector('.day-column[data-day="monday"]');
+
+    column.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    await flush();
+
+    expect(card._schedule.monday).toHaveLength(1);
+  });
+
+  test('Space opens a window editor as well as Enter', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    const slot = card.shadowRoot.querySelector('.time-slot[data-day="monday"][data-index="0"]');
+
+    slot.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    await flush();
+
+    expect(card._editingSlot).toEqual({ day: 'monday', index: 0 });
+  });
+});
+
+describe('resolving a resize against neighbours that are not there', () => {
+  test('a day with no windows resolves to the raw pointer', async () => {
+    const { card } = await openCard({});
+
+    expect(card._resolveResize('monday', 0, 'bottom', 600)).toEqual({
+      minutes: 600, mergeWith: null, doomed: [],
+    });
+  });
+
+  test('an index that no longer exists resolves to the raw pointer', async () => {
+    // A reload landing mid-drag can shorten the day under the drag.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+
+    expect(card._resolveResize('monday', 9, 'bottom', 600)).toEqual({
+      minutes: 600, mergeWith: null, doomed: [],
+    });
+  });
+
+  test('the top edge stops short of a window above without touching it', async () => {
+    // The mirror of the bottom-edge case, and a separate arm of the same
+    // loop: dragging up to 09:00 clears neither 06:00-08:00 nor merges it.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+
+    expect(card._resolveResize('monday', 1, 'top', 540)).toEqual({
+      minutes: 540, mergeWith: null, doomed: [],
+    });
+  });
+
+  test('a doomed window that vanished before release is skipped', async () => {
+    // Absorbing walks indices captured during the move; a reload between
+    // the last move and the mouseup can leave one pointing at nothing.
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '08:00' }] });
+    const edge = card.shadowRoot.querySelector('.slot-edge.bottom[data-day="monday"][data-index="0"]');
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 200);
+    card._dragDoomed = [9];
+
+    expect(() => mouse(document, 'mouseup', 200)).not.toThrow();
+    await flush();
+    expect(card._schedule.monday).toEqual([{ from: '06:00', to: '10:00' }]);
+  });
+});
+
+describe('the last few guards', () => {
+  test('a language with no table of its own falls back to English', async () => {
+    // STRINGS only ships `en`; every other language reaches the fallback on
+    // every key, so getting this wrong blanks the card for most of the world.
+    const hass = makeHass({ language: 'de' });
+    hass.callWS = jest.fn().mockResolvedValue({ entity_id: ENTITY, kind: 'inside', schedule: {} });
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+
+    expect(card.shadowRoot.textContent).toContain('Inside Sensor');
+  });
+
+  test('a null value renders as empty rather than the word null', async () => {
+    // escapeHtml is the only thing between device-supplied text and the DOM,
+    // and a missing attribute arrives as null rather than a string.
+    const { card } = await openCard({});
+
+    expect(card._formatTime(null)).not.toContain('null');
+  });
+
+  test('loading with no hass yet does nothing', async () => {
+    // Home Assistant sets `config` and `hass` in either order, so the first
+    // render can happen before there is a connection to ask.
+    const { card } = await openCard({});
+    card._hass = null;
+
+    await expect(card._loadSchedule()).resolves.toBeUndefined();
+  });
+
+  test('saving with no hass yet does nothing', async () => {
+    const { card } = await openCard({});
+    card._hass = null;
+
+    await expect(card._saveSchedule()).resolves.toBeUndefined();
+  });
+
+  test('a counterpart that returns no schedule copies an empty one', async () => {
+    // The backend omits `schedule` for a door it could not read; without the
+    // fallback the card would assign undefined and render nothing at all.
+    const OTHER = 'binary_sensor.second_door_schedule';
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockImplementation((msg) =>
+      msg.entity_id === OTHER
+        ? Promise.resolve({ entity_id: OTHER, kind: 'outside' })
+        : Promise.resolve({
+            entity_id: ENTITY, kind: 'inside',
+            schedule: { monday: [{ from: '06:00', to: '08:00' }] }, counterpart: OTHER,
+          }),
+    );
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    card._handleHeaderClick();
+    await flush();
+
+    await card._copyFromCounterpart();
+
+    expect(card._schedule).toEqual({});
+  });
+
+  test('a mouseup with no drag in progress returns immediately', async () => {
+    // The listeners are only attached during a drag, so this arrives only
+    // from a stray call - but it must not fall through and save.
+    const { card, hass } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    hass.callWS.mockClear();
+
+    card._handleMouseUp(new MouseEvent('mouseup'));
+    await flush();
+
+    expect(hass.callWS).not.toHaveBeenCalled();
+  });
+
+  test('previewing before any move has recorded a doomed set is harmless', async () => {
+    const { card } = await openCard({ monday: [{ from: '06:00', to: '20:00' }] });
+    card._isDragging = true;
+    card._dragDay = 'monday';
+    card._dragType = 'create';
+    card._dragStartMinutes = 360;
+    card._dragCurrentMinutes = 480;
+    card._dragDoomed = null;
+
+    expect(() => card._updateDragPreview()).not.toThrow();
+  });
+
+  test('rendering before the shadow root exists does nothing', async () => {
+    // Home Assistant can set properties on an element it has not upgraded
+    // yet; the setters call render().
+    const { card } = await openCard({});
+    Object.defineProperty(card, 'shadowRoot', { value: null, configurable: true });
+
+    expect(() => card.render()).not.toThrow();
+  });
+
+  test('Space toggles the header as well as Enter', async () => {
+    const hass = makeHass();
+    hass.callWS = jest.fn().mockResolvedValue({ entity_id: ENTITY, kind: 'inside', schedule: {} });
+    const card = await mountCard({ entity: ENTITY }, hass);
+    await flush();
+    const header = card.shadowRoot.getElementById('header');
+
+    header.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    await flush();
+
+    expect(card._expanded).toBe(true);
+  });
+
+  test('a keypress on the column background is the only one that adds a window', async () => {
+    // The handler is on the column, so anything inside it bubbles up. Only
+    // a press whose target IS the column should create - the hour lines and
+    // the current-time marker are decoration, not controls.
+    const { card } = await openCard({});
+    const decoration = card.shadowRoot.querySelector(
+      '.day-column[data-day="monday"] .current-time-line',
+    );
+
+    decoration.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await flush();
+
+    expect(card._schedule.monday).toBeUndefined();
+  });
+});
+
+describe('a malformed window from the door', () => {
+  test('a slot with no start time opens its editor with an empty field', async () => {
+    // The door is a cheap embedded device and has been seen to send
+    // incomplete frames. `undefined` reaching the value attribute would
+    // render the literal word; empty is what an empty field means.
+    const { card } = await openCard({ monday: [{ to: '08:00' }] });
+
+    card._handleSlotClick('monday', 0, new MouseEvent('click'));
+    await flush();
+
+    expect(card.shadowRoot.getElementById('edit-from').value).toBe('');
+  });
+});
