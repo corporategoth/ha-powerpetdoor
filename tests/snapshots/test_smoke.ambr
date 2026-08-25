@@ -149,56 +149,6 @@
 # name: test_the_entity_surface_matches_its_snapshot[binary_sensor][binary_sensor.power_pet_door_remote_paired-state]
   'off'
 # ---
-# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_close-entry]
-  dict({
-    'capabilities': None,
-    'device_class': None,
-    'disabled_by': None,
-    'domain': 'button',
-    'entity_category': None,
-    'entity_id': 'button.power_pet_door_close',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'name': None,
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Close',
-    'platform': 'powerpetdoor',
-    'supported_features': 0,
-    'translation_key': 'close',
-    'unique_id': '192.0.2.10:3000-close',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_close-state]
-  'unknown'
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open-entry]
-  dict({
-    'capabilities': None,
-    'device_class': None,
-    'disabled_by': None,
-    'domain': 'button',
-    'entity_category': None,
-    'entity_id': 'button.power_pet_door_open',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'name': None,
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Open',
-    'platform': 'powerpetdoor',
-    'supported_features': 0,
-    'translation_key': 'open',
-    'unique_id': '192.0.2.10:3000-open',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open-state]
-  'unknown'
-# ---
 # name: test_the_entity_surface_matches_its_snapshot[button][button.power_pet_door_open_and_auto_close-entry]
   dict({
     'capabilities': None,

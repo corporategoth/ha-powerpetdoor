@@ -9,12 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **Entity names and IDs have changed.** Every entity now uses Home
-  Assistant's `has_entity_name` with translated names, which is required for
-  the platinum quality scale. Existing entities keep their history (unique
-  IDs are unchanged), but **friendly names change and some entity IDs
-  differ**. Check any automation, script or dashboard that references a
-  Power Pet Door entity by ID.
+- **Entity names have changed.** Every entity now uses Home Assistant's
+  `has_entity_name` with translated names, which is required for the
+  platinum quality scale, so **friendly names change**. Existing entities
+  are migrated in place and keep their history, their settings and their
+  `entity_id`, so automations, scripts and dashboards that name them keep
+  working. Entities that had no counterpart before are new, and Home
+  Assistant names those itself - on 2026.8 and newer it prefixes a new
+  entity's ID with the device's area, so a door in "Breakfast Area" gets
+  `binary_sensor.breakfast_area_power_pet_door_inside_schedule`.
+- **There are no longer Open and Close buttons.** They sent exactly what
+  `cover.open_cover` and `cover.close_cover` send on
+  `cover.power_pet_door_door`, so they were a second control for the same
+  two actions. `Open and auto-close` and `Toggle` remain, because a cover
+  has no way to ask for either.
 - **The `schedule.*` helper entities are gone.** Earlier versions created
   them by monkeypatching Home Assistant's core `schedule` integration at
   runtime. That is not supported by Home Assistant and cannot be made to
@@ -32,7 +40,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it. Python 3.11 and 3.12 are not supported: no Home Assistant the
   integration passes against will run on them.
 
-### Fixed
+#- **Upgrading no longer duplicates every entity.** Entities used to be
+  filed in the registry under the door's own protocol field names
+  (`power_state`, `timersEnabled`, `sensorOnIndoorNotificationsEnabled`);
+  they now use the entity's translation key, so a name in `strings.json`
+  and a registry entry cannot drift apart. Without a migration Home
+  Assistant read the new keys as new entities and filed them alongside the
+  old ones - a second Power switch, a second Inside sensor, and so on, with
+  every history, statistic and dashboard reference still pointing at the
+  first, which no longer updated. The old entity is now renamed in place,
+  which also leaves its `entity_id` alone. An upgrade that already ran once
+  is repaired: the empty duplicate is discarded and the entity holding the
+  history is kept.
+- **The old "Cycle" button becomes Toggle, not Open and auto-close.** It was
+  labelled Cycle, but it opened the door when it read idle or closed and
+  closed it when it read keepup or holding - a toggle. Mapping it onto the
+  button that merely inherited its label would have silently changed what
+  an existing automation does.
+- **The two dead `schedule.*` entities are removed on upgrade** rather than
+  left reading `unavailable` forever. The monkeypatch that set their state
+  is gone, and their replacements are `binary_sensor` entities, which a
+  registry entry cannot be renamed into.
+- **No more "please create a bug report" warning at every startup.** The
+  library reads its own translation file the first time it logs a
+  translated message, and building the door logs one, so Home Assistant
+  detected a blocking file read on the event loop and told the user to file
+  a bug against this integration. The table is now warmed in the executor
+  first.
+## Fixed
 
 - **Saving any schedule edit no longer rewrites the door's all-day entries.**
   A whole day was reported to Home Assistant as `00:00-00:00`, so a factory

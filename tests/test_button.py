@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from powerpetdoor import CommandError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -19,13 +20,19 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 #:
 #: The entity ids are pinned by literal because they are what an automation
 #: names, and "open_and_auto_close" is deliberately not its key (`cycle`).
+#:
+#: There is no Open or Close button, and that absence is asserted below.
+#: `door.open()` and `door.close()` are exactly what `cover.open_cover` and
+#: `cover.close_cover` already call, so buttons for them would be a second
+#: control for the same two actions.
 BUTTONS = [
-    ("button.power_pet_door_open", "open"),
-    ("button.power_pet_door_close", "close"),
     ("button.power_pet_door_open_and_auto_close", "cycle"),
     ("button.power_pet_door_toggle", "toggle"),
 ]
 
+#: Still all four: a button must call ITS method and none of the others,
+#: and `open`/`close` staying untouched is the assertion that the cover's
+#: two actions did not sneak back in under another button's press handler.
 ALL_METHODS = {"open", "close", "cycle", "toggle"}
 
 
@@ -117,3 +124,29 @@ async def test_every_button_is_available_on_a_powered_connected_door(
     # unavailable" also accepted `unknown`, which made the two
     # indistinguishable and the gate meaningless.
     assert hass.states.get(entity_id).state == "unknown"
+
+
+async def test_the_cover_s_own_two_actions_are_not_also_buttons(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """No Open button, no Close button - the cover is where those live.
+
+    `door.open()` and `door.close()` are precisely what `cover.open_cover`
+    and `cover.close_cover` call, so a button for either is a second control
+    for the same action: one more thing to keep in sync on a dashboard, and
+    one more pair of entities for an automation author to pick the wrong one
+    of. Asserted by literal because deleting a button is a breaking change
+    and re-adding one silently is the same change in reverse.
+    """
+    buttons = {
+        item.entity_id
+        for item in er.async_entries_for_config_entry(entity_registry, setup_integration.entry_id)
+        if item.domain == "button"
+    }
+
+    assert buttons == {
+        "button.power_pet_door_open_and_auto_close",
+        "button.power_pet_door_toggle",
+    }

@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from powerpetdoor.i18n import get_locale, load_locale
 
 from .coordinator import PowerPetDoorConfigEntry, PowerPetDoorCoordinator
+from .migration import async_migrate_legacy_unique_ids
 from .websocket import async_register_websocket_api
 
 PLATFORMS: list[Platform] = [
@@ -26,6 +28,18 @@ PLATFORMS: list[Platform] = [
 
 async def async_setup_entry(hass: HomeAssistant, entry: PowerPetDoorConfigEntry) -> bool:
     """Set up Power Pet Door from a config entry."""
+    # The library translates its own log messages, and it reads the locale
+    # JSON from disk the first time one is needed. Building the door with
+    # `loop=` logs "Latching onto an existing event loop", so the very first
+    # thing `PowerPetDoorCoordinator.__init__` does is that file read - on
+    # the event loop, because `async_setup_entry` runs there. Home Assistant
+    # detects it and tells the user to file a bug against this integration.
+    #
+    # The library caches the table in a module global, so warming it in the
+    # executor first leaves the constructor with nothing to read. Idempotent
+    # and process-wide: a second door costs nothing.
+    await hass.async_add_executor_job(load_locale, get_locale())
+
     coordinator = PowerPetDoorCoordinator(hass, entry)
 
     # Connect before anything else so an unreachable door raises
@@ -42,6 +56,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: PowerPetDoorConfigEntry)
     # matter how many doors are configured. The commands resolve the door
     # from the entity_id in each message.
     async_register_websocket_api(hass)
+
+    # Before the platforms, never after: each one claims its unique_id as it
+    # adds entities, so a key renamed afterwards has already lost the race to
+    # the duplicate the platform just created.
+    async_migrate_legacy_unique_ids(hass, entry)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

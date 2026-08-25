@@ -256,7 +256,7 @@ async def test_powering_the_real_door_off_makes_the_motor_entities_unavailable(
     await settle(hass, event)
 
     assert hass.states.get(COVER).state == "unavailable"
-    assert hass.states.get("button.power_pet_door_open").state == "unavailable"
+    assert hass.states.get("button.power_pet_door_toggle").state == "unavailable"
     assert hass.states.get("switch.power_pet_door_power").state == "off"
     assert hass.states.get("switch.power_pet_door_connection").state == "on"
 

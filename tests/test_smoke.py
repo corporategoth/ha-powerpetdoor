@@ -116,7 +116,7 @@ async def test_every_entity_has_a_unique_id_and_a_translation_key(
     [
         ("switch.power_pet_door_power", "turn_off", "set_power"),
         ("switch.power_pet_door_inside_sensor", "turn_on", "set_inside_sensor"),
-        ("button.power_pet_door_open", "press", "open"),
+        ("button.power_pet_door_toggle", "press", "toggle"),
         ("button.power_pet_door_open_and_auto_close", "press", "cycle"),
     ],
 )
@@ -217,10 +217,10 @@ async def test_a_powered_entity_goes_unavailable_when_the_door_drops_off(
     rule 9 exactly: `A and B` is one branch point with two destinations, and
     100% branch coverage is reached without ever running `A and not B`.
 
-    Nine entities inherit it - the cover, both schedule sensors, four buttons
-    and two switches - and every one of them would have kept showing a stale
-    state for a door that had gone off the network, which is precisely when a
-    user needs to be told.
+    Seven entities inherit it - the cover, both schedule sensors, both
+    buttons and two switches - and every one of them would have kept showing
+    a stale state for a door that had gone off the network, which is
+    precisely when a user needs to be told.
 
     `door.power` is left TRUE on purpose: that is what isolates the
     connectivity half of the condition.
@@ -239,7 +239,7 @@ async def test_a_powered_entity_goes_unavailable_when_the_door_drops_off(
     for entity_id in (
         "cover.power_pet_door_door",
         "binary_sensor.power_pet_door_inside_schedule",
-        "button.power_pet_door_open",
+        "button.power_pet_door_toggle",
         "switch.power_pet_door_inside_sensor",
     ):
         assert hass.states.get(entity_id).state == "unavailable", entity_id

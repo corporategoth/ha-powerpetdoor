@@ -7,11 +7,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import threading
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_TIMEOUT
 from homeassistant.core import HomeAssistant
+from powerpetdoor.i18n import reset_for_testing
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.components.diagnostics import (
     get_diagnostics_for_config_entry,
@@ -166,3 +169,66 @@ async def test_the_diagnostics_download_keeps_everything_useful(
     assert report["door"]["connected"] is True
     assert report["door"]["firmware_version"] == "1.7.18"
     assert report["door"]["settings"]["hold_time"] == 4.0
+
+
+async def test_the_locale_table_is_read_off_the_loop_before_the_door_is_built(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_door: MagicMock,
+) -> None:
+    """The library's own translations must not be loaded on the loop.
+
+    `pypowerpetdoor` translates its log messages and reads the locale JSON
+    the first time one is needed. Building the door with `loop=` logs
+    "Latching onto an existing event loop", so on a real Home Assistant the
+    first thing the coordinator did was that file read - on the event loop.
+    Every user saw, at every startup:
+
+        Detected blocking call to read_text with args
+        (PosixPath('.../powerpetdoor/locales/en_us.json'),) inside the event
+        loop by custom integration 'powerpetdoor' ... please create a bug
+        report
+
+    Caught by installing on a real 2026.8.3, not by this suite: `mock_door`
+    replaces the constructor, so nothing here ever runs the code that reads
+    the file.
+
+    Asserted as an ORDERING, because neither half alone is decisive. That
+    the table was read off-loop is satisfied by any later executor call, so
+    deleting the warm-up entirely still passed; that nothing read it on the
+    loop is satisfied trivially while the door is mocked. The requirement is
+    that the read happened, off the loop, BEFORE the door was constructed.
+    """
+    reset_for_testing()
+
+    loop_thread = threading.current_thread()
+    events: list[str] = []
+    original = Path.read_text
+
+    def spy(self: Path, *args: object, **kwargs: object) -> str:
+        if "locales" in str(self):
+            on_loop = threading.current_thread() is loop_thread
+            events.append("read-on-loop" if on_loop else "read-off-loop")
+        return original(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    def build_door(*args: object, **kwargs: object) -> MagicMock:
+        events.append("construct")
+        return mock_door
+
+    with (
+        patch.object(Path, "read_text", spy),
+        patch(
+            "custom_components.powerpetdoor.coordinator.PowerPetDoor",
+            side_effect=build_door,
+        ),
+    ):
+        mock_config_entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert "read-on-loop" not in events, f"locale read on the event loop: {events}"
+    assert "construct" in events, "the door was never built"
+    assert "read-off-loop" in events, "the locale table was never warmed"
+    assert events.index("read-off-loop") < events.index("construct"), (
+        f"the locale was not warmed before the door was built: {events}"
+    )

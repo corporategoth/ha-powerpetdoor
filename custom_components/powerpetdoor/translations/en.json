@@ -91,12 +91,6 @@
       }
     },
     "button": {
-      "open": {
-        "name": "Open"
-      },
-      "close": {
-        "name": "Close"
-      },
       "cycle": {
         "name": "Open and auto-close"
       },

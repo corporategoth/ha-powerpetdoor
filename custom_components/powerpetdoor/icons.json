@@ -7,8 +7,6 @@
       "outside_schedule": { "default": "mdi:sun-clock", "state": { "off": "mdi:sun-clock-outline" } }
     },
     "button": {
-      "open": { "default": "mdi:dog-side" },
-      "close": { "default": "mdi:window-shutter" },
       "cycle": { "default": "mdi:autorenew" },
       "toggle": { "default": "mdi:swap-vertical" }
     },

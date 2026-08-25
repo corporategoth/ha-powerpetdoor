@@ -30,37 +30,27 @@ class PowerPetDoorButtonDescription(ButtonEntityDescription):
     press_fn: Callable[[PowerPetDoor], Awaitable[None]]
 
 
+# There are deliberately no Open and Close buttons. `door.open()` and
+# `door.close()` are precisely what `cover.open_cover` and
+# `cover.close_cover` already call on the door entity, so buttons for them
+# would be a second control for the same two actions - a thing to keep in
+# sync on every dashboard, and one more pair of entities for an automation
+# author to pick the wrong one of. The cover is the door; these two are the
+# actions a cover has no way to express.
 BUTTONS: tuple[PowerPetDoorButtonDescription, ...] = (
-    # Opens and STAYS open until something closes it. Since pypowerpetdoor
-    # 0.4.1 that is what `open()` means - it sends OPEN_AND_HOLD and parks
-    # the door in KEEPUP. (Before 0.4.1, `open()` was the timed open and
-    # `open_and_hold()` was this; the library renamed them so the obvious
-    # call is the one that does the obvious thing.)
-    PowerPetDoorButtonDescription(
-        key="open",
-        translation_key="open",
-        press_fn=lambda door: door.open(),
-    ),
-    PowerPetDoorButtonDescription(
-        key="close",
-        translation_key="close",
-        press_fn=lambda door: door.close(),
-    ),
     # The timed open: the door rises, sits in HOLDING for the configured
     # hold time, then closes itself - exactly what a pet triggering a sensor
-    # gets. Distinct from `open()` since 0.4.1; they send different commands
-    # (OPEN vs OPEN_AND_HOLD), so these two buttons are genuinely different
-    # and neither is redundant.
+    # gets. `cover.open_cover` sends OPEN_AND_HOLD and leaves the door up
+    # until something closes it, so a cover cannot ask for this.
     PowerPetDoorButtonDescription(
         key="cycle",
         translation_key="cycle",
         press_fn=lambda door: door.cycle(),
     ),
-    # Open if closed, close if open, do nothing mid-travel. The old
-    # integration had exactly one button whose behaviour depended on the
-    # door's state and called it "Cycle"; that is a toggle, and conflating
-    # the two made automations non-deterministic. They are separate here and
-    # each does one thing.
+    # Open if closed, close if open, do nothing mid-travel. This is what the
+    # old integration's single button did, despite being labelled "Cycle" -
+    # which is why `migration.py` maps that entity onto this one and not
+    # onto the button that inherited its label.
     PowerPetDoorButtonDescription(
         key="toggle",
         translation_key="toggle",

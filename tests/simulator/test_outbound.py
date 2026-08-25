@@ -263,30 +263,15 @@ async def test_choosing_a_timezone_sends_the_door_a_posix_rule(
 # ---------------------------------------------------------------------------
 
 
-async def test_the_open_button_parks_the_real_door_open(
-    hass: HomeAssistant, simulated_entry: MockConfigEntry, simulated_door: DoorSimulator
-) -> None:
-    """KEEPUP, not HOLDING: Open must not close itself on a timer.
-
-    Waited for on the simulator's own status, so the assertion is about the
-    door's state machine rather than about a message having been written.
-    """
-    await hass.services.async_call(
-        "button", "press", {"entity_id": "button.power_pet_door_open"}, blocking=True
-    )
-
-    await simulated_door.wait_for_status(DOOR_STATE_KEEPUP, timeout=10)
-    assert simulated_door.state.door_status == DOOR_STATE_KEEPUP
-
-
 async def test_the_auto_close_button_uses_the_timed_open(
     hass: HomeAssistant, simulated_entry: MockConfigEntry, simulated_door: DoorSimulator
 ) -> None:
     """HOLDING, not KEEPUP - a genuinely different command.
 
-    These two buttons send different bytes (OPEN vs OPEN_AND_HOLD) and a
-    mock accepts either. Asserting that the door reaches HOLDING, and then
-    closes itself, is the only way to tell them apart.
+    This and `cover.open_cover` send different bytes (OPEN vs
+    OPEN_AND_HOLD) and a mock accepts either. Asserting that the door
+    reaches HOLDING, and then closes itself, is the only way to tell them
+    apart - and it is why this one is a button while Open is not.
     """
     await hass.services.async_call(
         "button",
@@ -300,25 +285,6 @@ async def test_the_auto_close_button_uses_the_timed_open(
 
     # ...and it closes on its own, which is what "auto close" means. The
     # fixture's hold time is 1s, so this is a real transition, not a wait.
-    await simulated_door.wait_for_status(DOOR_STATE_CLOSED, timeout=10)
-    assert simulated_door.state.door_status == DOOR_STATE_CLOSED
-
-
-async def test_the_close_button_closes_a_real_open_door(
-    hass: HomeAssistant, simulated_entry: MockConfigEntry, simulated_door: DoorSimulator
-) -> None:
-    """Opened first, so the close has something to actually do.
-
-    Asserting a close from an already-closed door would pass without the
-    command ever being understood.
-    """
-    await simulated_door.open_door(hold=True)
-    await simulated_door.wait_for_status(DOOR_STATE_KEEPUP, timeout=10)
-
-    await hass.services.async_call(
-        "button", "press", {"entity_id": "button.power_pet_door_close"}, blocking=True
-    )
-
     await simulated_door.wait_for_status(DOOR_STATE_CLOSED, timeout=10)
     assert simulated_door.state.door_status == DOOR_STATE_CLOSED
 

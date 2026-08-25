@@ -60,8 +60,11 @@ jobs:
     needs: [cache-actions]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Published as a whole matrix object - {"include": [...]} - rather than a
+    # bare include list, because the consumer has to spell it
+    # `matrix: ${{ fromJSON(...) }}`. See the unit-tests job for why.
     outputs:
-      include: ${{ steps.read.outputs.include }}
+      matrix: ${{ steps.read.outputs.matrix }}
       minimum: ${{ steps.read.outputs.minimum }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -73,6 +76,7 @@ jobs:
           include = data["include"]
           if not include:
               raise SystemExit("::error::.github/ha-matrix.json has no entries")
+          print("matrix=" + json.dumps({"include": include}))
           print("include=" + json.dumps(include))
           print("minimum=" + data["minimum_homeassistant"])
           EOF
@@ -189,8 +193,20 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+      # The expression MUST sit on `matrix:` itself, not on `matrix.include:`.
+      # Gitea statically parses every workflow - when the Actions unit is
+      # toggled on, and again on every push - and it does so WITHOUT
+      # evaluating expressions. An unevaluated `matrix.include` therefore
+      # reaches act's Job.GetMatrixes() as a plain string where it expects a
+      # list of maps, and the unchecked type assertion there panics the
+      # request: "interface conversion: interface {} is string, not
+      # map[string]interface {}" (gitea.com/gitea/runner, act/model/
+      # workflow.go). That panic is what made "Enable Repository Actions"
+      # return HTTP 500 and left this repository with no Actions tab.
+      # A whole-matrix expression leaves the node a scalar, which Gitea's
+      # parser skips and the runner resolves at run time via
+      # EvaluateYamlNode. This is also GitHub's own documented form.
+      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-uv-with-retry
