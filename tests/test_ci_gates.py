@@ -437,3 +437,51 @@ class TestTranslatedTextIsParseableByHomeAssistant:
     def test_each_shape_is_judged_on_its_own(self, text, rejected):
         checker = _load_translation_checker()
         assert bool(checker.bad_placeholders({"k": text})) is rejected
+
+
+class TestTheUnitMatrixMatchesTheMeasuredGrid:
+    """The workflow fans out over a STATIC copy of `.github/ha-matrix.json`.
+
+    Reading the grid at run time would be the obvious way to keep the two
+    honest, and it is what this workflow used to do. It cannot: Gitea breaks
+    on a run-time matrix in two different ways. Spelled `matrix.include:`,
+    the unevaluated expression reaches an unchecked type assertion in act's
+    `Job.GetMatrixes()` during Gitea's static parse and panics the request -
+    HTTP 500 on the repo settings page, and no Actions tab at all. Moved onto
+    `matrix:` itself it parses, but the runner never expands it: one job
+    runs, named the literal `${{ matrix.name }}`, logging `'runs-on' key not
+    defined` and `No steps found`. Four measured pairs became one job that
+    tested nothing, and every other job in the run was cancelled with it.
+
+    So the grid is expanded at authoring time by
+    `scripts/expand_ci_matrix.py`, which makes this the assertion that stops
+    the copy going stale - a matrix that silently stopped covering a
+    supported Python is exactly the failure the measurement exists to
+    prevent.
+    """
+
+    def test_the_workflow_matrix_is_the_json_verbatim(self):
+        matrix = json.loads((REPO_ROOT / ".github/ha-matrix.json").read_text(encoding="utf-8"))
+        workflow = yaml.safe_load(
+            (REPO_ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
+        )
+        include = workflow["jobs"]["unit-tests"]["strategy"]["matrix"]["include"]
+
+        # Compared on the fields the workflow actually carries, so adding a
+        # purely informational key to the JSON does not fail the build.
+        fields = ("name", "python-version", "homeassistant", "phacc", "edge")
+        assert [{k: str(row[k]) for k in fields} for row in include] == [
+            {k: str(row[k]) for k in fields} for row in matrix["include"]
+        ], "run scripts/expand_ci_matrix.py"
+
+    def test_the_matrix_is_not_an_unexpanded_expression(self):
+        """The exact shape that produced one silent do-nothing job.
+
+        `yaml.safe_load` turns both the broken spellings into a plain
+        string, so this catches either without needing to know which.
+        """
+        for name in (".github/workflows/test.yml", ".gitea/workflows/test.yml"):
+            workflow = yaml.safe_load((REPO_ROOT / name).read_text(encoding="utf-8"))
+            strategy = workflow["jobs"]["unit-tests"]["strategy"]
+            assert isinstance(strategy["matrix"], dict), f"{name}: matrix is an expression"
+            assert isinstance(strategy["matrix"]["include"], list), f"{name}: include is not a list"

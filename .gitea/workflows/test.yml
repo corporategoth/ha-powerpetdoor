@@ -79,40 +79,6 @@ jobs:
         with:
           node-version: ${{ env.REFERENCE_NODE }}
 
-  # The (CPython, Home Assistant) grid is measured, not declared - see
-  # scripts/ha_matrix.py. This job publishes the committed measurement so
-  # the unit-test job can fan out over it. Reading it here rather than
-  # hardcoding a matrix means adding a supported HA is a data change.
-  matrix:
-    name: Resolve matrix
-    needs: [cache-actions]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Published as a whole matrix object - {"include": [...]} - rather than a
-    # bare include list, because the consumer has to spell it
-    # `matrix: ${{ fromJSON(...) }}`. See the unit-tests job for why.
-    outputs:
-      matrix: ${{ steps.read.outputs.matrix }}
-      minimum: ${{ steps.read.outputs.minimum }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: read
-        run: |
-          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
-          import json, pathlib
-          data = json.loads(pathlib.Path(".github/ha-matrix.json").read_text())
-          include = data["include"]
-          if not include:
-              raise SystemExit("::error::.github/ha-matrix.json has no entries")
-          print("matrix=" + json.dumps({"include": include}))
-          print("include=" + json.dumps(include))
-          print("minimum=" + data["minimum_homeassistant"])
-          EOF
-      - name: Show the grid
-        run: |
-          echo "Minimum Home Assistant: ${{ steps.read.outputs.minimum }}"
-          echo '${{ steps.read.outputs.include }}' | python3 -m json.tool
-
   lint:
     name: Lint
     needs: [cache-actions]
@@ -216,25 +182,46 @@ jobs:
   # across ALL of them before the 100% gate.
   unit-tests:
     name: ${{ matrix.name }}
-    needs: [matrix]
+    needs: [cache-actions]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      # The expression MUST sit on `matrix:` itself, not on `matrix.include:`.
-      # Gitea statically parses every workflow - when the Actions unit is
-      # toggled on, and again on every push - and it does so WITHOUT
-      # evaluating expressions. An unevaluated `matrix.include` therefore
-      # reaches act's Job.GetMatrixes() as a plain string where it expects a
-      # list of maps, and the unchecked type assertion there panics the
-      # request: "interface conversion: interface {} is string, not
-      # map[string]interface {}" (gitea.com/gitea/runner, act/model/
-      # workflow.go). That panic is what made "Enable Repository Actions"
-      # return HTTP 500 and left this repository with no Actions tab.
-      # A whole-matrix expression leaves the node a scalar, which Gitea's
-      # parser skips and the runner resolves at run time via
-      # EvaluateYamlNode. This is also GitHub's own documented form.
-      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
+      # Expanded from .github/ha-matrix.json by scripts/expand_ci_matrix.py,
+      # NOT read at run time, because a run-time matrix breaks on Gitea in
+      # two different ways. `matrix.include: ${{ fromJSON(...) }}` reaches an
+      # unchecked type assertion in act's Job.GetMatrixes() during the static
+      # parse and panics the request - an HTTP 500 on the settings page and
+      # no Actions tab at all. Moved onto `matrix:` itself it parses, but the
+      # runner never expands it: one job runs, named the literal
+      # `${{ matrix.name }}`, logging `'runs-on' key not defined` and `No
+      # steps found`, so four measured pairs quietly became one job that
+      # tested nothing. A static matrix works on both forges, and
+      # tests/test_ci_gates.py asserts this block still matches the JSON.
+      # >>> generated from .github/ha-matrix.json - do not edit by hand
+      matrix:
+        include:
+          - name: "py3.13 / HA 2025.4.0 (min)"
+            python-version: "3.13"
+            homeassistant: "2025.4.0"
+            phacc: "0.13.232"
+            edge: "min"
+          - name: "py3.13 / HA 2026.2.3 (max)"
+            python-version: "3.13"
+            homeassistant: "2026.2.3"
+            phacc: "0.13.316"
+            edge: "max"
+          - name: "py3.14 / HA 2025.11.0 (min)"
+            python-version: "3.14"
+            homeassistant: "2025.11.0"
+            phacc: "0.13.294"
+            edge: "min"
+          - name: "py3.14 / HA 2026.8.3 (max)"
+            python-version: "3.14"
+            homeassistant: "2026.8.3"
+            phacc: "0.13.357"
+            edge: "max"
+      # <<< end generated matrix
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-uv-with-retry

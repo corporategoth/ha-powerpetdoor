@@ -150,7 +150,7 @@ both an oldest and a newest HA that actually installs and passes.
 | File | What to update |
 |------|---------------|
 | `.github/ha-matrix.json` | The measured (python, HA) grid; generated |
-| `.github/workflows/test.yml` | Reads the matrix; `REFERENCE_PYTHON`, `REFERENCE_NODE` |
+| `.github/workflows/test.yml` | Carries the grid as a **static** matrix, expanded by `scripts/expand_ci_matrix.py`; `REFERENCE_PYTHON`, `REFERENCE_NODE` |
 | `.gitea/workflows/test.yml` | Byte-identical to the above below its header |
 | `pyproject.toml` | `requires-python`, classifiers, ruff `target-version`, mypy `python_version`, the two pinned `pytest-homeassistant-custom-component` versions |
 | `hacs.json` | `homeassistant` minimum |
@@ -170,6 +170,26 @@ sit outside anything automation can reach:
 |-----|-------|------------------------------|
 | `neuromancy/workflows/.gitea/workflows/sync-github-wiki.yml@<sha>` | `.gitea/workflows/sync-wiki.yml` | Dependabot has no Gitea support. This is also the **only** `uses:` in the repo that receives a secret, so its SHA pin matters more than the rest |
 | Transitive versions in `uv.lock` | `uv.lock` | `uv sync` never upgrades what is already pinned. Run `uv lock --upgrade` periodically and re-run the full suite |
+
+### Never make the CI matrix an expression
+
+`matrix: ${{ fromJSON(...) }}` works on GitHub and breaks on Gitea twice
+over, both times silently enough to look fine:
+
+- as `matrix.include:`, Gitea's **static parse** - on the Actions unit
+  toggle and on every push - hands an unevaluated string to an unchecked
+  type assertion in act's `Job.GetMatrixes()` and panics. That is an HTTP
+  500 on the repo settings page, and it is why this repo sat with no
+  Actions tab from Feb 2024;
+- as `matrix:` itself it parses, but the runner never expands it. One job
+  runs, named the literal `${{ matrix.name }}`, logging `'runs-on' key not
+  defined` and `No steps found` - four measured pairs become one job that
+  tests nothing, and it cancels the rest of the run with it.
+
+So the grid is expanded at authoring time by `scripts/expand_ci_matrix.py`,
+then copied with `scripts/sync_gitea_workflow.py`. `tests/test_ci_gates.py`
+asserts both the expansion is current and that neither copy has reverted to
+an expression.
 
 ## Quality Scale: Platinum (MANDATORY)
 
