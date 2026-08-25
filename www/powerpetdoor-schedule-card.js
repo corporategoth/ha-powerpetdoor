@@ -4,7 +4,7 @@
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
  *
- * Power Pet Door Schedule Card v1.13.0
+ * Power Pet Door Schedule Card v1.14.0
  * A custom Lovelace card for viewing and editing Power Pet Door schedules.
  */
 
@@ -183,6 +183,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     this._dragCurrentMinutes = null;
     this._dragSlotIndex = null;
     this._dragOriginalSlot = null;
+    this._dragMergeWith = null;
+    this._dragDoomed = [];
     this._columnRects = {}; // Store rects for all columns
 
     // Current time tracking
@@ -653,6 +655,61 @@ class PowerPetDoorScheduleCard extends HTMLElement {
    * earlier than its start, and `to_ha_format` splits anything a door
    * reports into separate same-day windows before the card ever sees it.
    */
+  /**
+   * What a resize drag should do about the OTHER windows in its column.
+   *
+   * Dragging an edge towards a neighbour has three outcomes, and which one
+   * you get depends only on where the pointer is relative to that
+   * neighbour:
+   *
+   * - short of it: nothing, the edge follows the pointer;
+   * - inside it: the edge stops at the neighbour's near border, because
+   *   the two are about to become one window and drawing the dragged one
+   *   crossing into the other says nothing true. Released here, they merge;
+   * - past its far border: the neighbour is wholly covered, so the edge
+   *   follows the pointer again and the neighbour is marked doomed - it is
+   *   drawn in the removal colour and is gone once the drag is applied.
+   *
+   * Walking outwards in order matters: passing one neighbour entirely can
+   * put the pointer inside the next one, and that one then stops the edge.
+   *
+   * @returns {{minutes: number, mergeWith: number|null, doomed: number[]}}
+   *   `minutes` is where the edge should be DRAWN; `mergeWith` is the index
+   *   the released drag should absorb; `doomed` are indices it removes.
+   */
+  _resolveResize(day, index, edge, pointerMinutes) {
+    const slots = this._schedule[day] || [];
+    const own = slots[index];
+    if (!own) return { minutes: pointerMinutes, mergeWith: null, doomed: [] };
+
+    const ownStart = this._parseTimeToMinutes(own.from);
+    const ownEnd = this._slotEndMinutes(own);
+    const doomed = [];
+
+    // Neighbours in the direction of travel, nearest first.
+    const ordered = slots
+      .map((slot, at) => ({ at, start: this._parseTimeToMinutes(slot.from), end: this._slotEndMinutes(slot) }))
+      .filter((n) => n.at !== index)
+      .filter((n) => (edge === 'bottom' ? n.start >= ownStart : n.end <= ownEnd))
+      .sort((a, b) => (edge === 'bottom' ? a.start - b.start : b.end - a.end));
+
+    for (const neighbour of ordered) {
+      if (edge === 'bottom') {
+        if (pointerMinutes <= neighbour.start) break;
+        if (pointerMinutes < neighbour.end) {
+          return { minutes: neighbour.start, mergeWith: neighbour.at, doomed };
+        }
+      } else {
+        if (pointerMinutes >= neighbour.end) break;
+        if (pointerMinutes > neighbour.start) {
+          return { minutes: neighbour.end, mergeWith: neighbour.at, doomed };
+        }
+      }
+      doomed.push(neighbour.at);
+    }
+    return { minutes: pointerMinutes, mergeWith: null, doomed };
+  }
+
   _getSlotStyle(slot) {
     const start = this._parseTimeToMinutes(slot.from);
     const top = (start / 1440) * 100;
@@ -770,11 +827,17 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     } else if (this._dragType === 'resize-top') {
       const slot = this._schedule[this._dragDay][this._dragSlotIndex];
       const bottomMinutes = this._slotEndMinutes(slot);
-      this._dragCurrentMinutes = Math.min(minutes, bottomMinutes - 15);
+      const resolved = this._resolveResize(this._dragDay, this._dragSlotIndex, 'top', minutes);
+      this._dragMergeWith = resolved.mergeWith;
+      this._dragDoomed = resolved.doomed;
+      this._dragCurrentMinutes = Math.min(resolved.minutes, bottomMinutes - 15);
     } else if (this._dragType === 'resize-bottom') {
       const slot = this._schedule[this._dragDay][this._dragSlotIndex];
       const topMinutes = this._parseTimeToMinutes(slot.from);
-      this._dragCurrentMinutes = Math.max(minutes, topMinutes + 15);
+      const resolved = this._resolveResize(this._dragDay, this._dragSlotIndex, 'bottom', minutes);
+      this._dragMergeWith = resolved.mergeWith;
+      this._dragDoomed = resolved.doomed;
+      this._dragCurrentMinutes = Math.max(resolved.minutes, topMinutes + 15);
     }
 
     this._updateDragPreview();
@@ -865,6 +928,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       this._dragCurrentMinutes = null;
       this._dragSlotIndex = null;
       this._dragOriginalSlot = null;
+    this._dragMergeWith = null;
+    this._dragDoomed = [];
 
       // Open edit dialog for the new slot
       this._editingSlot = { day, index: sortedIndex };
@@ -873,12 +938,39 @@ class PowerPetDoorScheduleCard extends HTMLElement {
       return;
 
     } else if (this._dragType === 'resize-top' || this._dragType === 'resize-bottom') {
-      const slot = this._schedule[this._dragDay][this._dragSlotIndex];
-      if (this._dragType === 'resize-top') {
-        slot.from = this._minutesToTime(this._dragCurrentMinutes);
-      } else {
-        slot.to = this._endMinutesToTime(this._dragCurrentMinutes);
+      const slots = this._schedule[this._dragDay];
+      const slot = slots[this._dragSlotIndex];
+
+      // The dragged window's new extent, before absorbing anything.
+      let top = this._dragType === 'resize-top'
+        ? this._dragCurrentMinutes
+        : this._parseTimeToMinutes(slot.from);
+      let bottom = this._dragType === 'resize-bottom'
+        ? this._dragCurrentMinutes
+        : this._slotEndMinutes(slot);
+
+      // Absorb the neighbour the edge came to rest against, and every one
+      // it passed over entirely. Their spans are inside the new extent by
+      // construction except for the merge target, which extends it - that
+      // IS the merge: two windows that meet become one covering both.
+      const absorbing = [...this._dragDoomed];
+      if (this._dragMergeWith !== null) absorbing.push(this._dragMergeWith);
+      for (const at of absorbing) {
+        const other = slots[at];
+        if (!other) continue;
+        top = Math.min(top, this._parseTimeToMinutes(other.from));
+        bottom = Math.max(bottom, this._slotEndMinutes(other));
       }
+
+      slot.from = this._minutesToTime(top);
+      slot.to = this._endMinutesToTime(bottom);
+
+      // Descending, so each removal cannot shift an index still to be
+      // removed - and the dragged slot is never among them.
+      for (const at of [...new Set(absorbing)].sort((a, b) => b - a)) {
+        slots.splice(at, 1);
+      }
+
       this._saveSchedule();
     }
 
@@ -890,6 +982,8 @@ class PowerPetDoorScheduleCard extends HTMLElement {
     this._dragCurrentMinutes = null;
     this._dragSlotIndex = null;
     this._dragOriginalSlot = null;
+    this._dragMergeWith = null;
+    this._dragDoomed = [];
 
     this.render();
   }
@@ -997,6 +1091,18 @@ class PowerPetDoorScheduleCard extends HTMLElement {
 
     preview.style.top = `${topPct}%`;
     preview.style.height = `${heightPct}%`;
+
+    // A window the drag has passed over completely is about to be absorbed,
+    // so say so while there is still time to drag back off it. Repainted
+    // every move rather than toggled, because the doomed set shrinks as
+    // well as grows.
+    const column = this.shadowRoot.querySelector(`.day-column[data-day="${this._dragDay}"]`);
+    if (column) {
+      const doomed = new Set(this._dragDoomed || []);
+      column.querySelectorAll(".time-slot").forEach((node) => {
+        node.classList.toggle('doomed', doomed.has(Number(node.dataset.index)));
+      });
+    }
 
     // Show/hide removal preview
     if (removalPreview) {
@@ -1360,6 +1466,13 @@ class PowerPetDoorScheduleCard extends HTMLElement {
           display: none;
           z-index: 10;
           min-height: 4px;
+        }
+        /* A window the current drag would swallow. Uses the same colour
+           as the shrink zone, because it means the same thing: this is
+           what applying the drag removes. */
+        .time-slot.doomed {
+          background: ${this._getRemovalColor()} !important;
+          opacity: 0.7;
         }
         .removal-preview {
           position: absolute;
@@ -2004,7 +2117,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.13.0 ',
+  '%c POWERPETDOOR-SCHEDULE-CARD %c v1.14.0 ',
   'color: white; background: #03a9f4; font-weight: bold;',
   'color: #03a9f4; background: white; font-weight: bold;'
 );

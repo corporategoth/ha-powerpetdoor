@@ -1505,3 +1505,185 @@ describe('when schedules are switched off on the door', () => {
     expect(card.shadowRoot.querySelector('.notice')).toBeNull();
   });
 });
+
+describe('dragging one window into another', () => {
+  // The mocked column is 480px for 1440 minutes, so clientY is minutes/3:
+  // 160 is 08:00, 200 is 10:00, 260 is 13:00. Written out in each test
+  // rather than helpered, because the whole point of these is WHERE the
+  // pointer sits relative to a neighbour.
+
+  test('an edge dragged into a neighbour stops at its border', async () => {
+    // 06:00-08:00 with 10:00-12:00 below it. Dragging the first window's
+    // bottom to 11:00 puts the pointer INSIDE the second, so the edge stops
+    // at 10:00 - drawing one window crossing into another says nothing
+    // true, since applying it makes them a single window.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 220);
+
+    expect(card._dragCurrentMinutes).toBe(600);
+    expect(card._dragMergeWith).toBe(1);
+    expect(card._dragDoomed).toEqual([]);
+  });
+
+  test('releasing there merges the two into one window', async () => {
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 220);
+    mouse(document, 'mouseup', 220);
+    await flush();
+
+    // One window spanning both, not two touching ones: the merge takes the
+    // absorbed window's far edge, so the result reaches 12:00.
+    expect(card._schedule.monday).toEqual([{ from: '06:00', to: '12:00' }]);
+  });
+
+  test('dragging clear past a neighbour dooms it rather than stopping', async () => {
+    // Pointer at 13:00 is beyond the second window entirely, so the edge is
+    // free again and the window it passed over is marked for removal.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 260);
+
+    expect(card._dragCurrentMinutes).toBe(780);
+    expect(card._dragMergeWith).toBeNull();
+    expect(card._dragDoomed).toEqual([1]);
+  });
+
+  test('a doomed window is drawn in the removal colour', async () => {
+    // The user's only warning that releasing here destroys a window, so it
+    // is asserted on the DOM rather than on the internal set alone.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 260);
+
+    const swallowed = card.shadowRoot.querySelector(
+      '.time-slot[data-day="monday"][data-index="1"]',
+    );
+    expect(swallowed.classList.contains('doomed')).toBe(true);
+  });
+
+  test('dragging back off a doomed window clears the warning', async () => {
+    // The doomed set shrinks as well as grows; a mark left behind would
+    // tell the user they are about to destroy something they are not.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 260);
+    mouse(document, 'mousemove', 180);
+
+    const other = card.shadowRoot.querySelector(
+      '.time-slot[data-day="monday"][data-index="1"]',
+    );
+    expect(card._dragDoomed).toEqual([]);
+    expect(other.classList.contains('doomed')).toBe(false);
+  });
+
+  test('releasing past a neighbour absorbs it', async () => {
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 260);
+    mouse(document, 'mouseup', 260);
+    await flush();
+
+    expect(card._schedule.monday).toEqual([{ from: '06:00', to: '13:00' }]);
+  });
+
+  test('the top edge merges upward the same way', async () => {
+    // The mirror image, because the two directions are separate code paths
+    // and only one of them was ever exercised.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.top[data-day="monday"][data-index="1"]',
+    );
+
+    mouse(edge, 'mousedown', 200);
+    mouse(document, 'mousemove', 140);
+    mouse(document, 'mouseup', 140);
+    await flush();
+
+    expect(card._schedule.monday).toEqual([{ from: '06:00', to: '12:00' }]);
+  });
+
+  test('a drag that stops short of a neighbour leaves it alone', async () => {
+    // The other side of the boundary: 09:00 is below the first window and
+    // above the second, so nothing merges and nothing is doomed.
+    const { card } = await openCard({
+      monday: [
+        { from: '06:00', to: '08:00' },
+        { from: '10:00', to: '12:00' },
+      ],
+    });
+    const edge = card.shadowRoot.querySelector(
+      '.slot-edge.bottom[data-day="monday"][data-index="0"]',
+    );
+
+    mouse(edge, 'mousedown', 160);
+    mouse(document, 'mousemove', 180);
+    mouse(document, 'mouseup', 180);
+    await flush();
+
+    expect(card._schedule.monday).toEqual([
+      { from: '06:00', to: '09:00' },
+      { from: '10:00', to: '12:00' },
+    ]);
+  });
+});
