@@ -15,11 +15,11 @@ a storage collection, it has no `async_setup_entry`, and
 Monkeypatching another integration would also fail Home Assistant review
 outright.
 
-So the *entities* are ours. The parts of HA that are reusable without the
-monkeypatch are reused by ordinary import: `WEEKDAY_TO_CONF` and the
-`CONF_FROM`/`CONF_TO` keys below come from `homeassistant.components.schedule`,
-so the shape this integration speaks is the shape the rest of Home Assistant
-already speaks.
+So the *entities* are ours. What is still shared is the payload *format*:
+`WEEKDAY_TO_CONF` and the `CONF_FROM`/`CONF_TO` keys are Home Assistant's
+schedule format, cloned into `const.py` rather than imported, so the shape
+this integration speaks is the shape the rest of Home Assistant already
+speaks without depending on that component to say it.
 
 Everything about a schedule *entry* - its wire format, validation, day-mask
 handling and diffing - stays in `pypowerpetdoor`. This module only answers
@@ -34,7 +34,6 @@ from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
-from homeassistant.components.schedule import CONF_FROM, CONF_TO, WEEKDAY_TO_CONF
 from powerpetdoor import (
     Schedule,
     ScheduleTime,
@@ -43,7 +42,7 @@ from powerpetdoor import (
     week_0_sun_to_mon,
 )
 
-from .const import SCHEDULE_INSIDE, SCHEDULE_OUTSIDE
+from .const import CONF_FROM, CONF_TO, SCHEDULE_INSIDE, SCHEDULE_OUTSIDE, WEEKDAY_TO_CONF
 
 if TYPE_CHECKING:
     from .coordinator import PowerPetDoorCoordinator

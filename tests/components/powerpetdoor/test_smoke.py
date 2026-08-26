@@ -433,7 +433,8 @@ async def test_the_entity_surface_matches_its_snapshot(
     catches the whole class of change the hand-written assertions above
     cannot: a device class quietly changing, an entity becoming enabled by
     default, a unit or an icon moving, an entity disappearing. Reviewing the
-    diff in tests/snapshots/ is how a reviewer sees what a change actually
+    diff in the snapshots/ directory beside this file is how a reviewer sees
+    what a change actually
     did to the user's dashboard.
 
     Parametrized with PLATFORMS patched to one entry because

@@ -67,6 +67,31 @@ WS_SCHEDULE_LIST: Final = f"{DOMAIN}/schedule/list"
 WS_SCHEDULE_GET: Final = f"{DOMAIN}/schedule/get"
 WS_SCHEDULE_UPDATE: Final = f"{DOMAIN}/schedule/update"
 
+# Home Assistant's own schedule payload format, which is the shape this
+# integration's `set_schedule` action and WebSocket API speak. The names are
+# `homeassistant.components.schedule`'s, and the values must stay identical
+# to that component's: it is a published format, so an automation or the
+# Lovelace card that talks to HA's schedules talks to ours unchanged.
+#
+# Cloned rather than imported. Importing three strings from a helper domain
+# made `schedule` a manifest dependency, so every user loaded a whole
+# component they never configured just to spell "from" - and the import sat
+# on that component's `const.py`, which carries no stability contract, where
+# a rename would have been an ImportError at setup for everyone.
+# `tests/test_ci_gates.py` compares these against the real component, so a
+# divergence is a test failure here rather than a silent format change.
+CONF_FROM: Final = "from"
+CONF_TO: Final = "to"
+WEEKDAY_TO_CONF: Final[dict[int, str]] = {
+    0: "monday",
+    1: "tuesday",
+    2: "wednesday",
+    3: "thursday",
+    4: "friday",
+    5: "saturday",
+    6: "sunday",
+}
+
 # The two schedule "kinds" the door supports. A schedule entry carries an
 # inside flag and an outside flag independently, so one entry can drive
 # both.

@@ -21,7 +21,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-from homeassistant.components.schedule import CONF_FROM, CONF_TO, WEEKDAY_TO_CONF
+from homeassistant.components.schedule import CONF_FROM as HA_CONF_FROM
+from homeassistant.components.schedule import CONF_TO as HA_CONF_TO
+from homeassistant.components.schedule import WEEKDAY_TO_CONF as HA_WEEKDAY_TO_CONF
+
+from custom_components.powerpetdoor.const import CONF_FROM, CONF_TO, WEEKDAY_TO_CONF
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPONENT = REPO_ROOT / "custom_components" / "powerpetdoor"
@@ -605,29 +609,33 @@ class TestTheQualityScaleFileCoversEveryRule:
         assert not todo, f"manifest claims platinum but these are todo: {todo}"
 
 
-class TestTheBorrowedScheduleConstants:
-    """`schedule.py` imports three names from Home Assistant's own component.
+class TestTheClonedScheduleConstants:
+    """`const.py` clones three names from Home Assistant's own `schedule`.
 
-        from homeassistant.components.schedule import (
-            CONF_FROM, CONF_TO, WEEKDAY_TO_CONF,
-        )
+        CONF_FROM, CONF_TO, WEEKDAY_TO_CONF
 
-    They live in that component's `const.py`, which carries no stability
-    contract. If any of them is renamed, `schedule.py` raises ImportError at
-    import - and both `binary_sensor.py` and `websocket.py` import it, so
-    setup fails outright: no entities, no card, no schedules, for everyone.
+    They used to be imported, which made `schedule` a manifest dependency:
+    every user loaded a component they never configured so this integration
+    could spell "from". The import also sat on that component's `const.py`,
+    which carries no stability contract - a rename there was an ImportError
+    at setup, and `binary_sensor.py` and `websocket.py` both import
+    `schedule.py`, so that meant no entities, no card, no schedules, for
+    everyone.
 
-    hassfest cannot see this. `find_non_referenced_integrations` skips any
-    reference whose name matches a file in the integration, and
+    Cloning removes the dependency and the ImportError, and replaces them
+    with the risk this class exists to cover: the two copies drifting apart
+    in silence. The values ARE the payload format - a contract with every
+    automation calling `powerpetdoor.set_schedule`, with the WebSocket API
+    and with the Lovelace card - so `"from"` quietly becoming `"start"` in
+    Home Assistant is something to find out about here rather than from a
+    user whose dashboard stopped working.
+
+    hassfest would not have caught either shape of this.
+    `find_non_referenced_integrations` skips any reference whose name
+    matches a file in the integration, and
     `custom_components/powerpetdoor/schedule.py` matches `schedule` - so it
-    reads the import as our own platform file and validates nothing about
-    it, in either direction.
-
-    Pinning the VALUES rather than just the names is what makes this useful:
-    the payload shape is Home Assistant's schedule format, which is a
-    contract with every automation calling `powerpetdoor.set_schedule` and
-    with the card. A silent change to `"from"` or to the weekday spelling
-    would rewrite that payload with the suite green.
+    read the old import as our own platform file and validated nothing
+    about it, in either direction.
     """
 
     def test_the_values_are_what_the_payload_format_promises(self):
@@ -643,20 +651,90 @@ class TestTheBorrowedScheduleConstants:
             6: "sunday",
         }
 
-    def test_the_manifest_declares_the_dependency_the_import_creates(self):
-        """Importing another integration requires declaring it.
+    def test_the_clone_still_matches_home_assistants_own(self):
+        """The drift check the clone costs us.
 
-        Asserted because the declaration looks removable: nothing in this
-        repo fails without it, hassfest does not check it, and it costs
-        every user a `schedule` component they never asked for. It is still
-        required - Home Assistant may not have loaded that component when
-        `schedule.py` is imported.
+        A test may import whatever it likes - test dependencies are not
+        runtime dependencies - so this comparison is free where the runtime
+        import was not.
+        """
+        assert (CONF_FROM, CONF_TO) == (HA_CONF_FROM, HA_CONF_TO)
+        assert WEEKDAY_TO_CONF == HA_WEEKDAY_TO_CONF
+
+    def test_the_manifest_declares_no_integration_dependency(self):
+        """Nothing here imports another integration, so nothing is declared.
+
+        Asserted because the reverse mistake is easy and invisible: adding
+        `from homeassistant.components.<x> import ...` without declaring
+        `<x>` works on a developer's machine, where something else has
+        already loaded that component, and raises at setup for a user where
+        nothing has. That is the bug this integration just removed, and
+        hassfest cannot report it - it is only run in custom mode here.
         """
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        assert "schedule" in manifest.get("dependencies", []), (
-            "schedule.py imports from homeassistant.components.schedule, "
-            "so the manifest must declare it"
+        assert "dependencies" not in manifest
+
+        sources = "\n".join(path.read_text(encoding="utf-8") for path in COMPONENT.glob("*.py"))
+        imported = set(
+            re.findall(
+                r"^\s*from homeassistant\.components(?:\.(\w+)| import (\w+))",
+                sources,
+                flags=re.MULTILINE,
+            )
         )
+        imported = {name for pair in imported for name in pair if name}
+
+        # A platform's own base classes (`homeassistant.components.cover`
+        # and friends) are what a platform file IS, not a dependency: Home
+        # Assistant loads them by virtue of the platform existing.
+        platforms = {path.stem for path in COMPONENT.glob("*.py")}
+        # `websocket_api` is the one real import left. Core's own practice
+        # is to leave it undeclared - 57 of the 66 core integrations that
+        # import it do - because a config with a frontend has always loaded
+        # it, and the nine that declare it are the ones that also run
+        # without one (backup, network, usb).
+        undeclared = sorted(imported - platforms - {"websocket_api"})
+        assert not undeclared, f"imports {undeclared} but declares no dependencies"
+
+
+class TestTheCoreShapedSuiteStaysSelfContained:
+    """`tests/components/powerpetdoor/` is what a core PR would copy whole.
+
+    That is the entire value of the layout, and both halves of it decay
+    quietly. A new `tests/test_<platform>.py` at the root still runs, still
+    counts for coverage and still looks right in a diff - it just would not
+    travel. And a fixture reached sideways out of `tests/simulator/` or
+    `tests/fuzz/` leaves a directory that passes here and collapses the
+    moment it is copied anywhere else.
+
+    The dependency runs one way on purpose: the extras import the door
+    doubles from the core-shaped suite, never the reverse. See
+    `docs/development.md` for what a core submission would still change.
+    """
+
+    CORE_SUITE = REPO_ROOT / "tests" / "components" / "powerpetdoor"
+
+    def test_no_platform_test_was_left_at_the_tests_root(self):
+        stray = sorted(
+            path.name
+            for path in (REPO_ROOT / "tests").glob("test_*.py")
+            # This one is about the repository, not the integration, so it
+            # is the single file that belongs at the root.
+            if path.name != "test_ci_gates.py"
+        )
+        assert not stray, f"belongs in tests/components/powerpetdoor/: {stray}"
+
+    def test_the_core_suite_reaches_into_no_sibling_suite(self):
+        offenders = sorted(
+            path.name
+            for path in self.CORE_SUITE.glob("*.py")
+            if re.search(
+                r"^\s*(from|import)\s+tests\.",
+                path.read_text(encoding="utf-8"),
+                flags=re.MULTILINE,
+            )
+        )
+        assert not offenders, f"imports from a suite core would not take: {offenders}"
 
 
 class TestEveryActionHasAnIcon:

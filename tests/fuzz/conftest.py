@@ -14,6 +14,15 @@ from __future__ import annotations
 
 from hypothesis import HealthCheck, settings
 
+# Re-exported so they are registered as fixtures in THIS directory too. A
+# fixture is only visible to the conftest that defines it and its children,
+# and the core-shaped suite is a sibling of this one, not a parent.
+from tests.components.powerpetdoor.conftest import (  # noqa: F401
+    mock_config_entry,
+    mock_door,
+    setup_integration,
+)
+
 # Home Assistant fixtures are function-scoped and hypothesis re-enters the
 # test body many times per fixture setup, which trips
 # `function_scoped_fixture` by design. The tests here that use `hass` do not

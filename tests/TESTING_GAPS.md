@@ -2,7 +2,7 @@
 
 This file is **auto-generated** by CI after each test run. Do not edit manually.
 
-**Last updated:** 2026-08-26 02:50 UTC
+**Last updated:** 2026-08-26 03:37 UTC
 
 ## Summary
 
@@ -10,7 +10,7 @@ This file is **auto-generated** by CI after each test run. Do not edit manually.
 |--------|-------|
 | Line Coverage | 100.00% |
 | Branch Coverage | 100.00% |
-| Lines Covered | 890 / 890 |
+| Lines Covered | 892 / 892 |
 | Branches Covered | 170 / 170 |
 | Lines Missing | 0 |
 
@@ -28,7 +28,7 @@ All code is covered by tests. No gaps to report.
 
 ### Gate Configuration
 
-What the 100% gate measures, read from `pyproject.toml` (`tests/test_gaps_report.py` asserts each value):
+What the 100% gate measures, read from `pyproject.toml` (`tests/test_ci_gates.py` asserts each value):
 
 - Measured roots (`coverage.run.source`): `custom_components/powerpetdoor`
 - Branch coverage (`coverage.run.branch`): `true`

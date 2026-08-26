@@ -16,11 +16,17 @@ from homeassistant.core import HomeAssistant
 from powerpetdoor import BatteryInfo, DoorStatus
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components import powerpetdoor as powerpetdoor_component
+
 BATTERY = "sensor.power_pet_door_battery"
 LATENCY = "sensor.power_pet_door_latency"
 STATUS = "sensor.power_pet_door_door_status"
-#: Relative to the repo root, so the gate reads the shipped file.
-STRINGS_PATH = "custom_components/powerpetdoor/strings.json"
+#: The shipped file, found from the imported package rather than from a
+#: repo-relative path. This suite moved once already, into the layout Home
+#: Assistant core uses, and a counted chain of `.parent` would have broken
+#: silently-looking - it reads a file, so the failure is a missing file, not
+#: a wrong answer.
+STRINGS = Path(powerpetdoor_component.__file__).parent / "strings.json"
 OPEN_CYCLES = "sensor.power_pet_door_total_open_cycles"
 AUTO_RETRACTS = "sensor.power_pet_door_total_auto_retracts"
 
@@ -170,7 +176,7 @@ async def test_every_state_the_sensor_declares_has_a_translation(
     remembers `strings.json`. Deriving one side and hand-writing the other is
     exactly the split that needs a gate, and this is it.
     """
-    strings = json.loads((Path(__file__).parent.parent / STRINGS_PATH).read_text(encoding="utf-8"))
+    strings = json.loads(STRINGS.read_text(encoding="utf-8"))
     translated = strings["entity"]["sensor"]["status"]["state"]
 
     assert set(hass.states.get(STATUS).attributes["options"]) == set(translated)

@@ -97,7 +97,7 @@ on GitHub skips Gitea entirely and leaves the source of truth behind.
 uv run pytest
 
 # A single test file
-uv run pytest tests/test_switch.py
+uv run pytest tests/components/powerpetdoor/test_switch.py
 
 # With the 100% coverage gate
 uv run pytest --cov
@@ -249,14 +249,27 @@ fixtures, snapshot tests via `syrupy`. Do not hand-roll what it provides.
 
 ### Test Locations
 
+`tests/components/powerpetdoor/` mirrors Home Assistant core's own test
+layout, and is kept to **exactly** what core would accept, so submitting
+upstream is a move rather than a rewrite. The other three suites are ours
+and sit beside it.
+
 | Code Location | Test Location |
 |---------------|---------------|
-| `custom_components/powerpetdoor/<platform>.py` | `tests/test_<platform>.py` |
-| `custom_components/powerpetdoor/config_flow.py` | `tests/test_config_flow.py` |
-| `custom_components/powerpetdoor/coordinator.py` | `tests/test_coordinator.py` |
+| `custom_components/powerpetdoor/<platform>.py` | `tests/components/powerpetdoor/test_<platform>.py` |
+| `custom_components/powerpetdoor/config_flow.py` | `tests/components/powerpetdoor/test_config_flow.py` |
+| `custom_components/powerpetdoor/coordinator.py` | `tests/components/powerpetdoor/test_coordinator.py` |
 | protocol-level round trips | `tests/simulator/` (drives the real simulator) |
 | randomized input | `tests/fuzz/` (hypothesis) |
 | `www/powerpetdoor-schedule-card.js` | `tests/frontend/unit/` |
+| the repo's own CI configuration | `tests/test_ci_gates.py` |
+
+Fixtures follow the same split. `tests/components/powerpetdoor/conftest.py`
+is self-contained, because a core PR copies that directory whole;
+`tests/simulator/` and `tests/fuzz/` import from it rather than the other
+way round. `tests/conftest.py` holds one fixture — the
+`enable_custom_integrations` shim — and exists only because this ships
+outside core.
 
 ### Coverage Requirements
 

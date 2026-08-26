@@ -53,7 +53,12 @@ custom_components/powerpetdoor/
 
 www/powerpetdoor-schedule-card.js   The Lovelace card (plain browser JS)
 scripts/                            Repo tooling — see below
-tests/                              Python suite; tests/frontend/ is the card
+tests/                              Python suite
+├── components/powerpetdoor/        Core-shaped: what a core PR would take
+├── simulator/                      Against the library's real door simulator
+├── fuzz/                           Randomised input (hypothesis)
+├── frontend/                       The card, under jsdom
+└── test_ci_gates.py                This repo's own CI invariants
 ```
 
 ### The library boundary
@@ -132,17 +137,56 @@ key to that object; anything it omits falls back to English.
 
 | Location | What it covers |
 |---|---|
-| `tests/test_*.py` | Unit tests, on Home Assistant's own test infrastructure |
+| `tests/components/powerpetdoor/` | Unit tests, on Home Assistant's own test infrastructure |
 | `tests/simulator/` | End-to-end against pypowerpetdoor's **real** door simulator over a real socket — the layer that catches the integration and the library disagreeing |
 | `tests/fuzz/` | Randomised input (hypothesis) |
 | `tests/frontend/` | The card, under jsdom |
 | `tests/test_ci_gates.py` | Repository invariants that nothing else would notice |
+
+`tests/components/powerpetdoor/` is deliberately the shape and the path Home
+Assistant core uses, and is kept to exactly what core would accept — see
+[Core readiness](#core-readiness). Its `conftest.py` is self-contained for
+the same reason; `tests/simulator/` and `tests/fuzz/` import the door
+doubles from it rather than the other way round.
+
+`tests/conftest.py` holds a single fixture, the `enable_custom_integrations`
+shim, and is the one file that exists purely because this ships outside
+core.
 
 Target is 100% line and branch coverage, reached **without** `tests/fuzz/` —
 the deterministic suite must never lean on randomised coverage.
 
 `pytest-socket` blocks real sockets everywhere except `tests/simulator/`,
 which enables them deliberately and binds only to loopback.
+
+## Core readiness
+
+This integration is distributed through HACS and there is no plan to change
+that. It is nevertheless kept in a state where submitting it to Home
+Assistant core would be a move rather than a rewrite: platinum quality
+scale, 100% coverage, strict typing, no integration dependencies, and the
+core test layout above.
+
+What a core submission would still have to change is mechanical and short:
+
+| Change | Why it cannot already be done here |
+|---|---|
+| `custom_components/powerpetdoor/` → `homeassistant/components/powerpetdoor/` | HACS installs custom integrations to `custom_components/` |
+| `from custom_components.powerpetdoor` → `from homeassistant.components.powerpetdoor`, throughout the tests | Follows the move above |
+| `pytest_homeassistant_custom_component.common` → `tests.common`, `.syrupy` → `tests.syrupy` | That package exists to re-export core's test helpers to custom integrations; in core you import them directly |
+| Delete `"version"` from `manifest.json` | HACS **requires** it; core **rejects** it. The one genuinely irreconcilable field |
+| Delete `tests/conftest.py` | A core integration is not a custom one and has nothing to enable |
+| Delete `translations/en.json` | Core generates translations from `strings.json`; only `strings.json` is checked in |
+| Run core's `script.gen_requirements_all` | `pypowerpetdoor` has to reach `requirements_all.txt`, which core generates from manifests |
+| Add the domain to core's `.strict-typing` | Already passes `disallow_untyped_defs`, so this only records it |
+| Open a PR against `home-assistant/brands` | Icon and logo live in a separate repo for every integration |
+
+Staying behind, because core has nowhere to put them: `hacs.json`,
+`www/powerpetdoor-schedule-card.js`, this repo's workflows and `scripts/`,
+and the `simulator/`, `fuzz/` and `frontend/` suites. The WebSocket API the
+card talks to is ordinary core-acceptable code and would go; **the card
+itself would keep shipping from here**, which is the only reason a core
+submission would not be the end of this repository.
 
 ## Quality scale
 

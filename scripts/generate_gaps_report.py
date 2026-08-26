@@ -67,7 +67,7 @@ class CoverageSettings:
     ``exclude_lines`` pattern that deletes a whole shipped function were
     each a silent one-line disarm of this project's central quality control
     (round-9 test-fanatic H1). Reading them all here is what lets
-    ``tests/test_gaps_report.py`` assert their *values* and lets the report
+    ``tests/test_ci_gates.py`` asserts their *values* and lets the report
     disclose them.
     """
 
@@ -624,7 +624,7 @@ def main() -> int:
     lines.append("")
     lines.append(
         "What the 100% gate measures, read from `pyproject.toml` "
-        "(`tests/test_gaps_report.py` asserts each value):"
+        "(`tests/test_ci_gates.py` asserts each value):"
     )
     lines.append("")
     lines.extend(render_gate_configuration())
