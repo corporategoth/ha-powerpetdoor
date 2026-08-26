@@ -87,8 +87,7 @@ See [schedules.md](schedules.md) for editing.
 > **These control push notifications in the manufacturer's phone app.** They
 > do **not** call Home Assistant's `notify` service and they do not create
 > Home Assistant notifications — they toggle a setting stored on the door,
-> which the vendor app then acts on. (This answers
-> [issue #8](https://github.com/corporategoth/ha-powerpetdoor/issues/8).)
+> which the vendor app then acts on.
 >
 > To get a Home Assistant notification instead, write an automation
 > triggered on `binary_sensor.power_pet_door_inside_schedule`,
@@ -121,4 +120,4 @@ entities.
 | Door unreachable | Everything except `switch.…_connection` is unavailable. |
 | `switch.…_connection` turned off | The same — deliberately. Turn it back on. |
 | `switch.…_power` turned off | The motor-driven entities (cover, buttons, sensor switches, schedules) go unavailable. Configuration the door still remembers, the power switch, notifications and diagnostics stay available. |
-| An entity disabled | **Nothing else is affected.** In versions before 0.5.0 disabling the latency sensor could take the whole integration offline; the connection now belongs to the integration itself, not to any entity ([issue #18](https://github.com/corporategoth/ha-powerpetdoor/issues/18)). |
+| An entity disabled | **Nothing else is affected.** In versions before 0.5.0 disabling the latency sensor could take the whole integration offline; the connection now belongs to the integration itself, not to any entity. |
