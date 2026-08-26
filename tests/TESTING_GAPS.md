@@ -2,69 +2,27 @@
 
 This file is **auto-generated** by CI after each test run. Do not edit manually.
 
-**Last updated:** 2026-08-25 20:18 UTC
+**Last updated:** 2026-08-26 02:07 UTC
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Line Coverage | 75.93% |
-| Branch Coverage | 46.23% |
-| Lines Covered | 607 / 758 |
-| Branches Covered | 49 / 106 |
-| Lines Missing | 151 |
+| Line Coverage | 100.00% |
+| Branch Coverage | 100.00% |
+| Lines Covered | 890 / 890 |
+| Branches Covered | 170 / 170 |
+| Lines Missing | 0 |
 
 ## Coverage by Category
 
 | Category | Files | Coverage | Status |
 |----------|-------|----------|--------|
-| Core Library | 16 (13 with gaps) | 80.1% | :yellow_circle: |
+| Core Library | 17 | 100.0% | :green_circle: |
 
-## Current Gaps (13 files)
+## Status: 100% Coverage :green_circle:
 
-| Module | Stmts | Missing | Coverage |
-|--------|-------|---------|----------|
-| `config_flow.py` | 71 | 44 | 32.5% |
-| `websocket.py` | 81 | 47 | 34.0% |
-| `select.py` | 54 | 26 | 42.4% |
-| `diagnostics.py` | 10 | 2 | 80.0% |
-| `tz_utils.py` | 14 | 1 | 87.5% |
-| `number.py` | 41 | 5 | 88.4% |
-| `schedule.py` | 114 | 8 | 89.0% |
-| `coordinator.py` | 53 | 5 | 89.1% |
-| `cover.py` | 41 | 3 | 92.7% |
-| `button.py` | 30 | 2 | 93.3% |
-| `binary_sensor.py` | 82 | 5 | 94.2% |
-| `__init__.py` | 20 | 1 | 95.0% |
-| `switch.py` | 71 | 2 | 97.2% |
-
-### Missing Lines Detail
-
-**`config_flow.py`**: 62, 69, 110-115, 117-119, 121, 126, 140, 144-147, 152-153, 155-157, 162, 164, 174-175, 177-179, 181-182, 184-186, 195, 197, 211-212, 216-217, 219, 221, 230
-
-**`websocket.py`**: 78, 93-96, 99-101, 103, 105, 108-113, 118-119, 135-145, 161-163, 168-170, 188-190, 195-196, 198-203, 205
-
-**`select.py`**: 76-78, 81-82, 87-89, 92-93, 99, 104, 108-110, 112-113, 115-117, 123-126, 132-133
-
-**`diagnostics.py`**: 29-30
-
-**`tz_utils.py`**: 53
-
-**`number.py`**: 140-143, 148
-
-**`schedule.py`**: 76, 136, 149, 188, 210, 282, 291, 294
-
-**`coordinator.py`**: 133, 136-137, 174-175
-
-**`cover.py`**: 97, 103-104
-
-**`button.py`**: 100-101
-
-**`binary_sensor.py`**: 202-204, 220-221
-
-**`__init__.py`**: 68
-
-**`switch.py`**: 308-309
+All code is covered by tests. No gaps to report.
 
 ## Coverage Exclusions
 

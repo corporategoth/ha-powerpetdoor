@@ -453,6 +453,28 @@ def _categorize(path: str) -> str:
     return "Core Library"
 
 
+def _stale_against_sources(coverage_file: Path) -> str | None:
+    """Name a source file newer than the coverage data, if there is one.
+
+    A report carries `datetime.now()` as its "Last updated", so running the
+    generator against an old `coverage.json` produces a fresh-looking file
+    full of stale numbers - which is worse than an obviously old one,
+    because the timestamp invites trust. That happened: a report stamped
+    2026-08-25 claimed 75.93% line coverage from data measured on the 23rd,
+    when the suite was actually at 100%.
+
+    `pytest --cov` alone does NOT write coverage.json; it needs
+    `--cov-report=json`, which is easy to leave off. CI gets this right (it
+    runs `coverage json` in the same job, immediately before), so this only
+    ever fires locally - which is exactly where it is needed.
+    """
+    measured = coverage_file.stat().st_mtime
+    for source in Path("custom_components").rglob("*.py"):
+        if source.stat().st_mtime > measured:
+            return str(source)
+    return None
+
+
 def main() -> int:
     """Generate and output the testing gaps report."""
     coverage_file = Path("coverage.json")
@@ -468,6 +490,16 @@ def main() -> int:
             print(msg)
         else:
             Path("tests/TESTING_GAPS.md").write_text(msg.rstrip("\n") + "\n")
+        return 1
+
+    newer = _stale_against_sources(coverage_file)
+    if newer is not None:
+        print(
+            f"FAIL: coverage.json is older than {newer}, so this report would "
+            "carry today's date on stale numbers. Re-run:\n"
+            "    uv run pytest --cov --cov-report=json",
+            file=sys.stderr,
+        )
         return 1
 
     with open(coverage_file) as f:
