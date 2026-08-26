@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The integration no longer depends on Home Assistant's `schedule`
+  component.** It imported three constants from it - the `from`/`to` keys
+  and the weekday names that make up the schedule payload format - and that
+  import made `schedule` a manifest dependency, so every installation
+  loaded a helper component it never configured. The three constants are
+  now defined in the integration itself. The payload format is unchanged
+  and is still Home Assistant's, so automations calling
+  `powerpetdoor.set_schedule`, the WebSocket API and the schedule card all
+  keep working exactly as before.
+
+  This also removes a way the integration could break on a Home Assistant
+  upgrade: the import read that component's `const.py`, which carries no
+  stability contract, and a rename there would have stopped the integration
+  setting up at all - no entities, no card, no schedules.
+
+### Internal
+
+- The Python tests moved to `tests/components/powerpetdoor/`, the layout
+  Home Assistant core uses, so that submitting this integration upstream
+  would be a move rather than a rewrite. `docs/development.md` records what
+  such a submission would still have to change. Nothing about the shipped
+  integration changes as a result.
+
 ## [0.5.0] - 2026-08-25
 
 ### Breaking
