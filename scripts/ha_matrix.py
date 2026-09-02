@@ -385,6 +385,54 @@ def main() -> int:
         if not MATRIX_FILE.exists():
             print(f"\nFAIL: {MATRIX_FILE.relative_to(REPO)} does not exist")
             return 1
+        committed = json.loads(MATRIX_FILE.read_text(encoding="utf-8"))
+
+        # A resolve-only probe cannot be compared byte-for-byte against a
+        # file measured by running the suite, and this used to try. `--quick`
+        # skips the tests, so it finds every pair that merely INSTALLS -
+        # a wider grid, with a lower floor, and `_measured_with_tests: false`
+        # in the document it builds. Against a committed file measured with
+        # tests those differ by construction, so `--check --quick` reported
+        # "stale" on a matrix that was perfectly current, every time, and the
+        # pre-push hook that runs it could never pass.
+        #
+        # Like-for-like or not at all. A quick probe can still say something
+        # true and useful: every committed pair must still resolve, which is
+        # what catches an upstream yank. It cannot say the grid has not
+        # moved, because it did not measure the same thing.
+        if committed.get("_measured_with_tests") and not document["_measured_with_tests"]:
+            # `include` carries only the EDGES of each interpreter's range,
+            # so a committed pair is checked against the RANGE rather than
+            # against that list - a tested floor sits inside the resolvable
+            # span, not on its edge, and testing for membership marked every
+            # one of them missing.
+            probed: dict[str, list[str]] = {}
+            for entry in document["include"]:
+                probed.setdefault(entry["python-version"], []).append(entry["homeassistant"])
+            missing = [
+                entry
+                for entry in committed["include"]
+                if entry["python-version"] not in probed
+                or not (
+                    _version_key(min(probed[entry["python-version"]], key=_version_key))
+                    <= _version_key(entry["homeassistant"])
+                    <= _version_key(max(probed[entry["python-version"]], key=_version_key))
+                )
+            ]
+            if missing:
+                print(
+                    f"\nFAIL: {MATRIX_FILE.relative_to(REPO)} claims pairs that no longer resolve:"
+                )
+                for entry in missing:
+                    print(f"  {entry['name']}")
+                print("  re-run with --write (without --quick) to re-measure")
+                return 1
+            print(
+                f"\nOK: every committed pair in {MATRIX_FILE.relative_to(REPO)} still resolves"
+                "\n    (quick mode: run without --quick to re-measure the grid itself)"
+            )
+            return 0
+
         if MATRIX_FILE.read_text(encoding="utf-8") != serialised:
             print(f"\nFAIL: {MATRIX_FILE.relative_to(REPO)} is stale - re-run with --write")
             return 1

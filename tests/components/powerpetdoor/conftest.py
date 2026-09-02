@@ -167,6 +167,12 @@ def _build_mock_door() -> MagicMock:
         setattr(door, coroutine, AsyncMock())
 
     door.refresh_schedules.return_value = []
+    # `refresh`/`refresh_settings` answer with the names of the steps that
+    # did NOT land, so a healthy door answers with nothing. An AsyncMock's
+    # default MagicMock return is truthy and iterable-of-nothing, which
+    # would read as "every step failed but named none of them".
+    door.refresh.return_value = []
+    door.refresh_settings.return_value = []
     return door
 
 

@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import yaml
@@ -804,3 +807,226 @@ class TestTheGapsReportCanActuallyBeCommitted:
                 if job.get("permissions", {}).get("contents") == "write"
             }
             assert writers == {"coverage-report"}, f"{name}: unexpected writers {writers}"
+
+
+def _load_dependency_checker():
+    """Import scripts/check_dependencies.py, which is not a package."""
+    spec = importlib.util.spec_from_file_location(
+        "_check_dependencies", REPO_ROOT / "scripts" / "check_dependencies.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestTheDependencyGateCannotPassVacuously:
+    """`check_dependencies.py` is a gate; a gate that never fires is a lie.
+
+    It runs at pre-push with `--strict`, so its job is to make a Dependabot
+    PR impossible by failing before the push that would earn one. Every
+    assertion here pins a way it was found answering "all clear" without
+    having looked.
+    """
+
+    def test_the_hook_runs_it_strictly(self):
+        """Without `--strict` an available upgrade is printed, not refused.
+
+        Which is the whole condition Dependabot opens a PR for.
+        """
+        config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+        hooks = [
+            hook
+            for repo in config["repos"]
+            for hook in repo.get("hooks", [])
+            if hook.get("id") == "dependency-freshness"
+        ]
+        assert len(hooks) == 1, "dependency-freshness is not configured exactly once"
+        assert "--strict" in hooks[0]["entry"].split(), (
+            "the dependency-freshness hook must pass --strict, or an available "
+            "upgrade is reported and the push proceeds anyway"
+        )
+        assert hooks[0]["stages"] == ["pre-push"], (
+            "this resolves against PyPI and queries GitHub; at commit stage it "
+            "would make committing offline impossible"
+        )
+
+    def test_it_reaches_the_projects_own_uv(self):
+        """`$UV`, not PATH.
+
+        Home Assistant depends on `uv`, so `.venv/bin/uv` exists and is
+        older than the developer's. The hook runs under `uv run`, which puts
+        the venv first on PATH - so a bare "uv" reached HA's copy, whose
+        `lock --upgrade --dry-run` says "Lockfile changes detected" whatever
+        the answer is. That parsed as unrecognised output and was reported
+        as a pending upgrade on every run: under --strict, a permanently
+        blocked push with nothing to fix.
+        """
+        module = _load_dependency_checker()
+        with mock.patch.dict(os.environ, {"UV": "/opt/outer/bin/uv"}):
+            assert module._resolve_uv() == "/opt/outer/bin/uv"
+        # ...and `uvx` is taken from beside it, never from PATH either.
+        assert Path(module.UVX).parent == Path(module.UV).parent
+
+        # Only when `uv run` did not export it does PATH get a say.
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch.object(module.shutil, "which", return_value="/venv/bin/uv"),
+        ):
+            assert module._resolve_uv() == "/venv/bin/uv"
+
+        # The parse itself: HA's uv wording must not read as "unrecognised".
+        assert (
+            module.parse_upgrade_moves("Resolved 218 packages\nNo lockfile changes detected\n")
+            == []
+        )
+        assert module.parse_upgrade_moves("Update ruff v0.16.4 -> v0.16.5\n") == [
+            "Update ruff v0.16.4 -> v0.16.5"
+        ]
+
+    def test_prose_in_the_dependencies_block_is_not_a_requirement(self):
+        """An apostrophe is a quote character to a regex.
+
+        The comment explaining why `tzdata` is absent runs from "Home
+        Assistant's" to "manifest.json's", and everything between them was
+        read as a requirement named `s`. The script reported a manifest
+        disagreement, and exited 1, on every single run.
+        """
+        module = _load_dependency_checker()
+        assert module.check_manifest_matches_pyproject() == []
+
+    def test_a_pin_ahead_of_the_newest_tag_is_not_behind_it(self):
+        """`home-assistant/actions` last cut a release in 2020.
+
+        Every consumer pins its master head, which is six years ahead of
+        `1.0.0`. Reporting that as stale under --strict would block every
+        push, with the only available "fix" being a six-year regression.
+        """
+        hassfest = (REPO_ROOT / ".github/workflows/hassfest.yml").read_text(encoding="utf-8")
+        assert "home-assistant/actions/hassfest@" in hassfest
+        module = _load_dependency_checker()
+        assert hasattr(module, "default_branch_head"), (
+            "check_action_pins needs the default-branch head to tell "
+            "'differs from the newest tag' apart from 'behind it'"
+        )
+
+
+class TestTheRuffHookIsTheRuffCiRuns:
+    """A hook that formats differently from CI fights the lint job.
+
+    `.pre-commit-config.yaml` pins ruff-pre-commit by tag and `uv.lock` pins
+    the ruff `ruff format --check` runs. Nothing in either file couples
+    them, so a lock refresh moves one and leaves the other - and the result
+    is a commit that the hook reformats and CI then rejects, or vice versa.
+    """
+
+    def test_the_pinned_versions_agree(self):
+        config = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        hook = re.search(
+            r"repo:\s*https://github\.com/astral-sh/ruff-pre-commit\s*\n"
+            r"(?:\s*#.*\n)*\s*rev:\s*v?([\d.]+)",
+            config,
+        )
+        assert hook, "could not find the ruff-pre-commit rev"
+
+        lock = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
+        locked = re.search(r'\[\[package\]\]\nname = "ruff"\nversion = "([^"]+)"', lock)
+        assert locked, "uv.lock does not resolve ruff"
+
+        assert hook.group(1) == locked.group(1), (
+            f"the ruff pre-commit hook is v{hook.group(1)} but uv.lock resolves "
+            f"{locked.group(1)}; the hook and CI would format differently"
+        )
+
+
+def _load_matrix_script():
+    """Import scripts/ha_matrix.py, which is not a package.
+
+    Registered in `sys.modules` before it is executed, unlike the two
+    loaders above: this module defines dataclasses, and with
+    `from __future__ import annotations` in force the decorator resolves
+    each field's annotation through `sys.modules[cls.__module__]`. An
+    unregistered module makes that None and the import dies inside
+    `dataclasses`.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "_ha_matrix", REPO_ROOT / "scripts" / "ha_matrix.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        del sys.modules[spec.name]
+        raise
+    return module
+
+
+class TestTheMatrixGateComparesLikeForLike:
+    """`--check --quick` must be able to pass, and to fail.
+
+    The pre-push hook runs `ha_matrix.py --check --quick`. `--quick` skips
+    running the suite, so it finds every pair that merely INSTALLS - a wider
+    grid, a lower floor, and `_measured_with_tests: false` in the document it
+    builds. That was compared byte-for-byte against a file measured WITH
+    tests, so the two differed by construction: the hook reported a perfectly
+    current matrix as stale on every run and could only ever be skipped.
+    """
+
+    @staticmethod
+    def _rows(module, spans: dict[str, tuple[str, str]]):
+        return [
+            module.PythonRow(
+                python=python,
+                oldest=module.Release(phacc="0.0.0", ha=oldest, requires_python=""),
+                newest=module.Release(phacc="0.0.0", ha=newest, requires_python=""),
+            )
+            for python, (oldest, newest) in spans.items()
+        ]
+
+    def _run_check(self, module, spans: dict[str, tuple[str, str]]) -> int:
+        rows = self._rows(module, spans)
+        with (
+            mock.patch.object(module, "build_matrix", return_value=rows),
+            mock.patch.object(module.shutil, "which", return_value="/usr/bin/uv"),
+            mock.patch.object(module.sys, "argv", ["ha_matrix.py", "--check", "--quick"]),
+        ):
+            return module.main()
+
+    def test_a_wider_quick_probe_is_not_staleness(self):
+        """The committed pairs sit INSIDE the resolvable span, not on its edge.
+
+        A tested floor is by definition at or above the floor that merely
+        installs, so comparing committed pairs against the probe's edge
+        LIST - rather than its range - marks every one of them missing.
+        """
+        module = _load_matrix_script()
+        committed = json.loads((REPO_ROOT / ".github" / "ha-matrix.json").read_text())
+        assert committed["_measured_with_tests"], (
+            "this gate only applies when the committed matrix was measured with tests"
+        )
+
+        spans = {}
+        for entry in committed["include"]:
+            versions = spans.setdefault(entry["python-version"], [])
+            versions.append(entry["homeassistant"])
+        # A quick probe reaching strictly wider than every committed pair,
+        # which is the real-world shape.
+        wide = {
+            python: ("2024.1.0", max(versions, key=module._version_key))
+            for python, versions in spans.items()
+        }
+        assert self._run_check(module, wide) == 0
+
+    def test_a_pair_that_no_longer_resolves_still_fails(self):
+        """...and the gate has not simply been turned off.
+
+        Dropping the byte comparison without putting anything in its place
+        would make the hook pass unconditionally, which is worse than
+        failing unconditionally: it reads as a check.
+        """
+        module = _load_matrix_script()
+        committed = json.loads((REPO_ROOT / ".github" / "ha-matrix.json").read_text())
+        pythons = {entry["python-version"] for entry in committed["include"]}
+        # Upstream yanked everything the committed matrix names.
+        narrow = {python: ("2099.1.0", "2099.9.9") for python in pythons}
+        assert self._run_check(module, narrow) == 1

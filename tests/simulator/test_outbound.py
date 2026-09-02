@@ -26,6 +26,7 @@ from powerpetdoor import (
     DOOR_STATE_HOLDING,
     DOOR_STATE_KEEPUP,
     DOOR_STATE_RISING,
+    DoorStatus,
 )
 from powerpetdoor.simulator.server import DoorSimulator
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -33,6 +34,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.powerpetdoor.const import DOMAIN
 from custom_components.powerpetdoor.schedule import apply_schedule
 from custom_components.powerpetdoor.tz_utils import get_posix_tz_string
+
+from .conftest import reach
 
 # ---------------------------------------------------------------------------
 # Switches
@@ -314,7 +317,12 @@ async def test_the_toggle_button_closes_an_open_real_door(
     test above and fails this one.
     """
     await simulated_door.open_door(hold=True)
-    await simulated_door.wait_for_status(DOOR_STATE_KEEPUP, timeout=10)
+    # The FACADE's view, not the simulator's. Toggle decides from the
+    # cached status, and does nothing while the door is still travelling -
+    # so pressing it the instant the far side of the socket reports KEEPUP
+    # is a race the user never runs: they press it after the dashboard has
+    # caught up, which is this wait.
+    await reach(simulated_entry.runtime_data.door, DoorStatus.KEEPUP)
 
     await hass.services.async_call(
         "button", "press", {"entity_id": "button.power_pet_door_toggle"}, blocking=True

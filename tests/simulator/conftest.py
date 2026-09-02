@@ -27,7 +27,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_TIMEOUT
 from homeassistant.core import HomeAssistant
-from powerpetdoor import PowerPetDoor
+from powerpetdoor import DoorStatus, PowerPetDoor
 from powerpetdoor.simulator.server import DoorSimulator
 from powerpetdoor.simulator.state import DoorSimulatorState, DoorTimingConfig
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -180,6 +180,28 @@ def watch(door: PowerPetDoor, hook: str) -> asyncio.Event:
 #: the test is considered hung. Generous, because it is a deadlock backstop
 #: rather than a timing assumption - a working push arrives in milliseconds.
 PUSH_TIMEOUT = 10.0
+
+
+async def reach(door: PowerPetDoor, status: DoorStatus) -> None:
+    """Wait until the FACADE has seen the door reach `status`.
+
+    Deliberately not `simulated_door.wait_for_status`: that is the far side
+    of the socket. What these tests need to know is that the change crossed
+    the wire and was parsed, which is the moment the entity can follow -
+    and the moment a control that reads the cached status, such as
+    `PowerPetDoor.toggle`, will act on it.
+    """
+    reached = asyncio.Event()
+
+    def _watch(new: DoorStatus) -> None:
+        if new is status:
+            reached.set()
+
+    door.on_status_change(_watch)
+    if door.status is status:
+        reached.set()
+    async with asyncio.timeout(PUSH_TIMEOUT):
+        await reached.wait()
 
 
 async def settle(hass: HomeAssistant, event: asyncio.Event) -> None:

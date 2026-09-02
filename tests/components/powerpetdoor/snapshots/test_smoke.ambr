@@ -931,6 +931,7 @@
         'closing',
         'closing_top_open',
         'closing_mid_open',
+        'poweroff',
         'unknown',
       ]),
     }),

@@ -18,9 +18,16 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 COVER = "cover.power_pet_door_door"
 
-#: Every door state, with the `is_closed`/`is_closing` the library derives
-#: from it and the position it reports, and the cover state that must
-#: result.
+#: Every door state the cover can RENDER, with the `is_closed`/`is_closing`
+#: the library derives from it, the position it reports, and the cover state
+#: that must result.
+#:
+#: `DoorStatus.POWEROFF` is deliberately absent. The cover is a
+#: `PowerPetDoorPoweredEntity`, so a switched-off door makes it
+#: `unavailable` before any of this is consulted - and a row pairing that
+#: status with a powered door would be a state no device can be in. The
+#: powered-off case is pinned by
+#: `test_the_cover_is_unavailable_while_the_door_is_powered_off` instead.
 #:
 #: The library's own rules, restated here as a table on purpose: this file
 #: tests what cover.py DERIVES (`is_opening`, which the facade does not

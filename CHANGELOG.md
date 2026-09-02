@@ -7,7 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-02
+
+### Fixed
+
+- **A door you switched off no longer reads "unknown".** Asked for its
+  status while powered off, the door answers `DOOR_POWEROFF` - a state the
+  library did not know, so `sensor.door_status` showed `unknown` and the
+  log filled with warnings for as long as the door stayed off. Because an
+  ENUM sensor's undeclared states are dropped from long-term statistics,
+  that was a hole in the history rather than a blip - and being switched
+  off is a state people stay in deliberately. It now reports **Powered
+  off**, and counts as closed, because the flap is down.
+
+- **A stale value is no longer served as current after an outage.** Two
+  things went wrong together, and the second hid the first.
+
+  A door that loses mains power comes back with its power flag reset to
+  **on** - it does not persist off. Measured on a real door: set it false,
+  pull the plug, and it answers `power_state: "true"` the moment it is
+  back. So a user who had switched the door off in Home Assistant holds a
+  cached `False` that is now the opposite of the truth. Because every
+  powered entity keys its availability off that flag, the cover, the door
+  status, the sensors and the schedules all read `unavailable` together -
+  a device that looks broken while answering perfectly well.
+
+  Correcting it needs a settings read, and the door drops requests - not as
+  a fault, and no pacing prevents it. `PowerPetDoor.refresh()` gathers its
+  steps with `return_exceptions=True`, so a dropped `GET_SETTINGS` was
+  reported only to a log. Nothing in this integration could see it. The
+  coordinator had one workaround already - calling `refresh_status()` first
+  purely because it is the one call that raises - and that only proves the
+  door is answering, not that the settings arrived; and the reconnect
+  handler had another, marking itself healthy on the strength of a refresh
+  whose result it could not read. Both pinned the stale value in place, and
+  the reconnect also deferred the next poll a full refresh interval: 300
+  seconds by default, and the options flow permits 86400.
+
+  The fix is in the library, where the gap was:
+  [pypowerpetdoor 0.5.1](https://github.com/corporategoth/py-powerpetdoor)
+  returns the names of the refresh steps that did not land. The coordinator
+  now asks, and decides by step - a lost `status` or `settings` fails the
+  update, while the battery, the lifetime counters and the hardware version
+  keep their cached values rather than blanking a dashboard that is almost
+  entirely correct. Both workarounds are gone.
+
+  The reconnect handler now requests a refresh through the coordinator
+  rather than asserting health it never verified, so the healthy flag is
+  cleared only by a read that actually happened. It is debounced, so a
+  flapping door refreshes once and coalesces the rest.
+
 ### Changed
+
+- **Requires pypowerpetdoor 0.5.1.** Two of that release's fixes reach a
+  user directly. The toggle button no longer reverses a door that is still
+  moving - `toggle()` used to test a state deliberately wider than "open",
+  so a press while the flap was rising read as "open, so close it" and sent
+  it back down mid-travel. And the door's clock, which the diagnostics
+  download reports, now arrives as an aware datetime rather than a naive
+  one interpreted in whatever timezone the reader happened to assume.
+
+  The library also stopped sending two commands - `SET_SCHEDULE_LIST` and
+  `SET_TIME` - that no door has ever implemented, and now refuses an IANA
+  timezone name on the wire where the door only speaks POSIX. This
+  integration used neither command and already converted before writing, so
+  nothing here changed to accommodate them.
 
 - **The integration no longer depends on Home Assistant's `schedule`
   component.** It imported three constants from it - the `from`/`to` keys
@@ -25,6 +89,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   setting up at all - no entities, no card, no schedules.
 
 ### Internal
+
+- **The dependency gate now refuses a push rather than reporting one.**
+  `scripts/check_dependencies.py` runs with `--strict` at pre-push, so an
+  available upgrade fails instead of printing - which is the exact
+  condition Dependabot opens a pull request for, and Dependabot only ever
+  sees what was pushed. Three things had to be fixed first, each of which
+  had been answering "all clear" without having looked:
+
+  - it resolved `uv` off `PATH`, and inside `uv run` that is **Home
+    Assistant's** pinned uv rather than the developer's. The older one
+    answers `lock --upgrade --dry-run` with a bare "Lockfile changes
+    detected" whatever the answer is, so every run reported a phantom
+    pending upgrade. It now uses `$UV`, which `uv run` exports for exactly
+    this;
+  - it read the prose in `pyproject.toml`'s dependency block as a
+    requirement, because an apostrophe is a quote character to a regex:
+    everything from "Home Assistant's" to "manifest.json's" parsed as a
+    package named `s`, and the script exited 1 on every run;
+  - it called an action pin stale whenever it differed from the newest
+    tag, in either direction. `home-assistant/actions` last cut a release
+    in 2020 and has developed on master since, so the pin everyone uses is
+    six years *ahead* of "latest" - and under `--strict` the only
+    available fix would have been a six-year regression.
+
+  Two checks are new: the ruff pinned by `.pre-commit-config.yaml` must be
+  the ruff `uv.lock` resolves, so the hook and CI cannot format differently;
+  and the card's npm toolchain is checked too, since `dependabot.yml`
+  watches that ecosystem and `uv` cannot see it.
+
+- **Two more gates that could never pass.** `ha_matrix.py --check --quick`
+  built a resolve-only document and compared it byte-for-byte against a
+  matrix measured by running the suite; the two differ by construction, so
+  the pre-push hook reported a current matrix as stale on every run and
+  could only be skipped. It now checks what a quick probe can actually
+  answer - that every committed pair still resolves - and says which one
+  did not when it fails. And `check_dependencies.py` read the prose in
+  `pyproject.toml`'s dependency block as a requirement, because an
+  apostrophe is a quote character to a regex.
+
+- The card's test toolchain moved to jest 30 and eslint 10. Its branch
+  coverage floor rose from 95% to 99.7% with it - jest 30 counts 445
+  branches where 29 counted 300, and the suite reaches 444 of them, so the
+  old floor would have permitted a twenty-branch regression in silence.
 
 - The Python tests moved to `tests/components/powerpetdoor/`, the layout
   Home Assistant core uses, so that submitting this integration upstream
@@ -466,7 +573,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Last change tracking
 - Support for hold time configuration
 
-[Unreleased]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.4.6...HEAD
+[Unreleased]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.5.1...HEAD
+[0.5.1]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.5.0...0.5.1
+[0.5.0]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.4.6...0.5.0
 [0.4.6]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.4.5...0.4.6
 [0.4.5]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.4.4...0.4.5
 [0.4.4]: https://github.com/corporategoth/ha-powerpetdoor/compare/0.4.3...0.4.4

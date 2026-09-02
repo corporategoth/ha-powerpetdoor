@@ -16,7 +16,14 @@ from homeassistant.const import CONF_TIMEOUT
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.util import dt as dt_util
-from powerpetdoor import BatteryInfo, CommandError, DoorStatus, Schedule, ScheduleTime
+from powerpetdoor import (
+    REFRESH_STEP_SETTINGS,
+    BatteryInfo,
+    CommandError,
+    DoorStatus,
+    Schedule,
+    ScheduleTime,
+)
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -232,30 +239,68 @@ async def test_a_refresh_while_disconnected_marks_entities_unavailable(
     mock_door.refresh.assert_not_awaited()
 
 
-@pytest.mark.parametrize(
-    "raised",
-    [CommandError("busy"), OSError("connection reset"), TimeoutError("no answer")],
-)
-async def test_a_refresh_the_door_refuses_marks_entities_unavailable(
-    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock, raised: Exception
+@pytest.mark.parametrize("lost", ["status", REFRESH_STEP_SETTINGS])
+async def test_a_refresh_that_lost_a_load_bearing_step_marks_entities_unavailable(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock, lost: str
 ) -> None:
-    """A connected door that fails a refresh is still a failed refresh.
+    """A connected door that did not answer is still a failed refresh.
 
     Distinct from the disconnected case above: the socket is up, so the
     library is not reconnecting and nothing else will notice. Swallowing it
     would leave every entity showing values from before the failure with no
     sign they had gone stale.
 
-    Driven through `refresh_status`, NOT `refresh`. The real
-    `PowerPetDoor.refresh()` gathers with `return_exceptions=True` and only
-    logs, so it cannot raise - a test that made a mock's `refresh` throw was
-    exercising a path production can never take, and `refresh_status()`
-    could be deleted from the coordinator with the whole suite green at 100%
-    coverage. That deletion is the bug: a door answering TCP but not
-    commands (the phone app has taken the connection - issue #18's shape)
-    would keep every entity `available` on a frozen cache indefinitely.
+    Driven through `refresh()`'s RETURN VALUE, not an exception, because
+    that is the only way this can happen. `PowerPetDoor.refresh()` gathers
+    with `return_exceptions=True`, so a step the door answered with silence
+    - which it does, for any command, occasionally - is reported rather
+    than raised. A test that made the mock throw would exercise a path
+    production cannot take.
+
+    Both load-bearing steps, because they fail independently and each alone
+    is enough: `status` is what the cover reads, `settings` is what the
+    power switch reads.
     """
-    mock_door.refresh_status.side_effect = raised
+    mock_door.refresh.return_value = [lost]
+
+    async_fire_time_changed(hass, dt_plus(seconds=301))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(POWER).state == "unavailable"
+
+
+async def test_a_refresh_that_lost_only_a_cosmetic_step_keeps_the_cache(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """The other side of that boundary, which coverage cannot see.
+
+    The battery, the lifetime counters and the hardware version are static
+    or cosmetic. Failing the whole update over one of them would blank a
+    dashboard that is almost entirely correct - and on a mains-powered door
+    with no battery fitted, would do it routinely.
+    """
+    mock_door.refresh.return_value = ["battery", "stats", "hardware_info"]
+
+    async_fire_time_changed(hass, dt_plus(seconds=301))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(POWER).state == "on"
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [CommandError("busy"), OSError("connection reset"), TimeoutError("no answer")],
+)
+async def test_a_refresh_that_raises_marks_entities_unavailable(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock, raised: Exception
+) -> None:
+    """Defence in depth: `refresh()` reports rather than raises, today.
+
+    That is a property of the library, not of this integration, and the
+    coordinator must not go quiet if it ever changes - an escaped exception
+    that left entities `available` on a frozen cache is issue #18's shape.
+    """
+    mock_door.refresh.side_effect = raised
 
     async_fire_time_changed(hass, dt_plus(seconds=301))
     await hass.async_block_till_done()
@@ -314,6 +359,59 @@ async def test_entities_recover_the_moment_the_door_reconnects(
     mock_door.refresh.side_effect = None
     for callback in mock_door._callbacks["on_connect"]:
         callback()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(POWER).state == "on"
+
+
+async def test_a_reconnect_whose_settings_read_was_dropped_is_not_reported_as_current(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, mock_door: MagicMock
+) -> None:
+    """The door drops requests, so the reconnect refresh has to be verified.
+
+    `PowerPetDoor.refresh()` gathers with `return_exceptions=True` and
+    reports a failed step to a log, so a `GET_SETTINGS` the door answered
+    with silence leaves every setting at its pre-outage value and the
+    reconnect still looks successful. Marking the coordinator healthy on
+    that basis pins the stale value in place AND defers the next poll a
+    full interval - 300 seconds by default, 86400 if the user widened it.
+
+    Which is not cosmetic for `power`. A door that loses mains power comes
+    back with the flag reset to ON, so a user who had switched it off holds
+    a cached False that is now the opposite of the truth - and every
+    `PowerPetDoorPoweredEntity` keys availability off it, so the cover, the
+    status sensor and the schedules go unavailable together.
+
+    Asserted through the coordinator's own refresh, which calls
+    `refresh_status()` first precisely because it is the one call that
+    raises.
+    """
+    mock_door.connected = False
+    mock_door.refresh.side_effect = OSError("connection reset")
+    async_fire_time_changed(hass, dt_plus(seconds=301))
+    await hass.async_block_till_done()
+    assert hass.states.get(POWER).state == "unavailable"
+
+    # The door is back, but its answer to GET_SETTINGS goes missing - the
+    # silent drop, which `refresh()` reports rather than raising.
+    mock_door.connected = True
+    mock_door.refresh.side_effect = None
+    mock_door.refresh.return_value = [REFRESH_STEP_SETTINGS]
+    for callback in mock_door._callbacks["on_connect"]:
+        callback()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(POWER).state == "unavailable", (
+        "a reconnect whose refresh did not complete was reported as current"
+    )
+
+    # ...and the retry that follows is a real read, not the deferred poll.
+    # Past the request debouncer's cooldown but nowhere near the 300s
+    # interval, so only the reconnect's own retry can account for this.
+    mock_door.refresh.return_value = []
+    for callback in mock_door._callbacks["on_connect"]:
+        callback()
+    async_fire_time_changed(hass, dt_plus(seconds=11))
     await hass.async_block_till_done()
 
     assert hass.states.get(POWER).state == "on"

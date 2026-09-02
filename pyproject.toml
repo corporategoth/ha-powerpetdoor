@@ -52,7 +52,7 @@ dependencies = [
     # custom_components/ imports it - pypowerpetdoor does - so by the
     # library-boundary rule the floor belongs there, and since 0.4.3 it is
     # `tzdata>=2026.3`, which is what used to be pinned here.
-    "pypowerpetdoor>=0.4.3",
+    "pypowerpetdoor>=0.5.1",
 ]
 
 [dependency-groups]
@@ -84,7 +84,7 @@ dev = [
     "syrupy>=4.7.0",
     # The simulator, for the integration tests that drive a real protocol
     # conversation instead of a mock.
-    "pypowerpetdoor[simulator]>=0.4.3",
+    "pypowerpetdoor[simulator]>=0.5.1",
     # Static analysis
     "mypy>=1.13.0",
     "ruff>=0.8.0",

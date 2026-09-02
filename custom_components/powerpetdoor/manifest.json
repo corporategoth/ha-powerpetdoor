@@ -14,7 +14,7 @@
   ],
   "quality_scale": "platinum",
   "requirements": [
-    "pypowerpetdoor==0.4.3"
+    "pypowerpetdoor==0.5.1"
   ],
-  "version": "0.5.0"
+  "version": "0.5.1"
 }

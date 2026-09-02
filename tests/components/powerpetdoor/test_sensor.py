@@ -121,6 +121,7 @@ async def test_the_latency_sensor_reports_the_round_trip_in_milliseconds(
         (DoorStatus.CLOSING, "closing"),
         (DoorStatus.CLOSING_TOP_OPEN, "closing_top_open"),
         (DoorStatus.CLOSING_MID_OPEN, "closing_mid_open"),
+        (DoorStatus.POWEROFF, "poweroff"),
         (DoorStatus.UNKNOWN, "unknown"),
     ],
 )
@@ -164,6 +165,11 @@ async def test_the_status_sensor_declares_every_state_it_can_report(
     # starting before the flap moves - is the one that was missing from the
     # library entirely. Every close produced an undeclared state.
     assert {"closing", "closing_top_open", "closing_mid_open"} <= set(options)
+    # And a switched-off door reports DOOR_POWEROFF, which is neither an
+    # error nor a motion state. Missing, it read as "unknown" for as long
+    # as the user left the door off - a hole in the history rather than a
+    # blip, because that is a state people stay in deliberately.
+    assert "poweroff" in options
 
 
 async def test_every_state_the_sensor_declares_has_a_translation(

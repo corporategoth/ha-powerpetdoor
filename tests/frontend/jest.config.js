@@ -35,17 +35,20 @@ module.exports = {
   // achieves, so any drop fails the build. Never lower one to make a commit
   // pass - that converts the only frontend regression gate into decoration.
   //
-  // `branches` reads as a reduction from the previous 100 and is not one.
-  // That 100% was 2 branches out of 2: only the registration code ran, so
-  // the denominator was almost the whole file's worth of code that never
-  // executed. The suite now runs 300 branches and covers 285 of them, and
-  // every other metric is at 100%. The 15 uncovered arcs are the else side
-  // of optional chaining on `this.shadowRoot`, which a constructed custom
-  // element always has - reaching them would mean asserting a state the
-  // browser cannot produce.
+  // `branches` is 444 of 445. The one arc left is the `if (!text)` fallback
+  // in `t()`, which no input can reach because check_translations.py fails
+  // the build on a key that is not in the table; it is declared in the
+  // Acknowledged Gaps section of tests/TESTING_GAPS.md and explained at the
+  // call site.
+  //
+  // It was 95 under jest 29, whose V8 coverage counted 300 branches and
+  // reached 285. Jest 30 counts 445 and reaches 444 - the same suite
+  // against the same card, measured better. Raising the floor with it is
+  // the point of a ratchet: left at 95 the gate would now permit a
+  // regression of twenty branches without a word.
   coverageThreshold: {
     global: {
-      branches: 95,
+      branches: 99.7,
       functions: 100,
       lines: 100,
       statements: 100,

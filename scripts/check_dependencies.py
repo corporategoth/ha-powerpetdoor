@@ -50,13 +50,36 @@ IGNORED_VULNERABILITIES: dict[str, str] = {}
 OURS = {"pypowerpetdoor", "tzdata"}
 
 
+def _resolve_uv() -> str:
+    """The uv that owns this project, not whichever one is first on PATH.
+
+    Home Assistant depends on `uv`, so `.venv/bin/uv` exists and is HA's
+    pinned version - 0.9.26 against a developer's 0.12.7 at the time of
+    writing. This script runs as `uv run python scripts/...`, which puts
+    the venv first on PATH, so a bare "uv" reached the OLD one: it answers
+    `lock --upgrade --dry-run` with a bare "Lockfile changes detected"
+    whatever the answer is, which this script read as unparseable output
+    and reported as a phantom pending upgrade on every single run. Under
+    `--strict` that is a push blocked forever with nothing to fix.
+
+    `uv run` exports the invoking binary's path as `$UV` precisely so a
+    subprocess can find its way back to it.
+    """
+    return os.environ.get("UV") or shutil.which("uv") or "uv"
+
+
+#: Resolved once. `uvx` ships beside `uv`, so it is found the same way.
+UV = _resolve_uv()
+UVX = str(Path(UV).with_name("uvx")) if Path(UV).name == "uv" else "uvx"
+
+
 def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, check=False)
 
 
 def check_lock_matches_manifest() -> bool:
     """`uv.lock` resolves what `pyproject.toml` currently declares."""
-    result = run(["uv", "lock", "--check"])
+    result = run([UV, "lock", "--check"])
     if result.returncode == 0:
         print("  lock is consistent with pyproject.toml")
         return True
@@ -89,7 +112,7 @@ def parse_upgrade_moves(text: str) -> list[str]:
 
 def check_upgrades_available(fix: bool) -> list[str]:
     """What a fresh resolve would move, without writing the lockfile."""
-    result = run(["uv", "lock", "--upgrade", "--dry-run"])
+    result = run([UV, "lock", "--upgrade", "--dry-run"])
     moves = parse_upgrade_moves(f"{result.stdout}\n{result.stderr}")
     if not moves:
         print("  every dependency is at its newest resolvable version")
@@ -100,7 +123,7 @@ def check_upgrades_available(fix: bool) -> list[str]:
         print(f"    {move}")
     if fix:
         print("  applying with `uv lock --upgrade`...")
-        upgrade = run(["uv", "lock", "--upgrade"])
+        upgrade = run([UV, "lock", "--upgrade"])
         if upgrade.returncode != 0:
             print(f"    failed: {upgrade.stderr.strip()}")
         else:
@@ -114,17 +137,17 @@ def check_vulnerabilities() -> list[dict] | None:
     Returns None when pip-audit could not be run at all, which is reported
     but not treated as a clean bill of health.
     """
-    if shutil.which("uv") is None:
+    if not Path(UV).is_file() and shutil.which(UV) is None:
         print("  skipped: uv not on PATH")
         return None
 
-    result = run(["uv", "export", "--format", "requirements-txt", "--no-hashes", "--all-extras"])
+    result = run([UV, "export", "--format", "requirements-txt", "--no-hashes", "--all-extras"])
     if result.returncode != 0:
         print(f"  skipped: could not export requirements ({result.stderr.strip()})")
         return None
 
     audit = subprocess.run(
-        ["uvx", "pip-audit", "--format", "json", "--requirement", "/dev/stdin"],
+        [UVX, "pip-audit", "--format", "json", "--requirement", "/dev/stdin"],
         input=result.stdout,
         capture_output=True,
         text=True,
@@ -269,9 +292,97 @@ def latest_release_sha(repo: str) -> tuple[str, str] | None:
     return tag, str(ref["sha"])
 
 
+def default_branch_head(repo: str) -> str | None:
+    """The sha at the tip of a repo's default branch, or None."""
+    head = _github_json(f"https://api.github.com/repos/{repo}/commits?per_page=1")
+    if isinstance(head, list) and head and isinstance(head[0], dict):
+        return str(head[0]["sha"])
+    return None
+
+
 def _version_key(tag: str) -> tuple[int, ...]:
     """Sort key for a `v1.2.3`-ish tag; non-numeric parts sort as zero."""
     return tuple(int(part) if part.isdigit() else 0 for part in re.findall(r"\d+|\w+", tag))
+
+
+def check_npm_packages() -> list[str]:
+    """Dev dependencies of the Lovelace card's test toolchain that have moved.
+
+    The second ecosystem in this repo, and the one `uv` cannot see.
+    `.github/dependabot.yml` watches it, so leaving it out of the freshness
+    gate means npm is the only route left by which a Dependabot PR can
+    appear - which is the condition this whole check exists to remove.
+
+    Nothing npm resolves ever reaches a user: the card in `www/` is plain
+    browser JavaScript with no build step, and these are jest and eslint.
+    That makes an upgrade cheap to take and cheap to revert, so there is no
+    reason to run behind.
+    """
+    if not Path("package.json").is_file():
+        print("  no package.json; skipped")
+        return []
+    if shutil.which("npm") is None:
+        print("  skipped: npm not on PATH")
+        return []
+
+    # `npm outdated` exits 1 when anything is outdated, which is the normal
+    # case rather than an error.
+    result = run(["npm", "outdated", "--json"])
+    try:
+        report = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        print("  skipped: could not parse `npm outdated` output")
+        return []
+
+    behind = [
+        f"{name} {entry.get('current')} -> {entry.get('latest')}"
+        for name, entry in sorted(report.items())
+        if entry.get("current") != entry.get("latest")
+    ]
+    if not behind:
+        print("  every npm dev dependency is at its latest release")
+        return []
+    print(f"  {len(behind)} npm dev dependenc{'y' if len(behind) == 1 else 'ies'} behind:")
+    for entry in behind:
+        print(f"    {entry}")
+    return behind
+
+
+def check_ruff_hook_pin() -> list[str]:
+    """The ruff pre-commit hook is the ruff the lock resolves.
+
+    `.pre-commit-config.yaml` pins ruff-pre-commit by tag, and `uv.lock`
+    pins the ruff CI runs. Nothing couples them, so a lock refresh moves
+    one and leaves the other - and a hook that formats differently from
+    `ruff format --check` turns every commit into a fight with the lint
+    job.
+    """
+    config = Path(".pre-commit-config.yaml")
+    lock = Path("uv.lock")
+    if not config.is_file() or not lock.is_file():
+        print("  no ruff hook or lockfile to compare")
+        return []
+
+    hook = re.search(
+        r"repo:\s*https://github\.com/astral-sh/ruff-pre-commit\s*\n(?:\s*#.*\n)*\s*rev:\s*v?([\d.]+)",
+        config.read_text(encoding="utf-8"),
+    )
+    locked = re.search(
+        r'\[\[package\]\]\nname = "ruff"\nversion = "([^"]+)"', lock.read_text(encoding="utf-8")
+    )
+    if not hook or not locked:
+        print("  could not read one of the two ruff pins")
+        return []
+
+    if hook.group(1) != locked.group(1):
+        message = (
+            f"ruff-pre-commit v{hook.group(1)} -> v{locked.group(1)} "
+            "(.pre-commit-config.yaml, to match uv.lock)"
+        )
+        print(f"  MISMATCH: {message}")
+        return [message]
+    print(f"  ruff hook and lock agree on v{hook.group(1)}")
+    return []
 
 
 def check_action_pins() -> list[str]:
@@ -289,6 +400,7 @@ def check_action_pins() -> list[str]:
         entry[2].add(path)
 
     stale: list[str] = []
+    unresolved: list[str] = []
     for repo, (sha, comment, paths) in sorted(by_repo.items()):
         if repo.split("/")[0] in NON_GITHUB_OWNERS:
             where = ", ".join(sorted(str(p) for p in paths))
@@ -296,16 +408,42 @@ def check_action_pins() -> list[str]:
             continue
         latest = latest_release_sha(repo)
         if latest is None:
+            # Not "current" - *unknown*. Said out loud, because an API rate
+            # limit reading as an all-clear is the silent staleness this
+            # script exists to prevent.
+            #
+            # It does not fail, even under `--strict`: Dependabot covers
+            # the github-actions ecosystem natively (.github/dependabot.yml),
+            # so a pin that goes stale here still gets a PR. Blocking a push
+            # on a network round trip that has a working backstop trades a
+            # real outage for a duplicate one.
             print(f"  {repo}: could not resolve a latest release or tag")
+            unresolved.append(repo)
             continue
         tag, latest_sha = latest
         if latest_sha != sha:
+            # Differing from the newest tag is not the same as being behind
+            # it. `home-assistant/actions` last cut a release in 2020 and has
+            # developed on master ever since, so the pin every consumer uses
+            # is SIX YEARS ahead of "latest" - and reporting that as stale
+            # under `--strict` would block every push with the only "fix"
+            # being a regression. A pin sitting on the default branch head is
+            # current by definition, whatever tags exist behind it.
+            if sha == default_branch_head(repo):
+                print(f"  {repo}: at branch head, ahead of the newest tag ({tag})")
+                continue
             stale.append(f"{repo} {comment or sha[:8]} -> {tag} ({latest_sha})")
         elif tag.startswith("HEAD"):
             print(f"  {repo}: at branch head; upstream publishes no tags")
 
+    if unresolved:
+        print(
+            f"  {len(unresolved)} pin(s) could not be checked "
+            "- set GITHUB_TOKEN if this is the API rate limit"
+        )
     if not stale:
-        print("  every action pin is at its upstream's latest release")
+        if not unresolved:
+            print("  every action pin is at its upstream's latest release")
         return []
     print(f"  {len(stale)} action pin(s) behind:")
     for entry in sorted(set(stale)):
@@ -343,7 +481,16 @@ def check_manifest_matches_pyproject() -> list[str]:
     block = re.search(r"^dependencies\s*=\s*\[(.*?)^\]", text, re.S | re.M)
     declared = {}
     if block:
-        for entry in re.findall(r"[\"']([^\"']+)[\"']", block.group(1)):
+        # Comment lines first. The scan below pairs up quote characters, and
+        # an English apostrophe is one: the prose explaining why `tzdata` is
+        # absent spans "Home Assistant's" to "manifest.json's", so everything
+        # between them was read as a requirement named `s` and reported as a
+        # disagreement on every run. Only whole-line comments are dropped, so
+        # a `#` inside a requirement string cannot be eaten with them.
+        body = "\n".join(
+            line for line in block.group(1).splitlines() if not line.lstrip().startswith("#")
+        )
+        for entry in re.findall(r"[\"']([^\"']+)[\"']", body):
             declared[_requirement_name(entry)] = entry.strip()
 
     problems = []
@@ -383,6 +530,12 @@ def main() -> int:
     print("\nAvailable upgrades:")
     moves = check_upgrades_available(args.fix)
 
+    print("\nCard toolchain (npm):")
+    stale_npm = check_npm_packages()
+
+    print("\nRuff hook pin:")
+    stale_hook = check_ruff_hook_pin()
+
     print("\nCI action pins:")
     stale_actions = check_action_pins()
 
@@ -399,7 +552,7 @@ def main() -> int:
     if vulns:
         print(f"FAIL: {len(vulns)} known advisor{'y' if len(vulns) == 1 else 'ies'}")
         return 1
-    pending = len(moves) + len(stale_actions)
+    pending = len(moves) + len(stale_actions) + len(stale_hook) + len(stale_npm)
     if pending and args.strict:
         print(f"FAIL (--strict): {pending} dependency/action update(s) available")
         return 1

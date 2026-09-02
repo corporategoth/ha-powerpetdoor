@@ -10,14 +10,19 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TIMEOUT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from powerpetdoor import CommandError, PowerPetDoor, Schedule
+from powerpetdoor import (
+    REFRESH_STEP_SETTINGS,
+    CommandError,
+    PowerPetDoor,
+    Schedule,
+)
 
 from .const import (
     CONF_KEEP_ALIVE,
@@ -31,6 +36,19 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+#: Refresh steps whose loss must fail the update rather than be tolerated.
+#:
+#: `status` is the door's own state - the cover, the status sensor - and
+#: `settings` carries the power flag, the sensor enables and the hold time.
+#: Serving either stale misreports what the door is doing; `power`
+#: especially, because `PowerPetDoorPoweredEntity` gates availability on it,
+#: so one stale False takes the cover, the sensors and the schedules
+#: `unavailable` together and the device reads as broken.
+#:
+#: The rest - battery, lifetime counters, hardware version - are static or
+#: cosmetic and keep their cached value without comment.
+REQUIRED_REFRESH_STEPS: Final = frozenset({"status", REFRESH_STEP_SETTINGS})
 
 #: `ConfigEntry` carrying our runtime data. Platinum's `runtime-data` rule:
 #: per-entry state lives on the entry, typed, never in `hass.data[DOMAIN]`.
@@ -144,15 +162,24 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
             # truth, without fighting the library's backoff.
             raise UpdateFailed(f"Not connected to {self.door.host}:{self.door.port}")
         try:
-            # Before the bulk refresh, one call that actually raises when the
-            # door stops answering. `refresh()` gathers with
-            # return_exceptions=True and only logs, so on its own it can
-            # never fail - which left the UpdateFailed arm below unreachable
-            # and let entities keep serving a stale cache as though current.
-            await self.door.refresh_status()
-            await self.door.refresh()
+            failed = await self.door.refresh()
         except (CommandError, OSError, TimeoutError) as err:
             raise UpdateFailed(str(err)) from err
+
+        # `refresh()` gathers with return_exceptions=True, so a step the door
+        # answered with silence is reported rather than raised - and the door
+        # does answer with silence, for any command, occasionally. Which of
+        # them was lost decides whether that matters.
+        if blocking := [step for step in failed if step in REQUIRED_REFRESH_STEPS]:
+            raise UpdateFailed(
+                f"{self.door.host}:{self.door.port} did not answer: {', '.join(blocking)}"
+            )
+        if failed:
+            # Everything else is static or cosmetic - the hardware version,
+            # the lifetime counters, the battery on a mains-powered door.
+            # Failing the whole update over one of those would blank a
+            # dashboard that is almost entirely correct.
+            _LOGGER.debug("Refresh incomplete, keeping cached %s", ", ".join(failed))
 
     @callback
     def _handle_push(self, _value: object = None) -> None:
@@ -172,7 +199,7 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
 
     @callback
     def _handle_reconnect(self) -> None:
-        """Mark the coordinator healthy again the moment the door is back.
+        """Re-read the door the moment it is back, and believe only that.
 
         `available` is `door.connected AND last_update_success`, and any
         outage lasting longer than the refresh interval guarantees at least
@@ -183,14 +210,37 @@ class PowerPetDoorCoordinator(DataUpdateCoordinator[None]):
         demonstrably talking to the door again. That is 300 seconds by
         default and the options flow permits 86400.
 
-        `async_set_updated_data` clears the flag and reschedules the poll.
-        Passing None is right for this coordinator: it is
-        `DataUpdateCoordinator[None]` because the library facade owns the
-        cache and entities read it directly - and the library awaits
-        `refresh()` before firing this callback, so that cache is already
-        current.
+        This used to call `async_set_updated_data(None)`, which clears the
+        flag and reschedules - on the grounds that the library awaits
+        `refresh()` before firing this callback, so the cache is already
+        current. It is not necessarily current. `PowerPetDoor.refresh()`
+        gathers with `return_exceptions=True` and reports a failed step to
+        a log, so a dropped `GET_SETTINGS` leaves every setting at its
+        pre-outage value and the reconnect still reports success.
+
+        The door drops requests. It is not a fault condition and no pacing
+        prevents it - any command, including a valid one, is occasionally
+        answered with silence. So the one refresh that matters most is the
+        one with no retry behind it.
+
+        What that costs is not cosmetic. A door that loses mains power
+        comes back with its power flag reset to ON - it does not persist
+        OFF - so a user who had switched the door off in Home Assistant has
+        a cached `False` that is now the opposite of the truth. Every
+        `PowerPetDoorPoweredEntity` keys availability off it, so the cover,
+        the door status, the sensors and the schedules all go
+        `unavailable` together and the device reads as broken, until a poll
+        that was just deferred a full interval finally lands.
+
+        Requesting a refresh instead routes through `_async_update_data`,
+        the one place that raises `UpdateFailed`, so the flag is cleared
+        only by a read that actually happened. It is debounced, which is
+        the right behaviour for a door that is flapping: the first
+        reconnect refreshes immediately and a burst behind it coalesces.
         """
-        self.async_set_updated_data(None)
+        self.config_entry.async_create_background_task(
+            self.hass, self.async_request_refresh(), f"{DOMAIN}-reconnect-resync"
+        )
 
     # -- helpers used by more than one platform ----------------------------
 

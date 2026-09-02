@@ -29,22 +29,23 @@ up to a refresh interval late.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from powerpetdoor import DOOR_STATE_CLOSED, DOOR_STATE_KEEPUP, DoorStatus
 from powerpetdoor.simulator.server import DoorSimulator
+from powerpetdoor.simulator.state import DoorSimulatorState, DoorTimingConfig
 from powerpetdoor.simulator.state import Schedule as SimSchedule
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from .conftest import PUSH_TIMEOUT, settle, watch
+from .conftest import reach, settle, watch
 
 COVER = "cover.power_pet_door_door"
 STATUS = "sensor.power_pet_door_door_status"
 BATTERY = "sensor.power_pet_door_battery"
 MAINS = "binary_sensor.power_pet_door_mains_power"
 CHARGING = "binary_sensor.power_pet_door_battery_charging"
+POWER_SWITCH = "switch.power_pet_door_power"
 INSIDE_SCHEDULE = "binary_sensor.power_pet_door_inside_schedule"
 OUTSIDE_SCHEDULE = "binary_sensor.power_pet_door_outside_schedule"
 
@@ -61,26 +62,6 @@ async def poll(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     """
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
-
-
-async def reach(door: object, status: DoorStatus) -> None:
-    """Wait until the FACADE has seen the door reach `status`.
-
-    Deliberately not `simulated_door.wait_for_status`: that is the far side
-    of the socket. What these tests need to know is that the change crossed
-    the wire and was parsed, which is the moment the entity can follow.
-    """
-    reached = asyncio.Event()
-
-    def _watch(new: DoorStatus) -> None:
-        if new is status:
-            reached.set()
-
-    door.on_status_change(_watch)
-    if door.status is status:
-        reached.set()
-    async with asyncio.timeout(PUSH_TIMEOUT):
-        await reached.wait()
 
 
 # ---------------------------------------------------------------------------
@@ -328,11 +309,15 @@ async def test_a_timezone_changed_on_the_door_reaches_the_select(
     Many IANA zones share one rule, so the attribute is the only place the
     door's literal value is visible - and it is what a bug report needs.
     """
-    simulated_door.state.timezone = "Europe/London"
+    # POSIX, because that is what the door stores and answers with. The
+    # simulator converts an IANA name in its SETTER, so writing the field
+    # directly - as every other test in this file does - has to write the
+    # stored form. This is Europe/London's rule.
+    simulated_door.state.timezone = "GMT0BST,M3.5.0/1,M10.5.0"
     await poll(hass, simulated_entry)
 
     state = hass.states.get("select.power_pet_door_timezone")
-    assert state.attributes["posix_tz"] == simulated_door.state.wire_timezone()
+    assert state.attributes["posix_tz"] == "GMT0BST,M3.5.0/1,M10.5.0"
 
 
 # ---------------------------------------------------------------------------
@@ -667,3 +652,48 @@ async def test_a_real_close_reports_every_state_including_the_first(
 
     # ...and the state the user actually sees is a declared, translated one.
     assert "closing" in hass.states.get(STATUS).attributes["options"]
+
+
+async def test_a_door_that_lost_power_comes_back_powered_and_the_switch_follows(
+    hass: HomeAssistant,
+    simulated_entry: MockConfigEntry,
+    simulated_door: DoorSimulator,
+    simulated_port: int,
+    simulator_timing: DoorTimingConfig,
+) -> None:
+    """A mains interruption resets the door's power flag; the switch must follow.
+
+    Measured on a real door: `power_state` does NOT survive a power cut. Set
+    it false, pull the plug, and the door answers `"true"` again the moment
+    it is back. So a user who turned the door off in Home Assistant, and
+    whose door was then unplugged and restored, has a switch reading the
+    exact opposite of the truth.
+
+    Nothing about the reconnect volunteers the correction. The door
+    announces nothing on boot, and `power_state` is not part of the status
+    push - only a settings read finds it, which is why this asserts on the
+    switch after the reconnect rather than on any push.
+    """
+    door = simulated_entry.runtime_data.door
+    await hass.services.async_call("switch", "turn_off", {"entity_id": POWER_SWITCH}, blocking=True)
+    assert hass.states.get(POWER_SWITCH).state == STATE_OFF
+    assert simulated_door.state.power is False
+
+    # The plug comes out. Bound to the same port, because the door keeps its
+    # address across a reboot and the reconnect is aimed at it.
+    reconnected = watch(door, "on_connect")
+    await simulated_door.stop()
+
+    # ...and goes back in, into a door with the state a real one boots with.
+    rebooted = DoorSimulator(
+        port=simulated_port, state=DoorSimulatorState(timing=simulator_timing, hold_time=1)
+    )
+    await rebooted.start()
+    try:
+        assert rebooted.state.power is True, "a rebooted door is powered"
+        await settle(hass, reconnected)
+        assert hass.states.get(POWER_SWITCH).state == STATE_ON, (
+            "the door came back powered and Home Assistant is still showing it off"
+        )
+    finally:
+        await rebooted.stop()

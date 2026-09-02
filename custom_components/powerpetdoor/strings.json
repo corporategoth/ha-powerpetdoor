@@ -132,6 +132,7 @@
           "closing": "Closing",
           "closing_top_open": "Closing from top",
           "closing_mid_open": "Closing from middle",
+          "poweroff": "Powered off",
           "unknown": "Unknown"
         }
       },
