@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 15
     steps:
       # Pinned by SHA. HACS's docs show `hacs/action@main`; same argument as
-      # hassfest - Dependabot keeps the pin fresh, so there is no upside to
+      # hassfest - Renovate keeps the pin fresh, so there is no upside to
       # tracking a moving branch.
       - name: HACS Action
         uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0

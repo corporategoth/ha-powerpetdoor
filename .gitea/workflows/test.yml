@@ -267,7 +267,7 @@ jobs:
           COVERAGE_FILE: .coverage.py${{ matrix.python-version }}-ha${{ matrix.homeassistant }}
       - name: Upload coverage data
         if: ${{ always() }}
-        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # untagged head
+        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # main
         with:
           name: coverage-py${{ matrix.python-version }}-ha${{ matrix.homeassistant }}
           path: |
@@ -326,7 +326,7 @@ jobs:
         run: npm run test:ci
       - name: Upload card coverage
         if: ${{ always() && matrix.node-version == env.REFERENCE_NODE }}
-        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # untagged head
+        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # main
         with:
           name: coverage-frontend
           path: tests/frontend/coverage/
@@ -377,7 +377,7 @@ jobs:
       # One download step for every matrix entry, without hardcoding the
       # grid: the artifacts are named coverage-*, so fetch them all.
       - name: Download coverage data
-        uses: christopherhx/gitea-download-artifact@75635f32b4c1c41c4b3d64e8f85210112ed4c9c7 # v4
+        uses: christopherhx/gitea-download-artifact@75635f32b4c1c41c4b3d64e8f85210112ed4c9c7 # main
         with:
           pattern: coverage-py*
           path: coverage-data
@@ -405,7 +405,7 @@ jobs:
           flags: python
           fail_ci_if_error: false
       - name: Upload coverage report
-        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # untagged head
+        uses: christopherhx/gitea-upload-artifact@62ac910c5d3dfa85c7cb2df15afe2e342b2407c2 # main
         with:
           name: coverage-report
           path: |

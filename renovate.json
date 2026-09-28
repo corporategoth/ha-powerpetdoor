@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>neuromancy/forge-automation"],
+  "packageRules": [
+    {
+      "description": "pytest-homeassistant-custom-component is pinned per interpreter to the newest Home Assistant each can run, measured by scripts/ha_matrix.py and gated by its pre-commit hook. One version for every marker would break that, so Renovate leaves it (and homeassistant) alone.",
+      "matchPackageNames": ["pytest-homeassistant-custom-component", "homeassistant"],
+      "enabled": false
+    },
+    {
+      "description": "manifest.json pins pypowerpetdoor exactly and pyproject.toml floors it at the same version; they move together in one PR.",
+      "matchPackageNames": ["pypowerpetdoor"],
+      "groupName": "pypowerpetdoor",
+      "rangeStrategy": "bump"
+    }
+  ]
+}

@@ -37,8 +37,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Pinned by SHA rather than @master. This action runs arbitrary code
       # from a third-party repo against our checkout; @master means whatever
-      # landed upstream this morning. Dependabot moves this pin (see
-      # .github/dependabot.yml), so pinning costs nothing in staleness.
+      # landed upstream this morning. Renovate moves this pin (renovate.json;
+      # the `# master` comment tells it which branch head to follow), so
+      # pinning costs nothing in staleness.
       #
       # NOT the v1.0.0 tag, which is the only tag upstream has ever cut and
       # dates from 2020. That version is a Docker action that builds its own
@@ -47,4 +48,4 @@ jobs:
       # anything. It had been failing nightly for months, always looking like
       # our problem. The action is a composite now and runs the prebuilt
       # ghcr.io/home-assistant/hassfest, so track the branch by SHA instead.
-      - uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master@2026-09-27
+      - uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master
