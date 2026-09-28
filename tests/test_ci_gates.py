@@ -822,7 +822,7 @@ def _load_dependency_checker():
 class TestTheDependencyGateCannotPassVacuously:
     """`check_dependencies.py` is a gate; a gate that never fires is a lie.
 
-    It runs at pre-push with `--strict`, so its job is to make a Dependabot
+    It runs at pre-push with `--strict`, so its job is to make a Renovate
     PR impossible by failing before the push that would earn one. Every
     assertion here pins a way it was found answering "all clear" without
     having looked.
@@ -831,7 +831,7 @@ class TestTheDependencyGateCannotPassVacuously:
     def test_the_hook_runs_it_strictly(self):
         """Without `--strict` an available upgrade is printed, not refused.
 
-        Which is the whole condition Dependabot opens a PR for.
+        Which is the whole condition Renovate opens a PR for.
         """
         config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
         hooks = [

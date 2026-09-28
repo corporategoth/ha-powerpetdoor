@@ -163,13 +163,23 @@ they agree.
 
 ### Manually tracked pins (MANDATORY)
 
-`.github/dependabot.yml` covers `github-actions`, `uv`, and `npm`. Two things
-sit outside anything automation can reach:
+Dependency updates come from **Renovate, running on Gitea** (`renovate.json`,
+extending the shared preset in `neuromancy/forge-automation`), not Dependabot:
+GitHub is a push mirror, and the mirror deleted every Dependabot branch -
+closing its PR - within half an hour of it opening. Renovate covers
+`github-actions` in both `.github/` and `.gitea/` (the SHA pins keep their
+`# vX.Y.Z` / `# master` comments; that comment is what Renovate tracks),
+`pep621` + `uv.lock`, `npm`, the Home Assistant manifest, and pre-commit hook
+revs, and runs `uv lock --upgrade` weekly (lock file maintenance). Security
+fixes (OSV) skip the Monday window. Pending updates are listed on the
+"Dependency Dashboard" issue.
 
-| Pin | Where | Why automation cannot see it |
-|-----|-------|------------------------------|
-| `neuromancy/workflows/.gitea/workflows/sync-github-wiki.yml@<sha>` | `.gitea/workflows/sync-wiki.yml` | Dependabot has no Gitea support. This is also the **only** `uses:` in the repo that receives a secret, so its SHA pin matters more than the rest |
-| Transitive versions in `uv.lock` | `uv.lock` | `uv sync` never upgrades what is already pinned. Run `uv lock --upgrade` periodically and re-run the full suite |
+Still by hand:
+
+| Pin | Where | Why |
+|-----|-------|-----|
+| `pytest-homeassistant-custom-component` (one pin per interpreter) | `pyproject.toml` | Chosen by `scripts/ha_matrix.py`; Renovate is told to leave it alone |
+| `christopherhx/gitea-*-artifact` | `.github/workflows/test.yml` | Upstream publishes no tags, so Renovate can only follow `main` by digest; review those bumps like code |
 
 ### Never make the CI matrix an expression
 

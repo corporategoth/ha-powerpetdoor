@@ -152,7 +152,7 @@ repos:
         stages: [pre-commit]
 
       # `--strict`, so "a newer version exists" fails rather than being
-      # reported. Dependabot files a ticket for exactly that condition, and
+      # reported. Renovate files a PR for exactly that condition, and
       # it only ever sees what was *pushed* - so failing here is what makes
       # a ticket impossible, and it is the last point where refreshing the
       # lock and re-running the suite is affordable.
