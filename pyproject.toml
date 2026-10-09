@@ -87,7 +87,7 @@ dev = [
     "pypowerpetdoor[simulator]>=0.5.1",
     # Static analysis
     "mypy>=1.13.0",
-    "ruff>=0.8.0",
+    "ruff>=0.17.0",
     # Runs the hooks in .pre-commit-config.yaml; installed by
     # scripts/setup-dev.sh, which is what a fresh clone should run.
     "pre-commit>=3.7.0",

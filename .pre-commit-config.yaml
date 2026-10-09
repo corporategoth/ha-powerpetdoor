@@ -24,7 +24,7 @@ repos:
     # Keep in step with the ruff floor in pyproject's dev group; a hook that
     # formats differently from CI's `ruff format --check` turns every commit
     # into a fight with the lint job.
-    rev: v0.16.9
+    rev: v0.17.0
     hooks:
       - id: ruff-check
         args: [--fix]
