@@ -48,4 +48,4 @@ jobs:
       # anything. It had been failing nightly for months, always looking like
       # our problem. The action is a composite now and runs the prebuilt
       # ghcr.io/home-assistant/hassfest, so track the branch by SHA instead.
-      - uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master
+      - uses: home-assistant/actions/hassfest@86d4564712fa02543c808e3a693dd04f9d3f8361 # master
