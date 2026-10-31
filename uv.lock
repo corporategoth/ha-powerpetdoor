@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.13.2"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -1853,7 +1853,7 @@ dev = [
     { name = "pytest-timeout", specifier = ">=2.3.0" },
     { name = "pytest-xdist", specifier = ">=3.6.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.8.0" },
+    { name = "ruff", specifier = "==0.16.9" },
     { name = "syrupy", specifier = ">=4.7.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
 ]
